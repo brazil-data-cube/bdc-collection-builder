@@ -1,0 +1,17 @@
+{
+  "DATACLOUD": {
+    "url": "http://www.dpi.inpe.br/cloudsearch/", 
+    "urlr": "http://ds_cloudsearch:5004/", 
+    "type": "opensearch"
+  },
+  "DATASTORM": {
+    "url": "http://www.dpi.inpe.br/cubesearch/", 
+    "urlr": "http://ds_cubesearch:5003/", 
+    "type": "opensearch"
+  },
+  "DATASTORE": {
+    "url": "http://www.dpi.inpe.br/datasearch/", 
+    "urlr": "http://ds_opensearch:5002/", 
+    "type": "opensearch"
+  }
+}

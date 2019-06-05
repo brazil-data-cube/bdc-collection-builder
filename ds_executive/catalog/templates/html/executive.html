@@ -1,0 +1,63 @@
+<div class="sidebar-pane" id="maestro">
+    <h1 class="sidebar-header">Maestro<span class="sidebar-close"><i class="fa fa-caret-left"></i></span></h1>
+    <div class="container-fluid nopadding-left" style="margin-top: 10px">
+        <form role="form" id="startForm">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="satellite">Satellite</label>
+                        <select class="custom-select" name="type" id="satellite">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="process">Instrument</label>
+                        <select class="custom-select" name="instrument" id="instrument">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="start">From</label>
+                        <input class="form-control form-control-sm datepicker-start" type="text" placeholder="2015-01-01"
+                            name="start" id="startPicker2" data-bind="2">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="end">To</label>
+                        <input class="form-control form-control-sm datepicker-end" type="text" placeholder="2015-12-30"
+                            name="end" id="endPicker2" data-bind="2">
+                    </div>
+                </div>
+                <div class="col-sm-12">
+                    <div class="form-group">
+                        <label for="drd">DRD</label>
+                        <div class="input-group mb-3">
+                            <input class="form-control form-control-sm" type="text" placeholder="" name="drd" id="drd">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="showdrds" data-toggle="collapse"
+                                    data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample"><i
+                                        class="fa fa-list-alt" aria-hidden="true"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-12">
+                    <div class="collapse" id="collapseExample">
+                        <div class="list-group" id="drdList" role="tablist"></div>
+                        <ul class="pagination justify-content-center" id="drdPagination"></ul>
+                    </div>
+                </div>
+            </div>
+            <div class="row" style="margin-top: 10px">
+                <div class="col">
+                    <button type="submit" class="btn btn-primary base-color" id="startSubmit">Start Process</button>
+                </div>
+            </div>
+        </form>
+        </br>
+        <h3>Under Development :)</h3>
+    </div>
+</div>

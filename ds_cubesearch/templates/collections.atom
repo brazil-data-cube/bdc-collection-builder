@@ -1,0 +1,30 @@
+
+{% extends "base.atom" %}
+{% block updated%}
+    <updated> {{ updated }}</updated>
+{% endblock %}
+{% block osdd %}
+    <link href="{{ url_root }}opensearch/osdd/collections" rel="search" title="OS Collections" type="application/opensearchdescription+xml"/>
+{% endblock %}
+{% block content %}
+    <os:Query role="request" totalResults="{{ total_results }}" {% for key, value in request.args.items() %} {{ key }}="{{ value }}"{% endfor %}/>
+{% if request.args.get('bbox') is not none %}
+    {% set minx, miny, maxx, maxy = request.args.get('bbox').split(',') %}
+    <georss:polygon>{{ miny }} {{ minx }} {{ miny }} {{ maxx }} {{ maxy }} {{ maxx }} {{ maxy }} {{ minx }} {{ miny }} {{ minx }}</georss:polygon>
+{% endif %}
+{% if total_results > 0 %}
+{% for item in data %}
+    <entry>
+        <id>{{ url_root }}opensearch/collections.atom?uid={{ item.Satellite }}{{ item.Sensor }}</id>
+        <title>Satellite: {{ item.Satellite }}, Sensor: {{ item.Sensor }}</title>
+        <summary>Collection for the {{ item.Satellite}} satellite using the {{ item.Sensor }} sensor.</summary>
+        <updated>{{ item.Date }}</updated>
+        <link rel="search" type="application/opensearchdescription+xml" href="{{ url_root }}opensearch/osdd/granule/{{ item.Satellite }}{{ item.Sensor }}"/>
+        <link rel="alternate" type="application/atom+xml" title="ATOM entry link" href="{{ url_root }}opensearch/collections.atom?uid={{ item.Satellite }}{{ item.Sensor }}"/>
+        <link rel="via" type="application/atom+xml" title="ATOM entry link" href="{{ url_root }}opensearch/collections.atom?uid={{ item.Satellite }}{{ item.Sensor }}"/>
+        <link rel="enclosure" href="http://www.dgi.inpe.br/catalogo"  title="Product download URL" type="text/html"/>
+        <dc:identifier>{{ url_root }}opensearch/collections.atom?uid={{ item.Satellite }}{{ item.Sensor }}</dc:identifier>
+    </entry>
+{% endfor %}
+{% endif %}
+{% endblock %}

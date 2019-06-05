@@ -1,0 +1,7 @@
+flask
+flask-bootstrap
+gunicorn
+requests
+sqlalchemy
+mysqlclient
+geomet

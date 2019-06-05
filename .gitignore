@@ -1,0 +1,41 @@
+#gitignore for bdc project
+#20190605 - initial version
+
+
+#Local Environment Settings
+bdc.yml
+start.sh
+stop.sh
+
+
+# Logs and installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+**/*.log
+
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*$py.class
+**/__pycache__
+*pyc
+**/*pyc
+
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# General Mac Files
+.DS_Store
+.AppleDouble
+.LSOverride
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent

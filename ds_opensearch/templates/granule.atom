@@ -1,0 +1,49 @@
+{%  extends "base.atom" %}{% block osdd %}
+    <link href="{{ url_root }}" rel="search" title="OS Scene" type="application/opensearchdescription+xml"/>
+        {% endblock %}
+        {% block content %}
+{% if request.args.get('bbox') is not none %}
+    {% set minx, miny, maxx, maxy = request.args.get('bbox').split(',') %}
+    <georss:polygon>{{ miny }} {{ minx }} {{ miny }} {{ maxx }} {{ maxy }} {{ maxx }} {{ maxy }} {{ minx }} {{ miny }} {{ minx }}</georss:polygon>
+{% endif %}
+    <os:Query role="request" totalResults="{{ data.totalResults }}" {% for key, value in request.args.items() %} {{ key }}="{{ value }}"{% endfor %}/>
+{% if total_results > 0 %}{% for item in data.features %}<entry>
+        <title>
+            {{ item.properties.title }}
+        </title>
+        <id>{{ item.properties.via }}</id>
+        <updated>{{ item.properties.updated }}</updated>
+        <link rel="alternate" type="application/atom+xml" title="ATOM entry link" href="{{ item.properties.alternate }}"/>
+        <link rel="via" href="{{ item.properties.metadata  }}"  title="Original source metadata" type="text/xml"/>
+        <link rel="icon" href="{{ item.properties.icon }}"  title="Browse image URL" type="image/jpeg"/>
+        {% for enc in item.properties.enclosure %}
+        <link rel="enclosure" href="{{ enc.url }}"  title="Type: {{ enc.type }} Radiometric Processing: {{ enc.radiometric_processing }}Band: {{ enc.band }} " type="image/tiff"/>
+        {% endfor %}
+        <georss:polygon>
+            {{ item.properties.TL_Latitude }} {{ item.properties.TL_Longitude }} {{ item.properties.TR_Latitude }} {{ item.properties.TR_Longitude }} {{ item.properties.BR_Latitude }} {{ item.properties.BR_Longitude }} {{ item.properties.BL_Latitude }} {{ item.properties.BL_Longitude }} {{ item.properties.TL_Latitude }} {{ item.properties.TL_Longitude}}
+        </georss:polygon>
+        <content type="html">
+            <![CDATA[
+            <a href="{{ item.properties.icon }}">
+                <img height="200" src="{{ item.properties.icon }}" align="right"/>
+	        </a>
+	        <ul>
+	          <li><b>Satellite :</b> {{ item.properties.Satellite }}</li>
+	          <li><b>Sensor :</b> {{ item.properties.Sensor }}</li>
+	          <li><b>Acquisition Date :</b> {{ item.properties.Date }}</li>
+	          <li><b>Path :</b> {{ item.properties.Path }}</li>
+	          <li><b>Row :</b> {{ item.properties.Row }}</li>
+	          <li><b>Orbit :</b> {{ item.properties.Orbit }}</li>
+	          <li><b>ImageOrientation :</b> {{ item.properties.ImageOrientation }}</li>
+	          <li><b>Cloud Cover Q1 :</b> {{ item.properties.CloudCoverQ1 }}</li>
+	          <li><b>Cloud Cover Q2 :</b> {{ item.properties.CloudCoverQ2 }}</li>
+	          <li><b>Cloud Cover Q3 :</b> {{ item.properties.CloudCoverQ3 }}</li>
+	          <li><b>Cloud Cover Q4 :</b> {{ item.properties.CloudCoverQ4 }}</li>
+            </ul>
+            <a href="{{ item.properties.metadata }}"> Metadata </a>
+            ]]>
+        </content>
+    </entry>
+{% endfor %}
+{% endif %}
+{% endblock %}

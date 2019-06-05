@@ -1,0 +1,95 @@
+<div class="sidebar-pane" id="home" style="padding-right: 0px; padding-bottom: 0px">
+    <h1 class="sidebar-header">Catalog Search<span class="sidebar-close"><i class="fa fa-caret-left"></i></span></h1>
+    <div class="container-fluid nopadding-left" style="margin-top: 10px">
+        <form role="form" id="searchForm">
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="form-group">
+                        <label for="BoundingBox">Bounding Box</label>
+                        <input class="form-control form-control-sm" type="text" placeholder="West, South , East, North. Eg: -52.23,-25.22,-43.10,-20.58"
+                            name="bbox" id="bbox">
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="path">Path</label>
+                        <input class="form-control form-control-sm" type="number" placeholder="220" name="path" id="path">
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="row">Row</label>
+                        <input class="form-control form-control-sm" type="number" placeholder="63" name="row" id="row">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="band">Band</label>
+                        <select class="custom-select" name="band" id="bandSelect">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="start">From</label>
+                        <input class="form-control form-control-sm datepicker-start" type="text" placeholder="2015-01-01"
+                            name="start" id="startPicker" data-bind="">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="end">To</label>
+                        <input class="form-control form-control-sm datepicker-end" type="text" placeholder="2015-12-30"
+                            name="end" id="endPicker" data-bind="">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="start">Type</label>
+                        <select class="custom-select" name="type" id="typeSelect">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="radiometricProcessing">RadiometricProcessing</label>
+                        <select class="custom-select" name="radiometricProcessing" id="radiometricProcessingSelect">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="count">Count</label>
+                        <input class="form-control form-control-sm" type="number" value="10" name="count" id="count">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="startIndex">Start Index</label>
+                        <input class="form-control form-control-sm" type="number" placeholder="1" name="startIndex" id="startIndex">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="collectionId">Dataset/Datacube</label>
+                        <select class="custom-select" name="dataset" id="collectionIdSelect">
+                        </select>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <label for="providers">Providers</label>
+                    <div class="col-sm-10" id="providersCheck"></div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <button type="submit" class="btn btn-primary base-color" id="searchSubmit">Search</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="container-fluid nopadding-left" style="margin-top: 15px">
+        <div class="accordion" id="accordion-results">
+        </div>
+    </div>
+</div>

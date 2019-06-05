@@ -1,0 +1,96 @@
+{
+  "CB4_AWFI": {
+    "blue": "BAND13", 
+    "evi": "EVI", 
+    "green": "BAND14", 
+    "ndvi": "NDVI", 
+    "nir": "BAND16", 
+    "quality": "CMASK_PIXEL_TOA", 
+    "red": "BAND15"
+  }, 
+  "CB4_MUX": {
+    "blue": "BAND5", 
+    "evi": "EVI", 
+    "green": "BAND6", 
+    "ndvi": "NDVI", 
+    "nir": "BAND8", 
+    "quality": "CMASK_PIXEL_TOA", 
+    "red": "BAND7"
+  }, 
+  "LC8_OLI": {
+    "blue": "B2", 
+    "cirrus": "B9", 
+    "coastal": "B1", 
+    "green": "B3", 
+    "nir": "B5", 
+    "pan": "B8", 
+    "quality": "BQA", 
+    "red": "B4", 
+    "swir1": "B6", 
+    "swir2": "B7"
+  }, 
+  "LC8SR": {
+    "blue": "sr_band2", 
+    "coastal": "sr_band1", 
+    "evi": "sr_evi", 
+    "green": "sr_band3", 
+    "ndvi": "sr_ndvi", 
+    "nir": "sr_band5", 
+    "quality": "pixel_qa", 
+    "red": "sr_band4", 
+    "swir1": "sr_band6", 
+    "swir2": "sr_band7"
+  }, 
+  "MOD13Q1": {
+    "ndvi": 0, 
+    "evi": 1, 
+    "red": 3, 
+    "nir": 4, 
+    "blue": 5, 
+    "swir2": 6,
+    "quality": 11
+  }, 
+  "MYD13Q1": {
+    "ndvi": 0, 
+    "evi": 1, 
+    "red": 3, 
+    "nir": 4, 
+    "blue": 5, 
+    "swir2": 6,
+    "quality": 11
+  }, 
+  "PS4": {
+    "blue": 1, 
+    "green": 2, 
+    "nir": 4, 
+    "quality": "udm", 
+    "red": 3
+  }, 
+  "RE": {
+    "blue": 1, 
+    "green": 2, 
+    "nir": 5, 
+    "red": 3, 
+    "redge": 4
+  }, 
+  "S2SR": {
+    "blue": "B02", 
+    "coastal": "B01", 
+    "green": "B03", 
+    "nir": "B08", 
+    "red": "B04", 
+    "swir1": "B11", 
+    "swir2": "B12",
+    "quality": "SCL"
+  }
+, 
+  "S2_MSI": {
+    "blue": "B02", 
+    "coastal": "B01", 
+    "green": "B03", 
+    "nir": "B08", 
+    "red": "B04", 
+    "swir1": "B11", 
+    "swir2": "B12"
+  }
+}

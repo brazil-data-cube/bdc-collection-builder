@@ -1,0 +1,8 @@
+requests
+scikit-image
+scikit-learn
+sqlalchemy
+redis
+flask
+numpy
+numpngw

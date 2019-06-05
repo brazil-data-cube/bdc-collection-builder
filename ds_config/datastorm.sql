@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: ds_db
--- Generation Time: 05-Jun-2019 às 12:12
+-- Generation Time: 05-Jun-2019 às 16:11
 -- Versão do servidor: 10.3.15-MariaDB-1:10.3.15+maria~bionic
 -- versão do PHP: 7.2.14
 
@@ -21,6 +21,8 @@ SET time_zone = "+00:00";
 --
 -- Database: `datastorm`
 --
+CREATE DATABASE IF NOT EXISTS `datastorm` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+USE `datastorm`;
 
 -- --------------------------------------------------------
 
@@ -98,7 +100,6 @@ CREATE TABLE `products` (
   `start` date NOT NULL,
   `end` date NOT NULL,
   `type` varchar(16) NOT NULL DEFAULT 'SCENE',
-  `dataset` varchar(16) NOT NULL,
   `sceneid` varchar(64) NOT NULL,
   `band` varchar(16) NOT NULL,
   `cloud` float NOT NULL,

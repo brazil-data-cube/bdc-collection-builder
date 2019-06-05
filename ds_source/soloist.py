@@ -285,9 +285,9 @@ def openSearchINPE(activity):
 			scene['dataset'] = satsen
 			if satsen == 'LC8SR':
 				scene['resolution'] = 30
-			elif satsen == 'CBERS-4_AWFI':
+			elif satsen == 'CB4_AWFI':
 				scene['resolution'] = 64
-			elif satsen == 'CBERS-4_MUX':
+			elif satsen == 'CB4_MUX':
 				scene['resolution'] = 20
 			elif satsen == 'S2SR':
 				scene['resolution'] = 10

@@ -218,7 +218,7 @@ def getMask(filename,dataset):
 	for i in range(0,unique.shape[0]):
 		app.logger.warning('getMask -  i {} unique {} counts {}'.format(i,unique[i],counts[i]))
 
-	cmdataset = driver.Create( masked, mdataset.RasterXSize, mdataset.RasterYSize, 1, gdal. GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
+	cmdataset = driver.Create( masked, mdataset.RasterXSize, mdataset.RasterYSize, 1, gdal. GDT_UInt16,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 	# Set the geo-transform to the dataset
 	cmdataset.SetGeoTransform([geotransform[0], geotransform[1], 0, geotransform[3], 0, geotransform[5]])
 	# Create a spatial reference object for the dataset
@@ -386,6 +386,7 @@ def doBlend(activity):
 
 # The general name for the blended scene and location
 	driver = gdal.GetDriverByName('GTiff')
+	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
 	dir = '/Repository/Mosaic/{}/{}/{}-{}'.format(activity['datacube'],activity['tileid'],activity['start'],activity['end'])
 	if not os.path.exists(dir):
 		os.makedirs(dir)
@@ -445,13 +446,14 @@ def doBlend(activity):
 
 # Create the STACK image file
 	generalSceneFile = os.path.join(dir,'{}_{}_STACK.tif'.format(generalSceneId,band))
-	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
+	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW', 'TILED=YES'] )
 	blenddataset.SetGeoTransform([template['xmin'], template['resx'], 0, template['ymax'], 0, -template['resy']])
 	scenesrs = osr.SpatialReference()
 	scenesrs.ImportFromProj4(template['srs'])
 	blenddataset.SetProjection ( scenesrs.ExportToWkt() )
 	blenddataset.GetRasterBand(1).SetNoDataValue(0)
 	blenddataset.GetRasterBand(1).WriteArray( outputraster )
+	blenddataset.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 	blenddataset = None
 	app.logger.warning('doBlend - created {}'.format(generalSceneFile))
 	newscene['warped'] = generalSceneFile
@@ -468,13 +470,14 @@ def doBlend(activity):
 		results.append(mean_subset)
 	outputraster = numpy.concatenate(results,axis=1)
 	generalSceneFile = os.path.join(dir,'{}_{}_MEAN.tif'.format(generalSceneId,band))
-	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
+	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 	blenddataset.SetGeoTransform([template['xmin'], template['resx'], 0, template['ymax'], 0, -template['resy']])
 	scenesrs = osr.SpatialReference()
 	scenesrs.ImportFromProj4(template['srs'])
 	blenddataset.SetProjection ( scenesrs.ExportToWkt() )
 	blenddataset.GetRasterBand(1).SetNoDataValue(0)
 	blenddataset.GetRasterBand(1).WriteArray( outputraster )
+	blenddataset.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 	blenddataset = None
 	app.logger.warning('doBlend - created {}'.format(generalSceneFile))
 	newscene['warped'] = generalSceneFile
@@ -491,13 +494,14 @@ def doBlend(activity):
 		results.append(median_subset)
 	outputraster = numpy.concatenate(results,axis=1)
 	generalSceneFile = os.path.join(dir,'{}_{}_MEDIAN.tif'.format(generalSceneId,band))
-	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
+	blenddataset = driver.Create( generalSceneFile, template['numcol'], template['numlin'], 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 	blenddataset.SetGeoTransform([template['xmin'], template['resx'], 0, template['ymax'], 0, -template['resy']])
 	scenesrs = osr.SpatialReference()
 	scenesrs.ImportFromProj4(template['srs'])
 	blenddataset.SetProjection ( scenesrs.ExportToWkt() )
 	blenddataset.GetRasterBand(1).SetNoDataValue(0)
 	blenddataset.GetRasterBand(1).WriteArray( outputraster )
+	blenddataset.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 	blenddataset = None
 	app.logger.warning('doBlend - created {}'.format(generalSceneFile))
 	newscene['warped'] = generalSceneFile
@@ -536,6 +540,7 @@ def doMerge(activity):
 	
 # Scenes acquired on the sane day will be merged in one general scene in a single file
 	driver = gdal.GetDriverByName('GTiff')
+	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
 	wdataset = None
 	for dataset in sorted(scenesByDay):
 		mergedscenes = {}
@@ -574,11 +579,12 @@ def doMerge(activity):
 				if os.path.exists(generalSceneFile):
 					os.remove(generalSceneFile)
 					app.logger.warning('doMerge - {} - exists {}'.format(activity['id'],generalSceneFile))
-				mergeddataset = driver.Create( generalSceneFile, wdataset.RasterXSize, wdataset.RasterYSize, 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
+				mergeddataset = driver.Create( generalSceneFile, wdataset.RasterXSize, wdataset.RasterYSize, 1, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 				mergeddataset.SetGeoTransform( wdataset.GetGeoTransform() )
 				mergeddataset.SetProjection ( wdataset.GetProjection() )
 				mergeddataset.GetRasterBand(1).SetNoDataValue(0)
 				mergeddataset.GetRasterBand(1).WriteArray( rasterMerge )
+				mergeddataset.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 				mergeddataset = None
 
 				newscene = scenesByDay[dataset][band][date]['scenes'][0].copy()
@@ -810,7 +816,7 @@ AND wrs.tileid = scenes.tileid \
 
 # Create the final warped raster
 		driver = gdal.GetDriverByName('GTiff')
-		dst_ds = driver.CreateCopy(warped, tmp_ds,  options = [ 'COMPRESS=LZW' ] )
+		dst_ds = driver.CreateCopy(warped, tmp_ds,  options = [ 'COMPRESS=LZW', 'TILED=YES' ] )
 		dst_ds = None
 		tmp_ds = None
 
@@ -1126,7 +1132,7 @@ def getForestMask(activity,template,which='forest'):
 # Create the final Forest Mask raster
 	app.logger.warning( 'getForestMask - creating '+forestmask)
 	tif_drv = gdal.GetDriverByName('GTiff')
-	dst_ds = tif_drv.CreateCopy(forestmask, forest_ds,  options = [ 'COMPRESS=LZW' ] )
+	dst_ds = tif_drv.CreateCopy(forestmask, forest_ds,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 	dst_ds = None
 	raster = forest_ds.GetRasterBand(1).ReadAsArray(0, 0, forest_ds.RasterXSize, forest_ds.RasterYSize).astype(numpy.uint8)
 	forest_ds = None
@@ -1344,7 +1350,7 @@ http://nbviewer.jupyter.org/gist/om-henners/c6c8d40389dab75cf535
 	sbands = '_'.join(bands)
 	classfile = activity['dir']+'/'+'Prodes_{}_{}_{}_{}_birch.tif'.format(activity['tileid'],activity['previousstart'],sbands,type)
 	app.logger.warning('detectChange creating - {}'.format(classfile))
-	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW' ] )
+	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 # Set the geo-transform to the classdataset
 	classdataset.SetGeoTransform( geotransform )
 # Create a spatial reference object for the dataset
@@ -1387,7 +1393,7 @@ http://nbviewer.jupyter.org/gist/om-henners/c6c8d40389dab75cf535
 	sbands = '_'.join(bands)
 	classfile = activity['dir']+'/'+'Prodes_{}_{}_{}_{}_rf.tif'.format(activity['tileid'],activity['previousstart'],sbands,type)
 	app.logger.warning('detectChange creating - {}'.format(classfile))
-	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW' ] )
+	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 # Set the geo-transform to the classdataset
 	classdataset.SetGeoTransform( geotransform )
 # Create a spatial reference object for the dataset
@@ -1456,7 +1462,7 @@ http://nbviewer.jupyter.org/gist/om-henners/c6c8d40389dab75cf535
 	sbands = '_'.join(bands)
 	classfile = activity['dir']+'/'+'Prodes_{}_{}_{}_{}_clean_rf.tif'.format(activity['tileid'],activity['start'],sbands,type)
 	app.logger.warning('detectChangeBRF creating - {}'.format(classfile))
-	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW' ] )
+	classdataset = driver.Create( classfile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 # Set the geo-transform to the classdataset
 	classdataset.SetGeoTransform( geotransform )
 # Create a spatial reference object for the dataset
@@ -1580,7 +1586,7 @@ def detectChange(activity,template,previousFile, currentFile, band, type, forest
 	if True or not os.path.exists(difffile):
 		app.logger.warning('detectChange creating - {}'.format(difffile))
 		#diffdataset = driver.Create( difffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW' ] )
-		diffdataset = driver.Create( difffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW' ] )
+		diffdataset = driver.Create( difffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 # Set the geo-transform to the diffdataset
 		diffdataset.SetGeoTransform( geotransform )
 # Create a spatial reference object for the dataset
@@ -1608,7 +1614,7 @@ def detectChange(activity,template,previousFile, currentFile, band, type, forest
 		im = morphology.binary_dilation(im,strel)
 
 		difffile = activity['dir']+'/'+'Prodes_{}_{}_{}_{}_clean_diff.tif'.format(activity['tileid'],activity['start'],band,type)
-		diffdataset = driver.Create( difffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW' ] )
+		diffdataset = driver.Create( difffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Byte,  options = [ 'COMPRESS=LZW','TILED=YES' ] )
 # Set the geo-transform to the diffdataset
 		diffdataset.SetGeoTransform( geotransform )
 # Create a spatial reference object for the dataset

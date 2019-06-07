@@ -858,16 +858,23 @@ def inspect():
 	global MAX_THREADS,CUR_THREADS
 	msg = 'Maestro Processing:\n'
 	status = request.args.get('status', None)
+	cube_name = request.args.get('cubename', None)
 	lock = getLock()
 	msg += 'lock is: {}\n'.format(lock)
 	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
 	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 	
-	if status is not None:
-		sql = "SELECT * FROM activities WHERE status = '{}' ORDER BY id".format(status)
-	else:
-		sql = "SELECT * FROM activities ORDER BY id"
+	sql = "SELECT * FROM activities"
+	if status is not None or cube_name is not None:
+		sql += "WHERE "
+
+		if status is not None:
+			sql += "status = '{}' ".format(status)
+		elif cube_name is not None:
+			sql += "and datacube = '{}' ".format(cube_name)
+
+	sql += "ORDER BY id"
 	result = do_query(sql)
 
 	for activity in result:

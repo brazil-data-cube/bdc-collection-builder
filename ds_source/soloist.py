@@ -1912,7 +1912,7 @@ parser.add_argument("-p", "--projection", default='sinu',help="WRS projection (l
 	argswrsname = request.args.get('w', None)
 	if argswrsname is None:
 		return 'wrsname (w) was not defined\n'
-	argsprojection = request.args.get('proj', 'sinu')
+	argsprojection = request.args.get('proj', 'aea')
 	argsdegreesx = float(request.args.get('dx', 10.))
 	argsdegreesy = float(request.args.get('dy', 10.))
 	argsmeridian = float(request.args.get('m', 0.))
@@ -1927,7 +1927,6 @@ parser.add_argument("-p", "--projection", default='sinu',help="WRS projection (l
 		tilesrsp4 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 	tilesrs = osr.SpatialReference()
 	tilesrs.ImportFromProj4(tilesrsp4)
-	#app.logger.warning('genwrs -  argsprojection {} tilesrsp4 {} argsnumberofpixels {}'.format(argsprojection,tilesrsp4,argsnumberofpixels))
 	app.logger.warning('genwrs -  argsprojection {} tilesrsp4 {}'.format(argsprojection,tilesrsp4))
 
 	ll2tile = osr.CoordinateTransformation ( llsrs, tilesrs )

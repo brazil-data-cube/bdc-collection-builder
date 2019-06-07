@@ -35,7 +35,7 @@ redis = Redis(host="redis", db=0)
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'search':{'current':0,'maximum':4},'download':{'current':0,'maximum':2},'warp':{'current':0,'maximum':6},'merge':{'current':0,'maximum':4},'blend':{'current':0,'maximum':1}}
+ACTIVITIES = {'search':{'current':0,'maximum':4},'download':{'current':0,'maximum':4},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':2}}
 
 ###################################################
 def getLock():

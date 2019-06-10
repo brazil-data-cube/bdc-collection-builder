@@ -1790,9 +1790,10 @@ def createDataCube():
 	return jsonify(result)
 
 ##################################################
-@app.route('/cubeinfo', methods=['GET'])
-def cubeInfos():
-    sql = "SELECT * FROM datacubes"
+@app.route('/cubestatus', methods=['GET'])
+def cubeStatus():
+    cubename = request.args.get('cubename', None)
+    sql = "SELECT count(*), status FROM `activities` WHERE datacube = '{}' group by status".format(cubename)
     result = do_query(sql)
     return jsonify(result)
 

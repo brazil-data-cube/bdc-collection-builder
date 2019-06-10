@@ -1,5 +1,7 @@
 # bdc-scripts
 
+## Infrastructure for creating brazil data cube environment in a local server machine
+
 ## Modules
 
 
@@ -20,4 +22,10 @@
 **ds_source:** Python source codes 
 
 **ds_utils:** Python API for accessing data cube and general tools
+
+
+
+
+
+### TODO : Write instructions to deploy and run aplication
 

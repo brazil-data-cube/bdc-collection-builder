@@ -865,14 +865,17 @@ def inspect():
 	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 	
-	sql = "SELECT * FROM activities"
+	sql = "SELECT * FROM activities "
 	if status is not None or cube_name is not None:
 		sql += "WHERE "
 
 		if status is not None:
 			sql += "status = '{}' ".format(status)
+			if cube_name is not None:
+				sql += "and datacube = '{}' ".format(cube_name)
+
 		elif cube_name is not None:
-			sql += "and datacube = '{}' ".format(cube_name)
+			sql += "datacube = '{}' ".format(cube_name)
 
 	sql += "ORDER BY id"
 	result = do_query(sql)

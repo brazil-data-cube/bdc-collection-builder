@@ -3,7 +3,7 @@
 ## Modules
 
 
-**ds_config:** Store definitions and system configs (Reference Grids, Spetral bands mapping, etc)
+**ds_config:** Definitions and system configs (Reference Grids, Spetral bands mapping, etc)
 
 **ds_cubesearch:** Web interface to view datacubes, download products, etc.
 
@@ -19,5 +19,5 @@
 
 **ds_source:** Python source codes 
 
-**ds_utils:** Python API for accessing data cube
+**ds_utils:** Python API for accessing data cube and general tools
 

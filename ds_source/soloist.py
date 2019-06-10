@@ -1803,6 +1803,13 @@ def wrsInfos():
     result = do_query(sql)
     return jsonify(result)
 
+##################################################
+@app.route('/cubeinfo', methods=['GET'])
+def cubeInfos():
+	sql = "SELECT * FROM datacubes"
+	result = do_query(sql)
+	return jsonify(result)
+
 
 ###################################################
 @app.route('/run', methods=['GET'])

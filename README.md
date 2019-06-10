@@ -3,9 +3,9 @@
 ## Modules
 
 
-* ds_config: Store definitions and system configs (Reference Grids, Spetral bands mapping, etc)
+###* ds_config:### Store definitions and system configs (Reference Grids, Spetral bands mapping, etc)
 
-* ds_cubesearch: Web interface to view datacubes, download products, etc.
+###* ds_cubesearch: Web interface to view datacubes, download products, etc.
 
 * ds_executive: Web interface for management of datacubes (definition, creating, execution)
 

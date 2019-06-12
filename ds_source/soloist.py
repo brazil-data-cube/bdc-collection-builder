@@ -875,6 +875,14 @@ def publish(activity):
 			wrs[key] = val
 	else:
 		return 1,'Tile not found in wrs table'
+            
+# Delete scenes from database
+	params = "1"
+	for key in ['datacube','tileid','start','end']:
+		params += " AND {} = '{}'".format(key,activity[key])
+		
+	sql = "DELETE FROM scenes WHERE {}".format(params)
+	do_command(sql)
 
 # Evaluate corners coordinates in longlat
 	llsrs = osr.SpatialReference()
@@ -886,17 +894,6 @@ def publish(activity):
 	(TL_Longitude, TL_Latitude, z ) = tile2ll.TransformPoint( wrs['xmin'], wrs['ymax'])
 	(TR_Longitude, TR_Latitude, z ) = tile2ll.TransformPoint( wrs['xmax'], wrs['ymax'])
 	(BR_Longitude, BR_Latitude, z ) = tile2ll.TransformPoint( wrs['xmax'], wrs['ymin'])
-
-# Delete scenes from database
-        params = "1"
-        for key in ['datacube','tileid','start','end']:
-                params += " AND {} = '{}'".format(key,activity[key])
-
-        sql = "DELETE FROM products WHERE {}".format(params)
-        do_command(sql)
-
-        sql = "DELETE FROM qlook WHERE {}".format(params)
-        do_command(sql)
 
 # Get which blended scenes are related to this mosaic
 	for type in ['MEDIAN','STACK']:

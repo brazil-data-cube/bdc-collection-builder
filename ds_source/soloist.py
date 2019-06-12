@@ -887,6 +887,17 @@ def publish(activity):
 	(TR_Longitude, TR_Latitude, z ) = tile2ll.TransformPoint( wrs['xmax'], wrs['ymax'])
 	(BR_Longitude, BR_Latitude, z ) = tile2ll.TransformPoint( wrs['xmax'], wrs['ymin'])
 
+# Delete scenes from database
+        params = "1"
+        for key in ['datacube','tileid','start','end']:
+                params += " AND {} = '{}'".format(key,activity[key])
+
+        sql = "DELETE FROM products WHERE {}".format(params)
+        do_command(sql)
+
+        sql = "DELETE FROM qlook WHERE {}".format(params)
+        do_command(sql)
+
 # Get which blended scenes are related to this mosaic
 	for type in ['MEDIAN','STACK']:
 		generalSceneId = '{}_{}_{}_{}'.format(activity['datacube'],activity['tileid'],activity['start'],type)

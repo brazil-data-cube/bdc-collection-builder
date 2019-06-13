@@ -74,11 +74,17 @@
     "redge": 4
   }, 
   "S2SR": {
-    "blue": "B02", 
     "coastal": "B01", 
+    "blue": "B02",
     "green": "B03", 
-    "nir": "B08", 
-    "red": "B04", 
+    "red": "B04",
+    "redge1": "B05",
+    "redge2": "B06",
+    "redge3": "B07",
+    "nir": "B08",
+    "bnir": "B08A",
+    "wvap": "B09",
+    "cirrus": "B10", 
     "swir1": "B11", 
     "swir2": "B12",
     "quality": "SCL"

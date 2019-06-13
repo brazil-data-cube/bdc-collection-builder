@@ -264,7 +264,7 @@ def openSearchINPE(activity):
 	satsens = datacube['satsen'].split(',')
 	for satsen in satsens:
 		if satsen.find('CB4') == 0:
-			query = 'http://www.dpi.inpe.br/opensearch/v2/granule.json?dataset={0}'.format(satsen)
+			query = 'http://www.dpi.inpe.br/opensearch/granule.json?dataset={0}'.format(satsen)
 		else:
 			query = 'http://chronos.dpi.inpe.br:5002/granule.json?dataset={0}'.format(satsen)
 		query += '&bbox={0},{1},{2},{3}'.format(w,s,e,n)
@@ -380,7 +380,7 @@ def doBlend(activity):
 	sql = "SELECT * FROM scenes WHERE {} ORDER by resolution ASC,efficacy DESC".format(params)
 	scenes = do_query(sql)
 	if len(scenes) == 0:
-		return 1,'No acene for activity'
+		return 1,'No scene for activity'
 	numscenes = len(scenes)
 	band = activity['band']
 

@@ -1,7 +1,7 @@
 from datastorm import Datastorm
 
 host = 'http://localhost:5002'
-host = 'http://www.dpi.inpe.br/opensearch/v2'
+host = 'http://www.dpi.inpe.br/opensearch/'
 
 datacube = 'prodes'
 datacube = 'CB4_AWFI'

@@ -266,13 +266,13 @@ def openSearchINPE(activity):
 		if satsen.find('CB4') == 0:
 			query = 'http://www.dpi.inpe.br/opensearch/granule.json?dataset={0}'.format(satsen)
 		else:
-			query = 'http://chronos.dpi.inpe.br:5002/granule.json?dataset={0}'.format(satsen)
+			query = 'http://www.dpi.inpe.br/datasearch/granule.json?dataset={0}'.format(satsen)
 		query += '&bbox={0},{1},{2},{3}'.format(w,s,e,n)
 		query += '&start={0}'.format(activity['start'])
 		query += '&end={0}'.format(activity['end'])
 		#query += '&type=SCENE'
 		query += '&count=200'
-		#app.logger.warning('openSearchINPE {}'.format(query))
+		app.logger.warning('openSearchINPE {}'.format(query))
 		r = requests.get(query)
 		if r.status_code != 200:
 			return r.status_code,'Error in connection'
@@ -875,14 +875,18 @@ def publish(activity):
 			wrs[key] = val
 	else:
 		return 1,'Tile not found in wrs table'
-            
+
 # Delete scenes from database
 	params = "1"
 	for key in ['datacube','tileid','start','end']:
 		params += " AND {} = '{}'".format(key,activity[key])
 		
-	sql = "DELETE FROM scenes WHERE {}".format(params)
+	sql = "DELETE FROM products WHERE {}".format(params)
 	do_command(sql)
+
+	sql = "DELETE FROM qlook WHERE {}".format(params)
+	do_command(sql)
+       
 
 # Evaluate corners coordinates in longlat
 	llsrs = osr.SpatialReference()
@@ -906,6 +910,7 @@ def publish(activity):
 				params += " AND {} = '{}'".format(key,activity[key])
 
 			sql = "SELECT * FROM scenes WHERE {}".format(params)
+			
 			scenes = do_query(sql)
 			#qlfiles.append(scenes[0]['warped'])
 			files[band] = scenes[0]['warped']

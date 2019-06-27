@@ -5,7 +5,7 @@
     "green": "BAND14", 
     "ndvi": "NDVI", 
     "nir": "BAND16", 
-    "quality": "CMASK_PIXEL_TOA", 
+    "quality": "CMASK_GRID_SURFACE", 
     "red": "BAND15"
   }, 
   "CB4_MUX": {
@@ -14,7 +14,7 @@
     "green": "BAND6", 
     "ndvi": "NDVI", 
     "nir": "BAND8", 
-    "quality": "CMASK_PIXEL_TOA", 
+    "quality": "CMASK_GRID_SURFACE", 
     "red": "BAND7"
   }, 
   "LC8_OLI": {

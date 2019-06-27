@@ -1026,7 +1026,7 @@ def generateQLook(generalSceneId,qlfiles):
 	app.logger.warning('generateQLook - Y {} X {} {}'.format(dataset.RasterYSize,dataset.RasterXSize,image.shape))
 	nb = 0
 	pngname = os.path.join(dirname,'{}.png'.format(generalSceneId))
-	tifname = os.path.join(dirname,'{}.tif'.format(generalSceneId))
+	tifname = os.path.join(dirname,'{}_RGB.tif'.format(generalSceneId))
 	rgbdataset = driver.Create( tifname, dataset.RasterXSize, dataset.RasterYSize, 3, gdal.GDT_UInt16,  options = [ 'COMPRESS=LZW' ] )
 	rgbdataset.SetGeoTransform( dataset.GetGeoTransform() )
 	rgbdataset.SetProjection ( dataset.GetProjection() )

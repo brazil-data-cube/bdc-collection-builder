@@ -21,14 +21,17 @@ Infrastructure for creating brazil data cube environment in a local server machi
 
 - [`ds_utils`](./ds_utils): Python API for accessing data cube and general tools
 
-## Installation
 
 ### Requirements
 
-Make sure you have the following libraries installed:
+Make sure you have the following libraries and tools installed:
 
 - [`Python 3`](https://www.python.org/)
-- ?Docker?
+- [Docker?] - Docker version 18.06.1 or later 
+- [Docker Compose] docker-compose version 1.22.0 or later
+
+## Installation
+
 
 ## Running with docker
 ```

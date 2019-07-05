@@ -27,8 +27,8 @@ Infrastructure for creating brazil data cube environment in a local server machi
 Make sure you have the following libraries and tools installed:
 
 - [`Python 3`](https://www.python.org/)
-- [Docker] - (https://www.docker.com/) Docker version 18.06.1 or later 
-- [Docker Compose] (https://docs.docker.com/compose/) docker-compose version 1.22.0 or later
+- [Docker](https://www.docker.com/) Docker version 18.06.1 or later 
+- [Docker Compose](https://docs.docker.com/compose/) docker-compose version 1.22.0 or later
 
 ## Installation
 

@@ -35,7 +35,7 @@ redis = Redis(host="redis", db=0)
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'search':{'current':0,'maximum':4},'download':{'current':0,'maximum':4},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':2}}
+ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
 
 ###################################################
 def getLock():
@@ -908,13 +908,28 @@ def restart():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'search':{'current':0,'maximum':4},'download':{'current':0,'maximum':2},'warp':{'current':0,'maximum':6},'merge':{'current':0,'maximum':4},'blend':{'current':0,'maximum':1}}
+	ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()
 	return msg
 
+##################################################
+@app.route('/do2ch', methods=['GET'])
+def do2ch():
+	global MAX_THREADS,CUR_THREADS,ACTIVITIES
+	msg = 'Maestro restarting:\n Change stucked DOING processes to CHECK status\n'
+	sql = "UPDATE activities SET status='CHECK' WHERE status = 'DOING'"
+	
+	do_command(sql)
+	msg += 'sql - {}\n'.format(sql)
+	CUR_THREADS = 0
+	ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
+	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
+	start()
+	return msg
+	
 ###################################################
 @app.errorhandler(400)
 def handle_bad_request(e):

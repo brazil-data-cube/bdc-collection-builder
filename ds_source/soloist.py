@@ -1824,6 +1824,12 @@ def cubeInfos():
 	result = do_query(sql)
 	return jsonify(result)
 
+##################################################
+@app.route('/tiles', methods=['GET'])
+def cubeTiles():
+	sql = "SELECT distinct(tileid) FROM mosaics"
+	result = do_query(sql)
+	return jsonify(result)
 
 ###################################################
 @app.route('/run', methods=['GET'])

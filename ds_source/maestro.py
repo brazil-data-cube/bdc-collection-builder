@@ -17,8 +17,10 @@ import numpy
 import openpyxl
 from openpyxl.chart import ScatterChart, Reference, Series
 from openpyxl.comments import Comment
+from flask_cors import CORS
 
 app = Flask(__name__)
+cors = CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['PROPAGATE_EXCEPTIONS'] = True
 app.logger_name = "maestro"
 handler = logging.FileHandler('maestro.log')

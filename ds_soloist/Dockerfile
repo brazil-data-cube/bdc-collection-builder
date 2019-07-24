@@ -67,6 +67,7 @@ RUN conda install -y \
   gdal \
   gunicorn \
   flask \
+  flask-cors \
   redis \
   sqlalchemy \
   mysqlclient \

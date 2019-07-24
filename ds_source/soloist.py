@@ -32,8 +32,10 @@ import zipfile
 import utils
 from  utils import c2jyd,do_insert,do_update,do_upsert,do_query,do_command,decodePeriods,decodePathRow
 import shutil
+from flask_cors import CORS
 
 app = Flask(__name__)
+cors = CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['PROPAGATE_EXCEPTIONS'] = True
 app.logger_name = "publisher"
 handler = logging.FileHandler('soloist.log')
@@ -2357,6 +2359,57 @@ def loadMGRS():
 		engine.execute(sql)
 	engine.dispose()
 	return 'OK'
+
+#########################################
+@app.route('/checkCubes', methods=['GET'])
+def checkCubes():
+	base_dir = "/Repository/Mosaic/"
+
+	cube_name = request.args.get('cube', None)
+	apply_remove = bool(request.args.get('remove', False))
+	if not cube_name:
+		return "Name field is missing!"
+
+	elif not os.path.isdir("{}/{}".format(base_dir, cube_name)):
+		return "Cube:{} not found!".format(cube_name)
+
+	else:
+		errors = []
+		for path, _, files in os.walk("{}/{}".format(base_dir, cube_name)):
+			for file in files:
+				if ".tif" in file:
+					filepath = "{}/{}".format(path, file)
+
+					try:
+						raster = gdal.Open(filepath)
+						projection = raster.GetProjection()
+						if not projection:
+							errors.append({
+								"file": filepath,
+								"msg":  "projection not found!"
+							})
+							if apply_remove == True:
+								os.remove(filepath)
+
+					except Exception as e:
+						errors.append({
+							"file": filepath,
+							"msg": "error opening!"
+						})
+						if apply_remove == True:
+							os.remove(filepath)
+
+		if len(errors) > 0:
+			with open('./result_check_cubes.json', 'w') as outfile:
+				json.dump(errors, outfile)
+
+		return jsonify({
+			"statusCode": 200,
+			"body": json.dumps({
+				"message": "Success. No error files!" if len(errors) == 0 else "Errors saved in 'result_check_cubes.json'"
+			})
+		})
+
 
 @app.errorhandler(400)
 def handle_bad_request(e):

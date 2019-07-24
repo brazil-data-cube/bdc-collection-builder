@@ -6,7 +6,7 @@
 bdc.yml
 start.sh
 stop.sh
-
+ds_source/result_check_cubes.json
 
 # Logs and installer logs
 pip-log.txt

@@ -1,5 +1,6 @@
 gunicorn
 flask
+flask_cors
 redis
 sqlalchemy
 mysqlclient

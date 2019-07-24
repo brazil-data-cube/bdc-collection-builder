@@ -4,5 +4,6 @@ scikit-learn
 sqlalchemy
 redis
 flask
+flask_cors
 numpy
 numpngw

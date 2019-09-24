@@ -37,7 +37,7 @@ redis = Redis(host="redis", db=0)
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
+ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
 
 ###################################################
 def getLock():
@@ -337,13 +337,126 @@ def manage(activity):
 	return
 
 ###################################################
+# @app.route('/process', methods=['GET'])
+# def process():
+# 	global MAX_THREADS
+# 	msg = 'process - Maestro Processing:\n'
+# 	name = request.args.get('datacube', 'LC8')
+# 	msg += 'process - datacube is: {}\n'.format(name)
+# 	pathrow = request.args.get('pr', None)
+
+# # Manage lock
+# 	lock = getLock()
+# 	app.logger.warning('process - lock is: {}'.format(lock))
+# 	msg += 'process - lock is: {}\n'.format(lock)
+
+# # Manage MAX_THREADS
+# 	nt = request.args.get('nt', None)
+# 	msg += 'process - nt is: {}\n'.format(nt)
+# 	app.logger.warning('process - nt is: {}'.format(nt))
+# 	if MAX_THREADS is None:
+# 		MAX_THREADS = int(os.environ.get('MAX_THREADS'))
+# 		app.logger.warning('process - MAX_THREADS was None, now is: {} nt is: {}'.format(MAX_THREADS,nt))
+# 	if nt is not None:
+# 		MAX_THREADS = int(nt)
+# 	app.logger.warning('process - MAX_THREADS is: {} nt is: {}'.format(MAX_THREADS,nt))
+# 	msg += 'process - MAX_THREADS is: {} nt is: {}\n'.format(MAX_THREADS,nt)
+
+# # Retrieve datacube info
+# 	datacube = {}
+# 	sql = "SELECT * FROM datacubes WHERE datacube = '{}'".format(name)
+# 	result = do_query(sql)
+# 	if len(result) > 0:
+# 		for key,val in result[0].items():
+# 			datacube[key] = val
+# 	else:
+# 		app.logger.warning('process - datacube {} not yet created'.format(name))
+# 		return 'process - datacube {} not yet created'.format(name)
+
+# # Get the time line for the datacube
+# 	periodlist = decodePeriods(datacube['tschema'],datacube['start'],datacube['end'],datacube['step'])
+# 	app.logger.warning('process - periodlist {}'.format(periodlist))
+
+# # Get the requested period to be processed
+# 	dstart = request.args.get('start', None)
+# 	dend   = request.args.get('end', None)
+
+# # Decode the requested tiles to be processed
+# 	tileidlist = []
+# 	if pathrow is not None:
+# 		tileidlist = decodePathRow(pathrow)
+# 	else:
+# 		sql = "SELECT DISTINCT tileid FROM mosaics WHERE datacube = '{}'".format(datacube['datacube'])
+# 		results = do_query(sql)
+# 		for result in results:
+# 			tileidlist.append(result['tileid'])
+# 	app.logger.warning('process - tileidlist {}'.format(tileidlist))
+
+# # Retrieve the mosaics to be processed
+# 	for tileid in tileidlist:
+# # Get the wrs information for this tile
+# 		sql = "SELECT * FROM wrs WHERE name = '{}' AND tileid = '{}'".format(datacube['wrs'],tileid)
+# 		wrs = do_query(sql,True)
+# 		if wrs is None:
+# 			continue
+
+# 		for datekey in sorted(periodlist):
+# 			requestedperiod = periodlist[datekey]
+# 			for periodkey in requestedperiod:
+# 				(basedate,startdate,enddate) = periodkey.split('_')
+# 				if dstart is not None and startdate < dstart : continue
+# 				if dend is not None and enddate > dend : continue
+
+# # If this mosaic is not registered, insert it on mosaics table
+# 				where = "WHERE datacube = '{}'".format(datacube['datacube'])
+# 				where += " AND start >= '{}'".format(startdate)
+# 				where += " AND end <= '{}'".format(enddate)
+# 				where += " AND tileid = '{}'".format(tileid)
+# 				sql = "SELECT * FROM mosaics {}".format(where)
+# 				results = do_query(sql)
+# 				if len(results) == 0:
+# 					mosaics = {}
+# 					mosaics['datacube'] = datacube['datacube']
+# 					mosaics['tileid'] = tileid
+# 					mosaics['start'] = startdate
+# 					mosaics['end'] = enddate
+# 					mosaics['numcol'] = int(round((wrs['xmax']-wrs['xmin'])/datacube['resx'],0))
+# 					mosaics['numlin'] = int(round((wrs['ymax']-wrs['ymin'])/datacube['resy'],0))
+# 					do_insert('mosaics',mosaics)
+
+
+# # Process the mosaic
+# 				results = do_query(sql)
+# 				activity = {}
+# 				activity['app'] = 'search'
+# 				activity['status'] = 'NOTDONE'
+# 				activity['priority'] = 1
+# 				activity['ttable'] = 'mosaics'
+# 				for result in results:
+# 					activity['tid'] = result['id']
+# 				for key in ['datacube','tileid','start','end']:
+# 					activity[key] = result[key]
+# 				app.logger.warning('process - activity {}'.format(activity))
+# 				do_upsert('activities',activity,['id','status','pstart','pend','elapsed','retcode','message'])
+# 				#return jsonify(activity)
+
+# 	return start()
+
+###################################################
 @app.route('/process', methods=['GET'])
 def process():
 	global MAX_THREADS
-	msg = 'process - Maestro Processing:\n'
-	name = request.args.get('datacube', 'LC8')
-	msg += 'process - datacube is: {}\n'.format(name)
+
+	name = request.args.get('datacube', None)
+	if not name: 
+		return 'datacube name is required'
+
 	pathrow = request.args.get('pr', None)
+	if not pathrow:
+		return 'pathrow is required'
+	
+	msg = 'process - Maestro ReProcessing:\n'
+	msg += 'process - datacube is: {}\n'.format(name)
 
 # Manage lock
 	lock = getLock()
@@ -373,13 +486,16 @@ def process():
 		app.logger.warning('process - datacube {} not yet created'.format(name))
 		return 'process - datacube {} not yet created'.format(name)
 
-# Get the time line for the datacube
-	periodlist = decodePeriods(datacube['tschema'],datacube['start'],datacube['end'],datacube['step'])
-	app.logger.warning('process - periodlist {}'.format(periodlist))
+# define new range temporal of the cube
+	dstart = datetime.datetime.strptime(request.args.get('start'), '%Y-%m-%d').date() if request.args.get('start') else None
+	dend = datetime.datetime.strptime(request.args.get('end'), '%Y-%m-%d').date() if request.args.get('end') else None
+	if not dstart or not dend:
+		return 'date start and date end is required'
 
-# Get the requested period to be processed
-	dstart = request.args.get('start', None)
-	dend   = request.args.get('end', None)
+# Get the time line for the datacube
+	end_period = datacube['end'] if datacube['end'] >= dend else dend
+	periodlist = decodePeriods(datacube['tschema'],datacube['start'],end_period,datacube['step'])
+	app.logger.warning('process - periodlist {}'.format(periodlist))
 
 # Decode the requested tiles to be processed
 	tileidlist = []
@@ -404,8 +520,9 @@ def process():
 			requestedperiod = periodlist[datekey]
 			for periodkey in requestedperiod:
 				(basedate,startdate,enddate) = periodkey.split('_')
-				if dstart is not None and startdate < dstart : continue
-				if dend is not None and enddate > dend : continue
+				if datetime.datetime.strptime(startdate, '%Y-%m-%d').date() < dstart or datetime.datetime.strptime(enddate, '%Y-%m-%d').date() > dend:
+					print( "jumped", datetime.datetime.strptime(startdate, '%Y-%m-%d').date() )
+					continue
 
 # If this mosaic is not registered, insert it on mosaics table
 				where = "WHERE datacube = '{}'".format(datacube['datacube'])
@@ -424,7 +541,6 @@ def process():
 					mosaics['numlin'] = int(round((wrs['ymax']-wrs['ymin'])/datacube['resy'],0))
 					do_insert('mosaics',mosaics)
 
-
 # Process the mosaic
 				results = do_query(sql)
 				activity = {}
@@ -436,9 +552,19 @@ def process():
 					activity['tid'] = result['id']
 				for key in ['datacube','tileid','start','end']:
 					activity[key] = result[key]
+
+# remove activity if exists
+				sql_delete = "DELETE FROM activities WHERE datacube = '{}' AND tileid = '{}' and start = '{}' and end = '{}'".format(
+					activity['datacube'], activity['tileid'], activity['start'], activity['end'])
+				do_command(sql_delete)
+
+# insert Activity with search
 				app.logger.warning('process - activity {}'.format(activity))
 				do_upsert('activities',activity,['id','status','pstart','pend','elapsed','retcode','message'])
 				#return jsonify(activity)
+	if dend > datacube['end']:
+		sql_update = "UPDATE datacubes SET end = '{}' WHERE datacube = '{}'".format(dend, activity['datacube'])
+		do_command(sql_update)
 
 	return start()
 
@@ -910,14 +1036,28 @@ def restart():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
+	ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()
 	return msg
 
-##################################################
+###################################################
+@app.route('/pause', methods=['GET'])
+def pause():
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES
+        msg = 'Maestro restarting:\n'
+        id = request.args.get('id', None)
+        sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
+        do_command(sql)
+        msg += 'sql - {}\n'.format(sql)
+        msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
+
+        return msg
+
+####################################################
 @app.route('/do2ch', methods=['GET'])
+#Update status from DOING (zombies) to CHECK
 def do2ch():
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES
 	msg = 'Maestro restarting:\n Change stucked DOING processes to CHECK status\n'
@@ -926,12 +1066,46 @@ def do2ch():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'search':{'current':0,'maximum':6},'download':{'current':0,'maximum':6},'warp':{'current':0,'maximum':8},'merge':{'current':0,'maximum':8},'blend':{'current':0,'maximum':3}}
+	ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()
 	return msg
 	
+
+###################################################
+@app.route('/deldice', methods=['GET'])
+def deldice():
+	datacube = request.args.get('datacube', None)
+	tileid = request.args.get('tileid', None)
+	startdate = request.args.get('startdate', None)
+	msg = 'Delete rows from a specific cube/tile/date\n'
+	if datacube is None or tileid is None or startdate is None:
+		msg = 'Supply all variables (datacube, tileid, startdate)\n'
+	else:
+		sql = "DELETE FROM scenes WHERE datacube = '{0}' AND tileid ='{1}' AND start = '{2}'".format(datacube,tileid,startdate)
+		do_command(sql)
+		sql = "DELETE FROM activities WHERE datacube = '{0}' AND tileid ='{1}' AND start = '{2}'".format(datacube,tileid,startdate)
+		do_command(sql)
+		sql = "DELETE FROM products WHERE datacube = '{0}' AND tileid ='{1}' AND start = '{2}'".format(datacube,tileid,startdate)
+		do_command(sql)
+		sql = "DELETE FROM qlook WHERE datacube = '{0}' AND tileid ='{1}' AND start = '{2}'".format(datacube,tileid,startdate)
+		do_command(sql)
+
+	# Delete all related files
+		warped = '/Repository/Warped/{0}/{1}/{2}*'.format(datacube,tileid,startdate)
+		msg += '{}\n'.format(warped)
+		mosaic = '/Repository/Mosaic/{0}/{1}/{2}*'.format(datacube,tileid,startdate)
+		msg += '{}\n'.format(mosaic)
+		if os.path.exists(warped):
+			shutil.rmtree(warped)
+		if os.path.exists(mosaic):
+			shutil.rmtree(mosaic)
+		resp = jsonify({'code': 200, 'message': 'Normal execution'})
+		resp.status_code = 200
+		#return resp
+	return msg
+
 ###################################################
 @app.errorhandler(400)
 def handle_bad_request(e):

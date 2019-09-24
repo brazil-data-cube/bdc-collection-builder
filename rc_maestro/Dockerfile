@@ -45,7 +45,6 @@ RUN conda update -y python conda && \
   pytz \
   python-dateutil \
   scikit-image \
-  scikit-learn \
   networkx \
   pillow \
   six \
@@ -54,12 +53,10 @@ RUN conda update -y python conda && \
 RUN conda install -y \
   pip \
   setuptools \
-#  notebook \
   ipywidgets \
-#  terminado \
   psutil \
   numpy \
-  scipy=1.0.0 \
+  scipy \
   pandas \
   bokeh \
 #  scikit-learn \
@@ -74,20 +71,20 @@ RUN conda install -y \
   requests \
  && conda clean -tipsy
  
- RUN pip install --upgrade pip && pip install numpngw h5py
+RUN pip install --upgrade pip && pip install numpngw h5py
  
 # Set the working directory to /app
 WORKDIR /app
 
-# Create config directory  /config
-RUN mkdir /ds_config
+# Install any needed packages specified in requirements.txt
+ADD requirements.txt /app
+RUN pip install --trusted-host pypi.python.org -r requirements.txt
 
 # Setting environment variables
 ENV PYTHONUNBUFFERED 1
-ENV PYTHONPATH=$PYTHONPATH:/ds_include
 
 # Expose the Flask port
-EXPOSE 5021
+EXPOSE 5030
 
 # Run the maestro application
-CMD [ "python3", "soloist_wsgi.py" ]
+CMD [ "python3", "rc_maestro_wsgi.py" ]

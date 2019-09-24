@@ -23,6 +23,8 @@ rc_espa-science/config_utils.py
 rc_espa-science/rc_espa.py
 rc_sen2cor/Sen2Cor-02.05.05-Linux64.run
 rc_sen2cor/root/
+ds_utils/dstest.py
+
 
 #Local Environment Settings
 bdc.yml

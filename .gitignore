@@ -21,7 +21,7 @@ rc_espa-science/api_interface.py
 rc_espa-science/combine_l8_aux_data
 rc_espa-science/config_utils.py
 rc_espa-science/rc_espa.py
-rc_sen2cor/Sen2Cor-02.05.05-Linux.run
+rc_sen2cor/Sen2Cor-02.05.05-Linux64.run
 rc_sen2cor/root/
 
 #Local Environment Settings

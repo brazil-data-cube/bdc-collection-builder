@@ -2320,7 +2320,7 @@ def uploadS2(scene):
 		#logging.warning('uploadS2 tiff {} mykey {}'.format(tiff,mykey))
 		
 		try:
-			tc = boto3.s3.transfer.TransferConfig()
+			tc = boto3.s3.transfer.TransferConfig(use_threads=True,max_concurrency=ACTIVITIES['uploadS2']['maximum'])
 			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
 			t.upload_file( tiff, bucket_name, mykey, extra_args={'ACL': 'public-read'})
 		except Exception as e:

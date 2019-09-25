@@ -2,17 +2,48 @@
 #20190605 - initial version
 
 
+#Password files that need to be commited
+bdc_compose.yml
+bdc_swarm.yml
+rc_espa-science/updatelads.py
+
+#local files that will be deleted
+swarm_cb2.yml
+bdc_teste.yml
+commands.txt
+rc_maestro/rc_maestro_versions/
+rc_pull_images_registry_DPI.sh
+
+#Check if these files are required
+rc_espa-science/.usgs/espa/processing.conf
+rc_espa-science/Dockerfile_bk
+rc_espa-science/api_interface.py
+rc_espa-science/combine_l8_aux_data
+rc_espa-science/config_utils.py
+rc_espa-science/rc_espa.py
+rc_sen2cor/Sen2Cor-02.05.05-Linux64.run
+rc_sen2cor/root/
+ds_utils/dstest.py
+
+
 #Local Environment Settings
 bdc.yml
 start.sh
 stop.sh
 ds_source/result_check_cubes.json
+rc_maestro/accessKeys.csv
+rc_maestro/secrets_s2.csv
+rc_maestro/secrets_USGS.csv
+rc_maestro/secrets_S2.JSON
 
 # Logs and installer logs
 pip-log.txt
 pip-delete-this-directory.txt
 *.log
 **/*.log
+rc_maestro/maestro.log
+rc_sen2cor/root/sen2cor/2.5/log/
+error_msg.txt
 
 #XLS File
 stats.xlsx
@@ -41,3 +72,5 @@ venv.bak/
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+
+

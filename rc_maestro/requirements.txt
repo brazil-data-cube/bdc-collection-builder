@@ -1,0 +1,11 @@
+gunicorn
+flask
+redis
+mysqlclient
+sqlalchemy
+requests
+numpy
+usgs
+bs4
+awscli
+boto3

@@ -3044,7 +3044,7 @@ def start():
 ###################################################
 def manage(activity):
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
-	ACTIVITIES['downloadS2']['maximum'] = getS2Users()
+	#ACTIVITIES['downloadS2']['maximum'] = getS2Users()
 	app.logger.warning('manage start - lock : {} CUR_THREADS : {} ACTIVITIES : {} activity {}'.format(redis.get('rc_lock'),CUR_THREADS,ACTIVITIES,activity))
 
 # Create the critical region while database is modified. Leave it if sleeping time is greater than 10 units to avoid sleeping forever in a buggy situation
@@ -3391,6 +3391,24 @@ def restart():
 
 	start()
 	return msg
+
+###################################################
+@app.route('/restartdb', methods=['GET'])
+def restartdb():
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES
+        msg = 'rc_maestro updatedb from DOING TO NOTDONE:\n'
+        id = request.args.get('id', None)
+        if id is None:
+                sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+        else:
+                sql = "UPDATE activities SET status='NOTDONE' WHERE id = {}".format(id)
+        do_command(sql)
+        msg += 'sql - {}\n'.format(sql)
+        CUR_THREADS = 0
+        reset()
+        start()
+        return msg
+
 
 ###################################################
 @app.route('/inspect', methods=['GET'])

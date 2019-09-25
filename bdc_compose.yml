@@ -1,0 +1,182 @@
+version: '3.1'
+
+networks:
+  bdc_net:
+
+services:
+  ds_db:
+    container_name : ds_db
+    image: mariadb
+    restart: always
+    ports:
+      - "select_a_port:select_a_port"
+    command: --max-connections=264 --connect_timeout=20 --wait_timeout=720
+    volumes:
+      - /mysqldata:/var/lib/mysql
+      - /mysqltmp:/tmp
+    environment:
+      - MYSQL_ROOT_PASSWORD= set_your_password
+    networks:
+      - bdc_net
+
+
+  admin:
+    container_name : ds_admin
+    image: phpmyadmin/phpmyadmin:latest
+    ports:
+      - select_a_port:select_a_port
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=ds_db
+    networks:
+      - bdc_net
+
+
+  redis:
+    container_name : redis
+    image: redis:latest
+    ports:
+      - "select_a_port:select_a_port"
+    command: redis-server --appendonly yes
+    networks:
+      - bdc_net
+
+
+  ds_maestro:
+    container_name : ds_maestro
+    image: registry.dpi.inpe.br/ds_maestro
+    restart: always 
+    ports:
+      - select_a_port:select_a_port
+    volumes:
+      - /ds_source:/app
+      - /ds_include:/ds_include
+      - /ds_config:/ds_config
+      - /:/Repository
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+       DB_PASS: select_a_password
+       DB_USER: select_a_user
+       DB_NAME: datastorm
+       DB_HOST: ds_db:select_a_port
+       SOLOIST_HOST: ds_soloist:select_a_port
+       RADCOR_HOST: rc_maestro:select_a_port
+       MAX_THREADS: 24
+    networks:
+      - bdc_net
+
+  ds_soloist:
+    container_name : ds_soloist
+    image: registry.dpi.inpe.br/ds_soloist
+    restart: always 
+    ports:
+      - select_a_port:select_a_port
+    volumes:
+      - /ds_source:/app
+      - /ds_include:/ds_include
+      - /ds_config:/ds_config
+      - /:/Repository
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+       DB_PASS: select_a_password
+       DB_USER: select_a_user
+       DB_NAME: datastorm
+       DB_HOST: ds_db:select_a_port
+       MAESTRO_HOST: ds_maestro:select_a_port
+       RADCOR_HOST: rc_maestro:select_a_port
+       MAX_THREADS: 12
+    networks:
+      - bdc_net
+
+
+  ds_cubesearch:
+    container_name : ds_cubesearch
+    image: registry.dpi.inpe.br/ds_cubesearch
+    restart: always 
+    ports:
+      - select_a_port:select_a_port
+    volumes:
+      - /ds_cubesearch:/app
+    environment:
+        DB_PASS: select_a_password
+        DB_USER: select_a_user
+        DB_NAME: datastorm
+        DB_HOST: ds_db:select_a_port
+        BASE_HOST: ds_cubesearch
+        BASE_PORT: select_a_port
+        BASE_URL: http://brazildatacubeXX.dpi.inpe.br/
+        ENCLOSURE_BASE: http://brazildatacubeXX.dpi.inpe.br/
+        CUBESEARCH_HOST: 0.0.0.0
+        CUBESEARCH_PORT: select_a_port
+    networks:
+      - bdc_net
+
+
+#  rc_sen2cor:
+#    container_name : rc_sen2cor
+#    image: registry.dpi.inpe.br/rc_sen2cor
+#    restart: always
+#    ports:
+#      - select_a_port:select_a_port
+#    volumes:
+#      - /:/app
+#      - /rc_sen2cor/root:/root
+#      - /:/dados
+#      - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data/CCI4SEN2COR
+#    networks:
+#      - bdc_net
+
+
+  rc_maestro:
+    container_name : rc_maestro
+    image: registry.dpi.inpe.br/rc_maestro
+    restart: always
+    ports:
+      - select_a_port:select_a_port
+    volumes:
+      - /rc_maestro:/app
+      - /LC8:/LC8
+      - /LC8SR:/LC8SR
+      - /S2_MSI:/S2_MSI
+      - /tmp:/tmp
+      - /S2SR:/S2SR
+      - /MOD13Q1:/MOD13Q1
+      - /MYD13Q1:/MYD13Q1
+      - /:/Repository
+      - /:/Modis
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+       DB_PASS: set_a_password
+       DB_USER: set_a_user
+       DB_NAME: radcor
+       DB_HOST: ds_db:select_a_port
+       CATALOG_PASS: select_a_password
+       CATALOG_USER: select_a_user
+       CATALOG_NAME: select_catalog_name
+       CATALOG_HOST: select_host:select_a_port
+       SEN2COR_HOST: rc_sen2cor:select_a_port
+       ESPA_HOST: rc_espa-science:select_a_port
+       MAX_THREADS: 18
+    networks:
+      - bdc_net
+
+
+#  rc_espa-science:
+#    container_name : rc_espa-science
+#    image: registry.dpi.inpe.br/rc_espa-science
+#    restart: always
+#    ports:
+#      - select_a_port:select_a_port
+#
+#    volumes:
+#      - /rc_espa-science:/app
+#      - /:/tmp
+#      - /:/home/espa/work-dir:rw
+#      - /:/home/espa/output-data:rw
+#      - /:/home/espa/input-data:ro
+#      - /:/usr/local/auxiliaries:rw
+#      - /rc_espa-science/.usgs:/home/espa/.usgs:ro
+#    environment:
+#      L8_AUX_DIR: /usr/local/auxiliaries/L8
+#    networks:
+#      - bdc_net

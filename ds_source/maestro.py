@@ -1106,6 +1106,9 @@ def deldice():
 		#return resp
 	return msg
 
+	start()
+	return msg
+	
 ###################################################
 @app.errorhandler(400)
 def handle_bad_request(e):
@@ -1155,3 +1158,4 @@ def handle_exception(e):
 	resp.status_code = 500
 	resp.headers.add('Access-Control-Allow-Origin', '*')
 	return resp
+

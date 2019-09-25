@@ -17,7 +17,9 @@ Infrastructure for creating brazil data cube environment in a local server machi
 
 - [`ds_soloist`](./ds_soloist): Docker and components that execute datacube tasks 
 
-- [`ds_source`](./ds_source): Python source codes - [`ds_utils`](./ds_utils): Python API for accessing data cube and general tools
+- [`ds_source`](./ds_source): Python source codes 
+
+- [`ds_utils`](./ds_utils): Python API for accessing data cube and general tools
 
 
 ### Requirements
@@ -36,3 +38,4 @@ Make sure you have the following libraries and tools installed:
 run build.sh 
 ```
 ### TODO : Write instructions to deploy and run aplication
+

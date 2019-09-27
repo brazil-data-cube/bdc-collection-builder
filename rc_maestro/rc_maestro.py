@@ -52,7 +52,7 @@ app.logger.warning('connected to Redis.')
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'uploadS2':{'current':0,'maximum':2},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':0},'sen2cor':{'current':0,'maximum':0},'espa':{'current':0,'maximum':0}}
+ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':0},'espa':{'current':0,'maximum':0}}
 
 
 s2users = {}
@@ -3079,10 +3079,12 @@ def manage(activity):
 			safeL2Afull = activity['file'].replace('MSIL1C','MSIL2A')
 			if not os.path.exists(safeL2Afull) and not islevel2A:
 				activity['app'] = 'sen2cor'
+				activity['status'] = 'NOTDONE'
 			else:
 				activity['priority'] = 0
 				activity['app'] = 'publishS2'
-			activity['status'] = 'NOTDONE'
+				# activity['status'] = 'TOLATER'
+				activity['status'] = 'NOTDONE'
 			activity['message'] = ''
 			activity['retcode'] = 0
 			app.logger.warning('manage going to sen2cor safeL2Afull : {} - activity {}'.format(safeL2Afull,activity))
@@ -3094,9 +3096,11 @@ def manage(activity):
 			activity['priority'] = 2
 			if not espaDone(activity):
 				activity['app'] = 'espa'
+				activity['status'] = 'NOTDONE'
 			else:
 				activity['app'] = 'publishLC8'
-			activity['status'] = 'NOTDONE'
+				# activity['status'] = 'TOLATER'
+				activity['status'] = 'NOTDONE'
 			activity['message'] = ''
 			activity['retcode'] = 0
 			do_upsert('activities',activity,['id','status','link','file','start','end','elapsed','retcode','message'])
@@ -3106,6 +3110,7 @@ def manage(activity):
 			activity['id'] = None
 			activity['priority'] = 3
 			activity['app'] = 'publishS2'
+			# activity['status'] = 'TOLATER'
 			activity['status'] = 'NOTDONE'
 			activity['message'] = ''
 			activity['retcode'] = 0

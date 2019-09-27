@@ -2248,8 +2248,26 @@ def getS3Client():
 ###################################################
 @app.route('/uploadS2All', methods=['GET','POST'])
 def uploadS2All():
-	global S3Client,bucket_name
-
+	global S3Client,bucket_name,PAUSE
+	bandmap = { \
+"B01":"coastal", \
+"B02":"blue", \
+"B03":"green", \
+"B04":"red", \
+"B05":"redge1", \
+"B06":"redge2", \
+"B07":"redge3", \
+"B08":"bnir", \
+"B8A":"nir", \
+"B09":"wvap", \
+"B10":"cirrus", \
+"B11":"swir1", \
+"B12":"swir2", \
+"EVI":"evi", \
+"NDVI":"ndvi", \
+"SCL":"quality" \
+}
+	PAUSE = False
 	getS3Client()
 
 # Call S3 to list current buckets
@@ -2257,39 +2275,165 @@ def uploadS2All():
 
 # Get a list of all bucket names from the response
 	buckets = [bucket['Name'] for bucket in response['Buckets']]
-	bucket_name = None
-	for bucket in buckets:
-		if bucket.find('datastorm-archive') == 0:
-			bucket_name = bucket
-	
-	if bucket_name is None:
-		return 'No datastorm-archive'
+	if bucket_name not in buckets:
+		return 'No {} in S3'.format(bucket_name)
 
 # Find all MSIL2A SAFE files in /S2_MSI
-	safeL2Afull = '/S2_MSI'
-	template = request.args.get('template', 'S2*MSIL2A*.SAFE')
-	app.logger.warning('uploadS2All - find {} -name {}'.format(safeL2Afull,template))
-	SAFEfiles = [os.path.join(dirpath, f)
-		for dirpath, dirnames, files in os.walk("{0}".format(safeL2Afull))
-		for f in fnmatch.filter(dirnames, template)]
-	count = 0
-	for safe in sorted(SAFEfiles):
-		count += 1
-		app.logger.warning('uploadS2All {}/{} - {}'.format(count,len(SAFEfiles),safe))
-		identifier = os.path.basename(safe).split('.')[0]
-		activity = {}
-		activity['file'] = safe
-		activity['sceneid'] = identifier
-		activity['id'] = None
-		activity['app'] = 'uploadS2'
-		activity['priority'] = 2
-		activity['status'] = 'NOTDONE'
-		activity['message'] = ''
-		activity['retcode'] = 0
-		app.logger.warning('uploadS2All - activity {}'.format(activity))
-		do_upsert('activities',activity,['id','status','link','start','end','elapsed','retcode','message'])
-	start()
-	return jsonify(SAFEfiles)
+	years = []
+	year = request.args.get('year', None)
+	if year is None:
+		yearsf = glob.glob('/S2_MSI/*')
+		for year in yearsf: years.append(os.path.basename(year))
+	else:
+		years.append(year)
+
+# Connect to db and delete all data about this scene
+	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('CATALOG_USER'),
+											  os.environ.get('CATALOG_PASS'),
+											  os.environ.get('CATALOG_HOST'),
+											  'catalogo')
+	engine = sqlalchemy.create_engine(connection)
+	for year in sorted(years):
+		if PAUSE: return jsonify('PAUSE in - {}'.format(year))
+		if year < '2017-08': continue
+		SAFEfiles = glob.glob('/S2_MSI/{}/{}'.format(year,'S2*MSIL2A*.SAFE'))
+		app.logger.warning('uploadS2All {} - SAFEfiles {}'.format('/S2_MSI/{}/{}'.format(year,'S2*MSIL2A*.SAFE'),len(SAFEfiles)))
+		count = 0
+		for safe in sorted(SAFEfiles):
+			count += 1
+			identifier = os.path.basename(safe).split('.')[0]
+			app.logger.warning('uploadS2All {}/{} - {}'.format(count,len(SAFEfiles),safe))
+			if PAUSE: return jsonify('PAUSE in {}/{} - {}'.format(count,len(SAFEfiles),safe))
+# dst is /S2SR/yyyy-mm/safe
+			dst = safe.replace('S2_MSI','S2SR')
+# Check if files are already in dst
+			newprefix = dst[1:]
+			result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=newprefix)
+			logging.warning('uploadS2All checking if S3 exists {}'.format(newprefix))
+			if 'Contents' in result and len(result['Contents']) == 16: continue
+# src is /S2_MSI/yyyy-mm/safe/PUBLISHED
+			src = safe+'/PUBLISHED'
+			dir = dst.split('/')
+# dstforcopytree is /S2SR/yyyy-mm
+			dstforcopytree = '/'.join(dir[:-1])
+
+# Check if all 15 tiff files have already been published in the new structure
+			newtiffs = []
+			if os.path.exists(dst):
+				newtiffs = glob.glob(dst+'/*.tif')
+			if len(newtiffs) != 15:
+
+# If files have not been published in the old structure, publish them in the new structure
+				srcexists = os.path.exists(src)
+				tiffs = []
+				if srcexists:
+					tiffs = glob.glob(src+'/*.tif')
+				logging.warning('uploadS2All checking tiff in src {} - '.format(len(tiffs)))
+				if not srcexists or len(tiffs) != 15:
+					activity = {}
+					activity['file'] = safe.replace('MSIL2A','MSIL1C')
+					activity['sceneid'] = identifier.replace('MSIL2A','MSIL1C')
+					activity['id'] = None
+					activity['app'] = 'publishS2'
+					activity['priority'] = 2
+					activity['status'] = 'NOTDONE'
+					activity['satellite'] = 'S2'
+					activity['message'] = ''
+					activity['retcode'] = 0
+					logging.warning('uploadS2All - activity {}'.format(activity))
+					do_upsert('activities',activity,['id','status','link','start','end','elapsed','retcode','message'])
+					continue
+					#publishS2(activity)
+				else:
+# Copy from the old to new structure
+					tiffs = []
+					if not os.path.exists(dstforcopytree):
+						os.makedirs(dstforcopytree)
+					step_start = time.time()
+					copytree(src, dst)
+					elapsedtime = time.time() - step_start
+					ela = str(datetime.timedelta(seconds=elapsedtime))
+					logging.warning('uploadS2All copytree {} to {} in {}'.format(src,dstforcopytree,ela))
+
+# Check if all files are already in dst
+			tiffs = glob.glob(dst+'/*.tif')
+			if False and len(tiffs) != 15:
+				activity = {}
+				activity['file'] = safe.replace('MSIL2A','MSIL1C')
+				activity['sceneid'] = identifier.replace('MSIL2A','MSIL1C')
+				activity['id'] = None
+				activity['app'] = 'sen2cor'
+				activity['priority'] = 0
+				activity['status'] = 'FORLATER'
+				activity['satellite'] = 'S2'
+				activity['message'] = ''
+				activity['retcode'] = 0
+				logging.warning('uploadS2All - activity {}'.format(activity))
+				do_upsert('activities',activity,['id','status','link','start','end','elapsed','retcode','message'])
+				continue
+				#return jsonify('uploadS2All error processing - {} only {} tiffs\n'.format(safe,len(tiffs)))
+			png = glob.glob(dst+'/*.png')
+			if len(png) != 1: return jsonify('uploadS2All error processing - {} no png\n'.format(safe))
+
+# Check if files are already in S3 S2SR
+			newprefix = dst[1:]
+			result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=newprefix)
+			logging.warning('uploadS2All checking if S3 exists {}'.format(newprefix))
+			if 'Contents' not in result or len(result['Contents']) < 15:
+# If files are not in S3 S2SR, chech if they are in S2_MSI and copy them to S2SR
+				s3objs = []
+				step_start = time.time()
+				oldprefix = safe[1:].replace('S2_MSI','S2_MSI') + '/PUBLISHED/'
+				oldresult = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=oldprefix)
+				if 'Contents' in oldresult:
+					for obj in oldresult['Contents']:
+						logging.warning('uploadS2All S3 {} '.format(obj.get('Key')))
+						s3objs.append(os.path.basename(obj.get('Key')))
+						copy_source = {'Bucket': bucket_name, 'Key': obj.get('Key')}
+						dest_object_name = obj.get('Key')
+						dest_object_name = dest_object_name.replace('PUBLISHED/','')
+						dest_object_name = dest_object_name.replace('S2_MSI','S2SR')
+						logging.warning('uploadS2All S3 {} to {}'.format(obj.get('Key'),dest_object_name))
+						try:
+							S3Client.head_object(Bucket=bucket_name, Key=dest_object_name)
+							logging.warning('uploadS2All S3 exists {}'.format(dest_object_name))
+						except:
+							S3Client.copy_object(CopySource=copy_source, Bucket=bucket_name, Key=dest_object_name)
+				elapsedtime = time.time() - step_start
+				ela = str(datetime.timedelta(seconds=elapsedtime))
+				app.logger.warning('uploadS2All copy_object in {}'.format(ela))
+				logging.warning('uploadS2All files transferred from S2_MSI to S2SR {}'.format(len(s3objs)))
+			tiffs = glob.glob(dst+'/*.tif')
+			for tiff in tiffs:
+				band = os.path.basename(tiff).split('_')[-1].split('.')[0]
+				sband = bandmap[band]
+				sql = "UPDATE Product SET Filename ='{}' WHERE SceneId = '{}' AND Band='{}'".format(tiff,identifier,sband)
+				logging.warning('uploadS2All sql {}'.format(sql))
+				engine.execute(sql)
+			png = glob.glob(dst+'/*.png')
+			sql = "UPDATE Qlook SET QLfilename='{}' WHERE SceneId = '{}'".format(png[0],identifier)
+			app.logger.warning('uploadS2All sql {}'.format(sql))
+			engine.execute(sql)
+# If all 16 files are already in S3, no need to upload them
+			result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=newprefix)
+			logging.warning('uploadS2All checking if S3 exists {}'.format(newprefix))
+			if 'Contents' in result and len(result['Contents']) == 16: continue
+			if dst == '': return jsonify('uploadS2All error processing - {}\n'.format(safe))
+
+			activity = {}
+			activity['file'] = dst
+			activity['sceneid'] = identifier
+			activity['id'] = None
+			activity['app'] = 'uploadS2'
+			activity['priority'] = 2
+			activity['status'] = 'NOTDONE'
+			activity['message'] = ''
+			activity['retcode'] = 0
+			logging.warning('uploadS2All - activity {}'.format(activity))
+			do_upsert('activities',activity,['id','status','link','start','end','elapsed','retcode','message'])
+			start()
+	engine.dispose()
+	return jsonify('SAFEs - {}\n'.format(len(SAFEfiles)))
 
 ###################################################
 def uploadS2(scene):

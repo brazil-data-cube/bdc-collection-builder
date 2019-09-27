@@ -52,14 +52,21 @@ app.logger.warning('connected to Redis.')
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':0},'espa':{'current':0,'maximum':0}}
-
-
-s2users = {}
-
 SESSION = None
 S3Client = None
 CLOUD_DEFAULT = 90
+
+ACTIVITIES = {}
+s2users = {}
+
+###################################################
+def setActivities():
+	global ACTIVITIES
+	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':2},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':2}}
+	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
+	return('Activities were set')
+
+setActivities()
 
 ###################################################
 def getLock():
@@ -3444,7 +3451,7 @@ def reset():
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
 	s2users = {} 
 	getS2Users()
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':2},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':0},'sen2cor':{'current':0,'maximum':0},'espa':{'current':0,'maximum':0}}
+	setActivities()
 	redis.set('rc_lock',0)
 	msg = 'Maestro Processing:\n'
 	status = request.args.get('status', None)
@@ -3535,7 +3542,7 @@ def restart():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':3},'publishS2':{'current':0,'maximum':4},'publishLC8':{'current':0,'maximum':4},'downloadS2':{'current':0,'maximum':4},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':6},'espa':{'current':0,'maximum':3}}
+	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()

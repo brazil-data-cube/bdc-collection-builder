@@ -56,16 +56,15 @@ SESSION = None
 S3Client = None
 CLOUD_DEFAULT = 90
 
-ACTIVITIES = {}
 s2users = {}
 
+ACTIVITIES = {}
 ###################################################
 def setActivities():
 	global ACTIVITIES
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':1},'publishLC8':{'current':0,'maximum':1},'downloadS2':{'current':0,'maximum':2},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':2}}
+	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':0},'publishLC8':{'current':0,'maximum':0},'downloadS2':{'current':0,'maximum':10},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':0}}
 	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
 	return('Activities were set')
-
 setActivities()
 
 ###################################################
@@ -574,7 +573,7 @@ def doDownloadS2(link,zfile):
 		app.logger.warning('doDownloadS2 - nouser')
 		return False
 
-	app.logger.warning('doDownloadS2 - user {} link {}'.format(s2users[user],link))
+	app.logger.warning('doDownloadS2 - user {} link {}'.format(user,link))
 	try:
 		response = requests.get(link, auth=(user, s2users[user]['password']), stream=True)
 	except requests.exceptions.ConnectionError:
@@ -701,22 +700,50 @@ def openSearchS2SAFE(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productTy
 			totres = 0
 	return scenes
 
+
 #########################################
 def publishAsCOG(identifier,productdir,sband,jp2file,alreadyTiled=False):
+	app.logger.warning('function:publishAsCOG')
 	cogfile = os.path.join(productdir,identifier+'_'+sband+'.tif')
 	if os.path.exists(cogfile):
+		app.logger.warning('path {} exists'.format(cogfile))
 		return cogfile
+	app.logger.warning('path {} do not exists'.format(cogfile))
 	driver = gdal.GetDriverByName('GTiff')
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
+	app.logger.warning('createcopy')
 	dst_ds = driver.CreateCopy(cogfile, dataset,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
+	app.logger.warning('gdal set congif')
 	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
+	app.logger.warning('build overviews')
 	dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 	dst_ds = None
-
+	app.logger.warning('return')
+	app.logger.warning('return {}'.format(cogfile))
 	return cogfile
+
+#########################################
+def publishAsTif(identifier,productdir,sband,jp2file):
+	if os.path.splitext(jp2file)[1] == '.tif': return jp2file
+	tiffile = os.path.join(productdir,identifier+'_'+sband+'.tif')
+	if os.path.exists(tiffile):
+		return tiffile
+	
+	dataset = gdal.Open(jp2file,GA_ReadOnly)
+	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
+	driver = gdal.GetDriverByName('GTiff')
+	tifdataset = driver.Create( tiffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
+	tifdataset.SetGeoTransform(dataset.GetGeoTransform())
+	tifdataset.SetProjection(dataset.GetProjection())
+	tifdataset.GetRasterBand(1).WriteArray( raster )
+	tifdataset.GetRasterBand(1).SetNoDataValue(0)
+	dataset = None
+	tifdataset = None
+	return tiffile
 
 ################################
 def publishS2(scene):
+	app.logger.warning('function:publishS2')
 	sbands = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12', 'SCL']
 	qlband = 'TCI'
 	bandmap = { \
@@ -737,6 +764,7 @@ def publishS2(scene):
 }
 # Basic information about scene
 # S2B_MSIL1C_20180731T131239_N0206_R138_T24MTS_20180731T182838
+	app.logger.warning('basic information about scene')
 	sceneId = os.path.basename(scene['file'])
 	parts = sceneId.split('_')
 	sat = parts[0]
@@ -748,6 +776,7 @@ def publishS2(scene):
 	identifier = sceneId.split('.')[0].replace('MSIL1C','MSIL2A')
 
 # Create metadata structure and start filling metadata structure for tables Scene and Product in Catalogo database
+	app.logger.warning('create metadata structure')
 	result = {'Scene':{},'Product':{}}
 	result['Scene']['SceneId'] = str(identifier)
 	result['Scene']['Dataset'] = 'S2SR'
@@ -764,6 +793,7 @@ def publishS2(scene):
 	result['Product']['SceneId'] = str(identifier)
 
 # Find all jp2 files in L2A SAFE
+	app.logger.warning('find all jp2 files in L2A SAFE')
 	safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
 	template =  "T*.jp2"
 	jp2files = [os.path.join(dirpath, f)
@@ -781,6 +811,7 @@ def publishS2(scene):
 	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
 
 # Find the desired files to be published and put then in files 
+	app.logger.warning('Find the desired files to be published and put then in files')
 	bands = []
 	files = {}
 	for jp2file in sorted(jp2files):
@@ -801,7 +832,9 @@ def publishS2(scene):
 	productdir = '/'.join(parts[:-2])
 
 # Create vegetation index
+	app.logger.warning('Generate Vegetation index')
 	if generateVI(filebasename,productdir,files) != 0:
+		app.logger.warning('Vegetation index != 0')
 		return 1
 	bands.append('NDVI')
 	bands.append('EVI')
@@ -809,6 +842,7 @@ def publishS2(scene):
 	bandmap['EVI'] = 'evi'
 
 # Convert original format to COG
+	app.logger.warning('Converto to COG')
 	productdir = '/'.join(parts[:4])
 	productdir += '/PUBLISHED'
 	if not os.path.exists(productdir):
@@ -818,8 +852,9 @@ def publishS2(scene):
 		file = files[band]
 		app.logger.warning('publishS2 - COG band {} sband {} file {}'.format(band,sband,file))
 		files[band] = publishAsCOG(filebasename,productdir,sband,file)
-
+		
 # Create Qlook file
+	app.logger.warning('Create Qlook')
 	qlfile =  files['qlfile']
 	pngname = os.path.join(productdir,filebasename+'.png')
 	app.logger.warning('publishS2 - pngname {}'.format(pngname))
@@ -833,6 +868,7 @@ def publishS2(scene):
 	qlfile =  pngname
 
 # Extract basic parameters from quality file
+	app.logger.warning('extract basic parameter from QA')
 	file = files['quality']
 	dataset = gdal.Open(file,GA_ReadOnly)
 	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
@@ -842,6 +878,7 @@ def publishS2(scene):
 	datasetsrs.ImportFromWkt(projection)
 
 # Extract bounding box and resolution
+	app.logger.warning('extract bb and resolution')
 	RasterXSize = dataset.RasterXSize
 	RasterYSize = dataset.RasterYSize
 
@@ -886,6 +923,7 @@ def publishS2(scene):
 	result['Scene']['Deleted'] = 0
 
 # Compute cloud cover
+	app.logger.warning('Compute Cloud cover')
 	"""
 	Label Classification
 	0		NO_DATA
@@ -921,6 +959,7 @@ def publishS2(scene):
 	result['Scene']['CloudCoverQ4'] = cloudcover
 
 # Connect to db and delete all data about this scene
+	app.logger.warning('creating connection to db')
 	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('CATALOG_USER'),
 											  os.environ.get('CATALOG_PASS'),
 											  os.environ.get('CATALOG_HOST'),
@@ -934,6 +973,7 @@ def publishS2(scene):
 	engine.execute(sql)
 
 # Inserting data into Scene table
+	app.logger.warning('Inserting data into scene table')
 	params = ''
 	values = ''
 	for key,val in result['Scene'].items():
@@ -948,11 +988,13 @@ def publishS2(scene):
 	engine.execute(sql)
 
 # Inserting data into Qlook table
+	app.logger.warning('Inserting data into Qlook table')
 	sql = "INSERT INTO Qlook (SceneId,QLfilename) VALUES('%s', '%s')" % (identifier, qlfile)
 	app.logger.warning('publishS2 - sql {}'.format(sql))
 	engine.execute(sql)
 
 # Inserting data into Product table
+	app.logger.warning('Inserting data into Product table')
 	for sband in bands:
 		band = bandmap[sband]
 		file = files[band]
@@ -1249,24 +1291,6 @@ def publishS2_old(scene):
 	engine.dispose()
 	return 0
 
-#########################################
-def publishAsTif(identifier,productdir,sband,jp2file):
-	if os.path.splitext(jp2file)[1] == '.tif': return jp2file
-	tiffile = os.path.join(productdir,identifier+'_'+sband+'.tif')
-	if os.path.exists(tiffile):
-		return tiffile
-	
-	dataset = gdal.Open(jp2file,GA_ReadOnly)
-	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
-	driver = gdal.GetDriverByName('GTiff')
-	tifdataset = driver.Create( tiffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
-	tifdataset.SetGeoTransform(dataset.GetGeoTransform())
-	tifdataset.SetProjection(dataset.GetProjection())
-	tifdataset.GetRasterBand(1).WriteArray( raster )
-	tifdataset.GetRasterBand(1).SetNoDataValue(0)
-	dataset = None
-	tifdataset = None
-	return tiffile
 
 #########################################
 def generateVI(identifier,productdir,files):
@@ -1280,20 +1304,26 @@ def generateVI(identifier,productdir,files):
 	files['ndvi'] = ndviname
 	files['evi'] = eviname
 	if os.path.exists(ndviname) and os.path.exists(eviname):
+		app.logger.warning('generateVI returning 0 cause ndvi and evi exists')
 		return 0
 
+	app.logger.warning('open red band, read band')
 	step_start = time.time()
 	dataset = gdal.Open(files['red'],GA_ReadOnly)
 	RasterXSize = dataset.RasterXSize
 	RasterYSize = dataset.RasterYSize
 	red = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
+	app.logger.warning('open nir band, read band')
 	dataset = gdal.Open(files['nir'],GA_ReadOnly)
 	nir = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
+	app.logger.warning('resize')
 	nir = resize(nir,red.shape, order=1, preserve_range=True).astype(numpy.float32)
+	app.logger.warning('open blue band, read band')
 	dataset = gdal.Open(files['blue'],GA_ReadOnly)
 	blue = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
 
 # Create the ndvi image dataset if it not exists
+	app.logger.warning('Create the ndvi image dataset if it not exists')
 	driver = gdal.GetDriverByName('GTiff')
 	if not os.path.exists(ndviname):
 		rasterndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
@@ -1308,6 +1338,7 @@ def generateVI(identifier,productdir,files):
 		ndvidataset = None
 	
 # Create the evi image dataset if it not exists
+	app.logger.warning('Create the evi image dataset if it not exists')
 	if not os.path.exists(eviname):
 		evidataset = driver.Create( eviname, RasterXSize, RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
 		rasterevi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
@@ -1322,6 +1353,7 @@ def generateVI(identifier,productdir,files):
 	dataset = nir = red = blue = None
 	elapsedtime = time.time() - step_start
 	ela = str(datetime.timedelta(seconds=elapsedtime))
+	app.logger.warning('create VI returning 0 Ok')
 	return 0
 
 ###################################################
@@ -3445,23 +3477,6 @@ def run(activity):
 	manage(json.loads(response.text))
 	return
 
-###################################################
-@app.route('/reset', methods=['GET'])
-def reset():
-	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
-	s2users = {} 
-	getS2Users()
-	setActivities()
-	redis.set('rc_lock',0)
-	msg = 'Maestro Processing:\n'
-	status = request.args.get('status', None)
-	lock = getLock()
-	msg += 'lock is: {}\n'.format(lock)
-	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	CUR_THREADS = 0
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
-	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
-	return msg
 
 ###################################################
 @app.route('/test', methods=['GET'])
@@ -3528,12 +3543,13 @@ def set():
 			msg += 's2users = {}\n'.format(s2_users.keys())
 		msg += '{} = {}\n'.format(app,ACTIVITIES[app])
 	return msg
-	
+
+
 ###################################################
 @app.route('/restart', methods=['GET'])
 def restart():
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES
-	msg = 'Maestro restarting:\n'
+	msg = 'Rc_Maestro restarting:\n'
 	id = request.args.get('id', None)
 	if id is None:
 		sql = "UPDATE activities SET status='NOTDONE' WHERE (status = 'ERROR' OR status = 'DOING' OR status = 'SUSPEND')"
@@ -3548,22 +3564,31 @@ def restart():
 	start()
 	return msg
 
+
 ###################################################
-@app.route('/restartdb', methods=['GET'])
-def restartdb():
-        global MAX_THREADS,CUR_THREADS,ACTIVITIES
-        msg = 'rc_maestro updatedb from DOING TO NOTDONE:\n'
-        id = request.args.get('id', None)
-        if id is None:
-                sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
-        else:
-                sql = "UPDATE activities SET status='NOTDONE' WHERE id = {}".format(id)
-        do_command(sql)
-        msg += 'sql - {}\n'.format(sql)
-        CUR_THREADS = 0
-        reset()
-        start()
-        return msg
+@app.route('/reset', methods=['GET'])
+def reset():
+	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+	s2users = {} 
+	getS2Users()
+	msg = 'Rc_Maestro reseting:\n'
+	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+	do_command(sql)
+	msg += 'sql - {}\n'.format(sql)
+
+	setActivities()
+	redis.set('rc_lock',0)
+	msg = 'Rc_Maestro reseting:\n'
+	status = request.args.get('status', None)
+	lock = getLock()
+	msg += 'lock is: {}\n'.format(lock)
+	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+	CUR_THREADS = 0
+	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
+	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+
+	start()
+	return msg
 
 
 ###################################################

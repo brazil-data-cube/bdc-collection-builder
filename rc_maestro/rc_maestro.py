@@ -706,20 +706,13 @@ def publishAsCOG(identifier,productdir,sband,jp2file,alreadyTiled=False):
 	app.logger.warning('function:publishAsCOG')
 	cogfile = os.path.join(productdir,identifier+'_'+sband+'.tif')
 	if os.path.exists(cogfile):
-		app.logger.warning('path {} exists'.format(cogfile))
 		return cogfile
-	app.logger.warning('path {} do not exists'.format(cogfile))
 	driver = gdal.GetDriverByName('GTiff')
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
-	app.logger.warning('createcopy')
 	dst_ds = driver.CreateCopy(cogfile, dataset,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
-	app.logger.warning('gdal set congif')
 	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
-	app.logger.warning('build overviews')
 	dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 	dst_ds = None
-	app.logger.warning('return')
-	app.logger.warning('return {}'.format(cogfile))
 	return cogfile
 
 #########################################
@@ -764,7 +757,6 @@ def publishS2(scene):
 }
 # Basic information about scene
 # S2B_MSIL1C_20180731T131239_N0206_R138_T24MTS_20180731T182838
-	app.logger.warning('basic information about scene')
 	sceneId = os.path.basename(scene['file'])
 	parts = sceneId.split('_')
 	sat = parts[0]
@@ -776,7 +768,6 @@ def publishS2(scene):
 	identifier = sceneId.split('.')[0].replace('MSIL1C','MSIL2A')
 
 # Create metadata structure and start filling metadata structure for tables Scene and Product in Catalogo database
-	app.logger.warning('create metadata structure')
 	result = {'Scene':{},'Product':{}}
 	result['Scene']['SceneId'] = str(identifier)
 	result['Scene']['Dataset'] = 'S2SR'
@@ -793,7 +784,6 @@ def publishS2(scene):
 	result['Product']['SceneId'] = str(identifier)
 
 # Find all jp2 files in L2A SAFE
-	app.logger.warning('find all jp2 files in L2A SAFE')
 	safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
 	template =  "T*.jp2"
 	jp2files = [os.path.join(dirpath, f)
@@ -811,7 +801,6 @@ def publishS2(scene):
 	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
 
 # Find the desired files to be published and put then in files 
-	app.logger.warning('Find the desired files to be published and put then in files')
 	bands = []
 	files = {}
 	for jp2file in sorted(jp2files):
@@ -842,7 +831,6 @@ def publishS2(scene):
 	bandmap['EVI'] = 'evi'
 
 # Convert original format to COG
-	app.logger.warning('Converto to COG')
 	productdir = '/'.join(parts[:4])
 	productdir += '/PUBLISHED'
 	if not os.path.exists(productdir):
@@ -854,7 +842,6 @@ def publishS2(scene):
 		files[band] = publishAsCOG(filebasename,productdir,sband,file)
 		
 # Create Qlook file
-	app.logger.warning('Create Qlook')
 	qlfile =  files['qlfile']
 	pngname = os.path.join(productdir,filebasename+'.png')
 	app.logger.warning('publishS2 - pngname {}'.format(pngname))
@@ -868,7 +855,6 @@ def publishS2(scene):
 	qlfile =  pngname
 
 # Extract basic parameters from quality file
-	app.logger.warning('extract basic parameter from QA')
 	file = files['quality']
 	dataset = gdal.Open(file,GA_ReadOnly)
 	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
@@ -923,7 +909,6 @@ def publishS2(scene):
 	result['Scene']['Deleted'] = 0
 
 # Compute cloud cover
-	app.logger.warning('Compute Cloud cover')
 	"""
 	Label Classification
 	0		NO_DATA
@@ -959,7 +944,6 @@ def publishS2(scene):
 	result['Scene']['CloudCoverQ4'] = cloudcover
 
 # Connect to db and delete all data about this scene
-	app.logger.warning('creating connection to db')
 	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('CATALOG_USER'),
 											  os.environ.get('CATALOG_PASS'),
 											  os.environ.get('CATALOG_HOST'),
@@ -973,7 +957,6 @@ def publishS2(scene):
 	engine.execute(sql)
 
 # Inserting data into Scene table
-	app.logger.warning('Inserting data into scene table')
 	params = ''
 	values = ''
 	for key,val in result['Scene'].items():
@@ -988,13 +971,11 @@ def publishS2(scene):
 	engine.execute(sql)
 
 # Inserting data into Qlook table
-	app.logger.warning('Inserting data into Qlook table')
 	sql = "INSERT INTO Qlook (SceneId,QLfilename) VALUES('%s', '%s')" % (identifier, qlfile)
 	app.logger.warning('publishS2 - sql {}'.format(sql))
 	engine.execute(sql)
 
 # Inserting data into Product table
-	app.logger.warning('Inserting data into Product table')
 	for sband in bands:
 		band = bandmap[sband]
 		file = files[band]

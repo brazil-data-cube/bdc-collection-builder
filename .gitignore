@@ -17,7 +17,6 @@ rc_pull_images_registry_DPI.sh
 #Check if these files are required
 rc_espa-science/Dockerfile_bk
 rc_sen2cor/Sen2Cor-02.05.05-Linux64.run
-rc_sen2cor/root/
 ds_utils/dstest.py
 
 

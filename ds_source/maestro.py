@@ -1,23 +1,24 @@
-import os
-import io
-from flask import Flask, request, make_response, render_template, abort, jsonify
-from redis import Redis, RedisError
-import utils
-from  utils import c2jyd,do_insert,do_update,do_upsert,do_query,do_command,decodePeriods,decodePathRow
-import sqlalchemy
-import time
 import datetime
 import fnmatch
 import glob
-import logging
-import requests
+import io
 import json
-import threading
+import logging
 import numpy
 import openpyxl
+import os
+import requests
+import sqlalchemy
+import threading
+import time
+import utils
+
+from flask import Flask, request, make_response, render_template, abort, jsonify
+from flask_cors import CORS
 from openpyxl.chart import ScatterChart, Reference, Series
 from openpyxl.comments import Comment
-from flask_cors import CORS
+from redis import Redis, RedisError
+from utils import c2jyd,do_insert,do_update,do_upsert,do_query,do_command,decodePeriods,decodePathRow
 
 app = Flask(__name__)
 cors = CORS(app, resources={r"/*": {"origins": "*"}})
@@ -37,7 +38,15 @@ redis = Redis(host="redis", db=0)
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
 CUR_THREADS = 0
-ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
+
+ACTIVITIES = {}
+###################################################
+def setActivities():
+	global ACTIVITIES
+	ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
+	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
+	return('Activities were set')
+setActivities()
 
 ###################################################
 def getLock():
@@ -88,7 +97,7 @@ def sendToRadcor(activity,action):
 	return r.json()
 
 
-################################
+###################################################
 def whereDoIGo(activity,scene,section):
 
 # Define the location in repository structure where file will be stored
@@ -1036,7 +1045,22 @@ def restart():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
+	setActivities()
+	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
+
+	start()
+	return msg
+
+###################################################
+@app.route('/reset', methods=['GET'])
+def reset():
+	global MAX_THREADS,CUR_THREADS,ACTIVITIES
+	msg = 'Maestro reseting:\n'
+	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING'"
+	do_command(sql)
+	msg += 'sql - {}\n'.format(sql)
+	CUR_THREADS = 0
+	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()
@@ -1066,7 +1090,7 @@ def do2ch():
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0
-	ACTIVITIES = {'search':{'current':0,'maximum':8},'download':{'current':0,'maximum':8},'warp':{'current':0,'maximum':16},'merge':{'current':0,'maximum':16},'blend':{'current':0,'maximum':8}}
+	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
 	start()

@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import os
+import multiprocessing
 import numpy
 import random
 import requests
@@ -62,7 +63,7 @@ ACTIVITIES = {}
 ###################################################
 def setActivities():
 	global ACTIVITIES
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':0},'publishLC8':{'current':0,'maximum':0},'downloadS2':{'current':0,'maximum':10},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':0}}
+	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':4},'publishLC8':{'current':0,'maximum':0},'downloadS2':{'current':0,'maximum':10},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':0}}
 	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
 	return('Activities were set')
 setActivities()
@@ -108,11 +109,11 @@ def downloadLC8(scene):
 	cc = scene['sceneid'].split('_')
 	pathrow = cc[2]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Output product dir 
+# Output product dir
 	productdir = '/LC8/{}/{}'.format(yyyymm,pathrow)
 	if not os.path.exists(productdir):
 		os.makedirs(productdir)
-	
+
 	link = scene['link']
 	app.logger.warning('downloadLC8 - link {}'.format(link))
 	getSESSION()
@@ -128,7 +129,7 @@ def downloadLC8(scene):
 		last = chr(last)
 		cc[-3] = sid[:-1]+last
 		link = '/'.join(cc)
-		r = SESSION.get(link, stream=True)	
+		r = SESSION.get(link, stream=True)
 	if count == 2:
 		return None
 	outtar = os.path.join(productdir, r.headers.get("Content-Disposition").split('=')[1])
@@ -192,9 +193,9 @@ def developmentSeed(wlon,nlat,elon,slat,startdate,enddate,cloud,limit):
 			scenes[identifier]['elon'] = max(float(val['upperRightCornerLongitude']),float(val['lowerRightCornerLongitude']))
 			scenes[identifier]['slat'] = min(float(val['lowerLeftCornerLatitude']),float(val['lowerRightCornerLatitude']))
 			scenes[identifier]['nlat'] = max(float(val['upperLeftCornerLatitude']),float(val['upperRightCornerLatitude']))
-			scenes[identifier]['path'] = int(val['path'])				
-			scenes[identifier]['row'] = int(val['row'])	
-			scenes[identifier]['resolution'] = int(val['GRID_CELL_SIZE_REFLECTIVE'])	
+			scenes[identifier]['path'] = int(val['path'])
+			scenes[identifier]['row'] = int(val['row'])
+			scenes[identifier]['resolution'] = int(val['GRID_CELL_SIZE_REFLECTIVE'])
 # Get file names
 			#download_url = api.download('LANDSAT_8', 'EE', [val['scene_id']], api_key=api_key)
 			scenes[identifier]['link'] = val['download_links']['usgs']
@@ -210,7 +211,7 @@ def developmentSeed_sat_api(wlon,nlat,elon,slat,startdate,enddate,cloud,limit):
 		enddate = datetime.datetime.now().strftime("%Y-%m-%d")
 	if limit is None:
 		limit = 299
-	
+
 	url = 'https://sat-api.developmentseed.org/stac/search'
 	params = {
 		"bbox": [
@@ -264,7 +265,7 @@ def espaDone(scene):
 	pathrow = cc[2]
 	date = cc[3]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Product dir 
+# Product dir
 	productdir = '/LC8SR/{}/{}'.format(yyyymm,pathrow)
 	template = productdir+'/LC08_*_{}_{}_*.tif'.format(pathrow,date)
 	fs = glob.glob(template)
@@ -272,7 +273,7 @@ def espaDone(scene):
 	if len(fs) > 0:
 		return True
 	return False
-	
+
 #########################################
 def publishLC8(scene):
 	identifier = scene['sceneid']
@@ -280,7 +281,7 @@ def publishLC8(scene):
 	pathrow = cc[2]
 	date = cc[3]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Product dir 
+# Product dir
 	productdir = '/LC8SR/{}/{}'.format(yyyymm,pathrow)
 	Type='SCENE'
 	GeometricProcessing='ortho'
@@ -294,8 +295,8 @@ def publishLC8(scene):
 	result['Scene']['Satellite'] = 'LC8'
 	result['Scene']['Sensor'] = 'OLI'
 	result['Scene']['Date'] = date
-	result['Scene']['Path'] = path					
-	result['Scene']['Row'] = row		
+	result['Scene']['Path'] = path
+	result['Scene']['Row'] = row
 
 	result['Product']['SceneId'] = identifier
 	result['Product']['Dataset'] = 'LC8SR'
@@ -317,7 +318,7 @@ def publishLC8(scene):
 	engine.execute(sql)
 
 # Get the product files
-	bandmap= {		
+	bandmap= {
 			'coastal': 'sr_band1',
 			'blue': 'sr_band2',
 			'green': 'sr_band3',
@@ -359,6 +360,8 @@ def publishLC8(scene):
 	RasterXSize = dataset.RasterXSize
 	RasterYSize = dataset.RasterYSize
 
+	del dataset
+
 	resolutionx = geotransform[1]
 	resolutiony = geotransform[5]
 	fllx = fulx = geotransform[0]
@@ -397,7 +400,7 @@ def publishLC8(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	result['Scene']['Deleted'] = 0
 	result['Scene']['CloudCoverMethod'] = 'M'
 	result['Scene']['CloudCoverQ1'] = 0
@@ -410,6 +413,9 @@ def publishLC8(scene):
 		template = qlfiles[band]
 		dataset = gdal.Open(template,GA_ReadOnly)
 		raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
+
+		del dataset
+
 		app.logger.warning('publishLC8 - file {} raster before min {} max {} {}'.format(template,raster.min(),raster.max(),raster))
 		#raster = scipy.misc.imresize(raster,(numlin,numcol))
 		raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
@@ -450,6 +456,8 @@ def publishLC8(scene):
 		result['Product']['Filename'] = template
 		dataset = gdal.Open(template,GA_ReadOnly)
 		geotransform = dataset.GetGeoTransform()
+
+		del dataset
 		result['Product']['Resolution'] = geotransform[1]
 		ProcessingDate = datetime.datetime.fromtimestamp(os.path.getctime(template)).strftime('%Y-%m-%d %H:%M:%S')
 		result['Product']['ProcessingDate'] = ProcessingDate
@@ -492,7 +500,7 @@ def extractall(zfile):
 def downloadS2(scene):
 	cc = scene['sceneid'].split('_')
 	yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir 
+# Output product dir
 	productdir = '/S2_MSI/{}'.format(yyyymm)
 	link = scene['link']
 	sceneId = scene['sceneid']
@@ -500,7 +508,7 @@ def downloadS2(scene):
 		os.makedirs(productdir)
 	zfile = productdir + '/' + sceneId + '.zip'
 	safeL1Cfull = productdir + '/' + sceneId + '.SAFE'
-	
+
 	app.logger.warning('downloadS2 - link {} file {}'.format(link,zfile))
 	if not os.path.exists(safeL1Cfull):
 		valid = True
@@ -592,6 +600,7 @@ def doDownloadS2(link,zfile):
 	app.logger.warning('doDownloadS2 - user {} {} size {} MB'.format(user,zfile,int(size/1024/1024)))
 	down = open(zfile, 'wb')
 
+	# TODO: Remove IF since we are working with chunks of 1Kb, which turns out several iterations
 	for buf in response.iter_content(1024):
 		if buf:
 			down.write(buf)
@@ -625,7 +634,7 @@ def openSearchS2SAFE(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productTy
 	else:
 		pfootprintWkt,footprintPoly = createWkt(wlon,nlat,elon,slat)
 		pquery += ' AND (footprint:"Intersects({})")'.format(footprintPoly)
-	
+
 	limit = int(limit)
 	rows = min(100,limit)
 	count_results = 0
@@ -668,7 +677,7 @@ def openSearchS2SAFE(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productTy
 				identifier = result['title']
 				type = identifier.split('_')[1]
 				date = identifier.split('_')[2][:8]
-				if date > '20181220' and type == 'MSIL1C': 
+				if date > '20181220' and type == 'MSIL1C':
 					app.logger.warning('openSearchS2SAFE skipping {}'.format(identifier))
 					continue
 				scenes[identifier] = {}
@@ -709,10 +718,13 @@ def publishAsCOG(identifier,productdir,sband,jp2file,alreadyTiled=False):
 		return cogfile
 	driver = gdal.GetDriverByName('GTiff')
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
-	dst_ds = driver.CreateCopy(cogfile, dataset,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
+	dst_ds = driver.CreateCopy(cogfile, dataset,  options=['COMPRESS=LZW', 'TILED=YES'])
 	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
 	dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
-	dst_ds = None
+
+	del dst_ds
+	del dataset
+
 	return cogfile
 
 #########################################
@@ -721,17 +733,19 @@ def publishAsTif(identifier,productdir,sband,jp2file):
 	tiffile = os.path.join(productdir,identifier+'_'+sband+'.tif')
 	if os.path.exists(tiffile):
 		return tiffile
-	
+
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
 	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
 	driver = gdal.GetDriverByName('GTiff')
 	tifdataset = driver.Create( tiffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
 	tifdataset.SetGeoTransform(dataset.GetGeoTransform())
 	tifdataset.SetProjection(dataset.GetProjection())
-	tifdataset.GetRasterBand(1).WriteArray( raster )
+	tifdataset.GetRasterBand(1).WriteArray(raster)
 	tifdataset.GetRasterBand(1).SetNoDataValue(0)
-	dataset = None
-	tifdataset = None
+
+	del dataset
+	del tifdataset
+
 	return tiffile
 
 ################################
@@ -774,8 +788,8 @@ def publishS2(scene):
 	result['Scene']['Satellite'] = sat
 	result['Scene']['Sensor'] = inst
 	result['Scene']['Date'] = calendardate
-	result['Scene']['Path'] = 0					
-	result['Scene']['Row'] = 0		
+	result['Scene']['Path'] = 0
+	result['Scene']['Row'] = 0
 	result['Product']['Dataset'] = 'S2SR'
 	result['Product']['Type'] = 'SCENE'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -800,7 +814,7 @@ def publishS2(scene):
 			return 1
 	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
 
-# Find the desired files to be published and put then in files 
+# Find the desired files to be published and put then in files
 	bands = []
 	files = {}
 	for jp2file in sorted(jp2files):
@@ -840,7 +854,7 @@ def publishS2(scene):
 		file = files[band]
 		app.logger.warning('publishS2 - COG band {} sband {} file {}'.format(band,sband,file))
 		files[band] = publishAsCOG(filebasename,productdir,sband,file)
-		
+
 # Create Qlook file
 	qlfile =  files['qlfile']
 	pngname = os.path.join(productdir,filebasename+'.png')
@@ -905,7 +919,7 @@ def publishS2(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	result['Scene']['Deleted'] = 0
 
 # Compute cloud cover
@@ -965,7 +979,7 @@ def publishS2(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-		
+
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishS2 - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1052,9 +1066,9 @@ def publishS2_old(scene):
 	result['Scene']['Satellite'] = sat
 	result['Scene']['Sensor'] = inst
 	result['Scene']['Date'] = calendardate
-	result['Scene']['Path'] = 0					
-	result['Scene']['Row'] = 0		
-	result['Scene']['Orbit'] = 0		
+	result['Scene']['Path'] = 0
+	result['Scene']['Row'] = 0
+	result['Scene']['Orbit'] = 0
 	result['Product']['Dataset'] = 'S2SR'
 	result['Product']['Type'] = 'SCENE'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -1081,7 +1095,7 @@ def publishS2_old(scene):
 	files = {}
 	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
 
-# Find the desired files to be published and put then in files 
+# Find the desired files to be published and put then in files
 	for jp2file in sorted(jp2files):
 		filename = os.path.basename(jp2file)
 		parts = filename.split('_')
@@ -1169,7 +1183,7 @@ def publishS2_old(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	result['Scene']['Deleted'] = 0
 
 # Compute cloud cover
@@ -1229,7 +1243,7 @@ def publishS2_old(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-		
+
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishS2 - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1295,11 +1309,15 @@ def generateVI(identifier,productdir,files):
 	RasterYSize = dataset.RasterYSize
 	red = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
 	app.logger.warning('open nir band, read band')
+
+	del dataset
 	dataset = gdal.Open(files['nir'],GA_ReadOnly)
 	nir = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
 	app.logger.warning('resize')
 	nir = resize(nir,red.shape, order=1, preserve_range=True).astype(numpy.float32)
 	app.logger.warning('open blue band, read band')
+
+	del dataset
 	dataset = gdal.Open(files['blue'],GA_ReadOnly)
 	blue = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
 
@@ -1316,8 +1334,8 @@ def generateVI(identifier,productdir,files):
 		ndvidataset.GetRasterBand(1).WriteArray( rasterndvi )
 		#ndvidataset.GetRasterBand(1).SetNoDataValue(0)
 		rasterndvi = None
-		ndvidataset = None
-	
+		del ndvidataset
+
 # Create the evi image dataset if it not exists
 	app.logger.warning('Create the evi image dataset if it not exists')
 	if not os.path.exists(eviname):
@@ -1356,7 +1374,7 @@ def checkdup():
 	logging.warning('checkdup - '+sql+' - Rows: {}'.format(len(scenes)))
 	scenesperid = {}
 	for scene in scenes:
-#    "SceneId": "S2A_MSIL2A_20190512T131251_N0212_R138_T23KPT_20190512T152952", 
+#    "SceneId": "S2A_MSIL2A_20190512T131251_N0212_R138_T23KPT_20190512T152952",
 		SceneId = scene['SceneId']
 		parts = SceneId.split('_')
 		logging.warning('checkdup - SceneId: {} parts {}'.format(SceneId,parts))
@@ -1393,7 +1411,7 @@ def checkdup():
 					S3Client.delete_objects(Bucket=bucket_name, Delete={'Objects': objlist})
 	engine.dispose()
 	return jsonify(scenesperid)
-	 	
+
 ###################################################
 @app.route('/espaAll', methods=['GET','POST'])
 def espaAll():
@@ -1531,27 +1549,27 @@ def publisHLS():
 def publishOneHLS(scene):
 	hdffile = scene['hdffile']
 	bands = {}
-	bands['HLS.L30'] = { 
+	bands['HLS.L30'] = {
 		0 : 'coastal',
-		1 : 'blue', 
-		2 : 'green', 
-		3 : 'red', 
-		4 : 'nir', 
-		5 : 'swir1', 
+		1 : 'blue',
+		2 : 'green',
+		3 : 'red',
+		4 : 'nir',
+		5 : 'swir1',
 		6 : 'swir2',
 		10 : 'quality' }
 
-	bands['HLS.S30'] = { 
+	bands['HLS.S30'] = {
 		0 : 'coastal',
-		1 : 'blue', 
-		2 : 'green', 
-		3 : 'red', 
-		4 : 'redge1', 
-		5 : 'redge2', 
-		6 : 'redge3', 
-		7 : 'bnir', 
-		8 : 'nir', 
-		11 : 'swir1', 
+		1 : 'blue',
+		2 : 'green',
+		3 : 'red',
+		4 : 'redge1',
+		5 : 'redge2',
+		6 : 'redge3',
+		7 : 'bnir',
+		8 : 'nir',
+		11 : 'swir1',
 		12 : 'swir2',
 		13 : 'quality' }
 
@@ -1611,8 +1629,8 @@ def publishOneHLS(scene):
 	result['Scene']['Satellite'] = 'LC8' if identifier.find('HLS.L3') == 0 else 'S2'
 	result['Scene']['Sensor'] = 'OLI' if identifier.find('HLS.L3') == 0 else 'MSI'
 	result['Scene']['Date'] = cddate
-	result['Scene']['Path'] = -1			
-	result['Scene']['Row'] = -1	
+	result['Scene']['Path'] = -1
+	result['Scene']['Row'] = -1
 	result['Product']['Dataset'] = scene['product']
 	result['Product']['Type'] = 'SCENE'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -1621,7 +1639,7 @@ def publishOneHLS(scene):
 	result['Product']['SceneId'] = str(identifier)
 
 	subdataset = gdal.Open(subdatasets[0][0],GA_ReadOnly)
-	subdataset_tags = subdataset.GetMetadata('') 
+	subdataset_tags = subdataset.GetMetadata('')
 	app.logger.warning('publishOneHLS - identifier {} subdataset_tags {}'.format(identifier,subdataset_tags))
 	mgeotransform = subdataset.GetGeoTransform()
 	mRasterXSize = subdataset.RasterXSize
@@ -1668,7 +1686,7 @@ def publishOneHLS(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	result['Scene']['Deleted'] = 0
 
 	result['Scene']['CloudCoverMethod'] = 'A'
@@ -1699,7 +1717,7 @@ def publishOneHLS(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-		
+
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishOneHLS - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1830,7 +1848,7 @@ def uploadModis(scene):
 			logging.warning('uploadModis {} already in S3'.format(os.path.basename(tiff)))
 			continue
 		mykey = tiff[1:]
-		
+
 		try:
 			tc = boto3.s3.transfer.TransferConfig()
 			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
@@ -1854,13 +1872,13 @@ def j2cyd(juliandate):
 ###################################################
 def publishOneModis(scene):
 	hdffile = scene['hdffile']
-	bands = { 
+	bands = {
 		0 : 'ndvi',
-		1 : 'evi', 
-		2 : 'quality', 
-		3 : 'red', 
-		4 : 'nir', 
-		5 : 'blue', 
+		1 : 'evi',
+		2 : 'quality',
+		3 : 'red',
+		4 : 'nir',
+		5 : 'blue',
 		6 : 'swir2',
 		11 : 'reliability' }
 	hdfdate = scene['basename'][9:16]
@@ -1928,8 +1946,8 @@ def publishOneModis(scene):
 	result['Scene']['Satellite'] = 'T1' if identifier.find('MOD') == 0 else 'A1'
 	result['Scene']['Sensor'] = 'MODIS'
 	result['Scene']['Date'] = cddate
-	result['Scene']['Path'] = path			
-	result['Scene']['Row'] = row	
+	result['Scene']['Path'] = path
+	result['Scene']['Row'] = row
 	result['Product']['Dataset'] = scene['product']
 	result['Product']['Type'] = 'MOSAIC'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -1983,7 +2001,7 @@ def publishOneModis(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	result['Scene']['Deleted'] = 0
 
 	result['Scene']['CloudCoverMethod'] = 'A'
@@ -2014,7 +2032,7 @@ def publishOneModis(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-		
+
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishOneModis - sql {}'.format(sql))
 	engine.execute(sql)
@@ -2144,10 +2162,10 @@ def upS2():
 	for bucket in buckets:
 		if bucket.find('datastorm-repository') == 0:
 			bucket_name = bucket
-	
+
 	if bucket_name is None:
 		return 'No datastorm-repository'
-	
+
 	basedir = '/S2_MSI/2*'
 	datedirs = sorted(glob.glob(basedir))
 	for dir in datedirs:
@@ -2201,7 +2219,7 @@ def checkS3():
 	for bucket in buckets:
 		if bucket.find('datastorm-archive') == 0:
 			bucket_name = bucket
-	
+
 	if bucket_name is None:
 		return 'No datastorm-archive'
 
@@ -2482,7 +2500,7 @@ def uploadS2(scene):
 		mykey = tiff[1:]
 		#mykey = mykey.replace('/PUBLISHED', '')
 		#logging.warning('uploadS2 tiff {} mykey {}'.format(tiff,mykey))
-		
+
 		try:
 			tc = boto3.s3.transfer.TransferConfig(use_threads=True,max_concurrency=ACTIVITIES['uploadS2']['maximum'])
 			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
@@ -2490,8 +2508,8 @@ def uploadS2(scene):
 		except Exception as e:
 			logging.warning('uploadS2 error {}'.format(e))
 			return 1
-		
-		
+
+
 		"""
 		with open(tiff, 'rb') as data:
 			try:
@@ -2604,7 +2622,7 @@ def getS2():
 		count += 1
 		if action != 'search':
 			do_upsert('activities',activity,['id','status','link'])
-				
+
 	if action != 'search':
 		start()
 	scenes['scenes']=count
@@ -2737,7 +2755,7 @@ def getS2old():
 					do_upsert('activities',activity,['id','status','link'])
 				else:
 					app.logger.warning('getS2 - already queued {}'.format(activity))
-				
+
 	#start()
 	scenes['scenes']=len(scenes)
 	return jsonify(scenes)
@@ -2906,7 +2924,7 @@ def doradcor(args):
 	e = float(args['e'])
 	s = float(args['s'])
 	n = float(args['n'])
-	
+
 # Get the requested period to be processed
 	rstart = args['start']
 	rend   = args['end']
@@ -2933,7 +2951,7 @@ def doradcor(args):
 			template =  LC8SRfull+'{}.png'.format(sceneid)
 			app.logger.warning('doradcor - find {}'.format(template))
 			LC8SRfiles = glob.glob(template)
-			if len(LC8SRfiles) > 0: 
+			if len(LC8SRfiles) > 0:
 				logging.warning('radcor - {} already done'.format(sceneid))
 				scene['status'] = 'DONE'
 				continue
@@ -2957,7 +2975,7 @@ def doradcor(args):
 # Check if this scene is already in Repository as Level 2A
 			cc = sceneid.split('_')
 			yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir 
+# Output product dir
 			productdir = '/S2_MSI/{}/'.format(yyyymm)
 # Check if an equivalent sceneid has already been downloaded
 			date = cc[2]
@@ -2968,13 +2986,13 @@ def doradcor(args):
 				logging.warning('radcor - {} already done'.format(sceneid))
 				scene['status'] = 'DONE'
 				continue
-			
+
 			safeL2Afull = productdir+sceneid.replace('MSIL1C','MSIL2A')+'.SAFE'
 			if os.path.exists(safeL2Afull):
 				app.logger.warning('radcor - scene exists {}'.format(safeL2Afull))
 				scene['status'] = 'DONE'
 				continue
-				
+
 			scene['status'] = 'NOTDONE'
 			activity = {}
 			activity['app'] = 'downloadS2'
@@ -3013,7 +3031,7 @@ def consultscenes():
 	args = {}
 	for key in request.args:
 		args[key] = request.args.get(key)
-		
+
 	# Get the requested period
 	rstart = args['start'] if 'start' in args else None
 	rend = args['end'] if 'end' in args else None
@@ -3028,7 +3046,7 @@ def consultscenes():
 
 	# Get information from datacube
 	sql = "SELECT SceneId FROM `Scene` WHERE (Date >= '{}' AND Date <= '{}') AND (".format(rstart, rend)
-	cont_satsen = 0 
+	cont_satsen = 0
 	for satsen in satsens:
 		sql += "Sensor = '{}'".format(satsen)
 		cont_satsen += 1
@@ -3062,7 +3080,7 @@ def radcorold():
 	e = float(e)
 	s = float(s)
 	n = float(n)
-	
+
 # Get the requested period to be processed
 	rstart = request.args.get('start', '2019-02-01')
 	rend   = request.args.get('end', None)
@@ -3107,7 +3125,7 @@ def radcorold():
 # Check if this scene is already in Repository as Level 2A
 			cc = sceneid.split('_')
 			yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir 
+# Output product dir
 			productdir = '/S2_MSI/{}/'.format(yyyymm)
 # Check if an equivalent sceneid has already been downloaded
 			date = cc[2]
@@ -3117,12 +3135,12 @@ def radcorold():
 			if len(files) > 0:
 				logging.warning('radcor - {} already done'.format(sceneid))
 				continue
-			
+
 			safeL2Afull = productdir+sceneid.replace('MSIL1C','MSIL2A')+'.SAFE'
 			if os.path.exists(safeL2Afull):
 				app.logger.warning('radcor - scene exists {}'.format(safeL2Afull))
 				continue
-				
+
 			activity = {}
 			activity['app'] = 'downloadS2'
 			activity['sceneid'] = sceneid
@@ -3231,7 +3249,7 @@ def manage(activity):
 		CUR_THREADS -= 1
 		if activity['app'] in ACTIVITIES:
 			ACTIVITIES[activity['app']]['current'] -= 1
-			
+
 # activity just finished, lets see what must be done
 	if activity['status'] == 'DONE':
 # Create the next activities
@@ -3325,7 +3343,9 @@ def manage(activity):
 		step_start = time.time()
 		newactivity['start'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_start)))
 		newactivity_copy = newactivity.copy()
-		t = threading.Thread(target=run, args=(newactivity,))
+		# t = threading.Thread(target=run, args=(newactivity,))
+		t = multiprocessing.Process(target=run, args=(newactivity, ))
+
 		app.logger.warning('manage threading - lock : {} CUR_THREADS : {} MAX_THREADS : {} newactivity : {}'.format(redis.get('rc_lock'),CUR_THREADS,MAX_THREADS,newactivity))
 		t.start()
 		newactivity_copy['link'] = None
@@ -3550,7 +3570,7 @@ def restart():
 @app.route('/reset', methods=['GET'])
 def reset():
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
-	s2users = {} 
+	s2users = {}
 	getS2Users()
 	msg = 'Rc_Maestro reseting:\n'
 	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
@@ -3584,7 +3604,7 @@ def inspect():
 	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 	msg += 's2users is: {}\n'.format(s2users.keys())
-	
+
 	if status is not None:
 		sql = "SELECT * FROM activities WHERE status = '{}' ORDER BY id".format(status)
 	else:
@@ -3594,7 +3614,7 @@ def inspect():
 	for activity in result:
 		msg += '{} - {} - {} -> {}\n'.format(activity['id'],activity['app'],activity['sceneid'],activity['status'])
 	return msg
-	
+
 
 ###################################################
 @app.errorhandler(400)

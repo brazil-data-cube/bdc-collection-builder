@@ -52,7 +52,8 @@ redis = Redis(host="redis", db=0)
 app.logger.warning('connected to Redis.')
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
-CUR_THREADS = 0
+manager = multiprocessing.Manager()
+CUR_THREADS = manager.Value('i',0)
 SESSION = None
 S3Client = None
 CLOUD_DEFAULT = 90
@@ -63,7 +64,7 @@ ACTIVITIES = {}
 ###################################################
 def setActivities():
 	global ACTIVITIES
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':4},'publishLC8':{'current':0,'maximum':0},'downloadS2':{'current':0,'maximum':10},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':2},'espa':{'current':0,'maximum':0}}
+	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':4},'publishLC8':{'current':0,'maximum':4},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':0},'sen2cor':{'current':0,'maximum':4},'espa':{'current':0,'maximum':4}}
 	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
 	return('Activities were set')
 setActivities()
@@ -750,7 +751,6 @@ def publishAsTif(identifier,productdir,sband,jp2file):
 
 ################################
 def publishS2(scene):
-	app.logger.warning('function:publishS2')
 	sbands = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12', 'SCL']
 	qlband = 'TCI'
 	bandmap = { \
@@ -788,8 +788,8 @@ def publishS2(scene):
 	result['Scene']['Satellite'] = sat
 	result['Scene']['Sensor'] = inst
 	result['Scene']['Date'] = calendardate
-	result['Scene']['Path'] = 0
-	result['Scene']['Row'] = 0
+	result['Scene']['Path'] = 0					
+	result['Scene']['Row'] = 0		
 	result['Product']['Dataset'] = 'S2SR'
 	result['Product']['Type'] = 'SCENE'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -814,7 +814,7 @@ def publishS2(scene):
 			return 1
 	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
 
-# Find the desired files to be published and put then in files
+# Find the desired files to be published and put then in files 
 	bands = []
 	files = {}
 	for jp2file in sorted(jp2files):
@@ -833,11 +833,13 @@ def publishS2(scene):
 	filebasename = '_'.join(parts[:-2])
 	parts = files['qlfile'].split('/')
 	productdir = '/'.join(parts[:-2])
+	productdir = '/S2SR/'+'/'.join(parts[2:4])
+	if not os.path.exists(productdir):
+		os.makedirs(productdir)
+	app.logger.warning('publishS2 - productdir {}'.format(productdir))
 
 # Create vegetation index
-	app.logger.warning('Generate Vegetation index')
 	if generateVI(filebasename,productdir,files) != 0:
-		app.logger.warning('Vegetation index != 0')
 		return 1
 	bands.append('NDVI')
 	bands.append('EVI')
@@ -845,14 +847,10 @@ def publishS2(scene):
 	bandmap['EVI'] = 'evi'
 
 # Convert original format to COG
-	productdir = '/'.join(parts[:4])
-	productdir += '/PUBLISHED'
-	if not os.path.exists(productdir):
-		os.makedirs(productdir)
 	for sband in bands:
 		band = bandmap[sband]
 		file = files[band]
-		app.logger.warning('publishS2 - COG band {} sband {} file {}'.format(band,sband,file))
+		app.logger.warning('publishS2 - GOG band {} sband {} file {}'.format(band,sband,file))
 		files[band] = publishAsCOG(filebasename,productdir,sband,file)
 
 # Create Qlook file
@@ -878,7 +876,6 @@ def publishS2(scene):
 	datasetsrs.ImportFromWkt(projection)
 
 # Extract bounding box and resolution
-	app.logger.warning('extract bb and resolution')
 	RasterXSize = dataset.RasterXSize
 	RasterYSize = dataset.RasterYSize
 
@@ -919,7 +916,7 @@ def publishS2(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
 	result['Scene']['Deleted'] = 0
 
 # Compute cloud cover
@@ -979,7 +976,7 @@ def publishS2(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-
+		
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishS2 - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1003,275 +1000,6 @@ def publishS2(scene):
 		result['Product']['Resolution'] = geotransform[1]
 		result['Product']['Band'] = band
 		result['Product']['Filename'] = file
-		params = ''
-		values = ''
-		for key,val in result['Product'].items():
-				params += key+','
-				if type(val) is str:
-						values += "'{0}',".format(val)
-				else:
-						values += "{0},".format(val)
-		sql = "INSERT INTO Product ({0}) VALUES({1})".format(params[:-1],values[:-1])
-		app.logger.warning('publishS2 - sql {}'.format(sql))
-		engine.execute(sql)
-	engine.dispose()
-	return 0
-
-################################
-def publishS2_old(scene):
-	sbands = ['AOT', 'B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12', 'DEM', 'SCL', 'WVP']
-	qlband = 'TCI'
-	bandmap = { \
-"B01":"coastal", \
-"B02":"blue", \
-"B03":"green", \
-"B04":"red", \
-"B05":"redge1", \
-"B06":"redge2", \
-"B07":"redge3", \
-"B08":"nir", \
-"B8A":"nnir", \
-"B09":"wvap", \
-"B10":"cirrus", \
-"B11":"swir1", \
-"B12":"swir2", \
-"AOT":"AOT", \
-"WVP":"WVP", \
-"DEM":"DEM", \
-"SCL":"quality" \
-}
-# Basic information about scene
-# S2B_MSIL1C_20180731T131239_N0206_R138_T24MTS_20180731T182838
-	sceneId = os.path.basename(scene['file'])
-	parts = sceneId.split('_')
-	sat = parts[0]
-	inst = parts[1][0:3]
-	date = parts[2][0:8]
-	calendardate = date[0:4]+'-'+date[4:6]+'-'+date[6:8]
-	yyyymm = date[0:4]+'_'+date[4:6]
-	tile = parts[5]
-	identifier = parts[0]+'_'+parts[1][0:3]+'L2A_'+date+'_'+parts[3]+'_'+parts[4]+'_'+tile
-	identifier = sceneId.split('.')[0]
-	productdir = '/S2SR/'+yyyymm+'/'+tile
-
-# Create output directory
-	app.logger.warning('publishS2 - productdir {}'.format(productdir))
-	if not os.path.exists(productdir):
-		os.makedirs(productdir)
-
-# Create metadata structure and start filling metadata structure for tables Scene and Product in Catalogo database
-	result = {'Scene':{},'Product':{}}
-	result['Scene']['SceneId'] = str(identifier)
-	result['Scene']['Dataset'] = 'S2SR'
-	result['Scene']['Satellite'] = sat
-	result['Scene']['Sensor'] = inst
-	result['Scene']['Date'] = calendardate
-	result['Scene']['Path'] = 0
-	result['Scene']['Row'] = 0
-	result['Scene']['Orbit'] = 0
-	result['Product']['Dataset'] = 'S2SR'
-	result['Product']['Type'] = 'SCENE'
-	result['Product']['RadiometricProcessing'] = 'SR'
-	result['Product']['ProcessingDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	result['Product']['GeometricProcessing'] = 'ortho'
-	result['Product']['SceneId'] = str(identifier)
-
-# Find all jp2 files in L2A SAFE
-	safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
-	template =  "T*.jp2"
-	jp2files = [os.path.join(dirpath, f)
-		for dirpath, dirnames, files in os.walk("{0}".format(safeL2Afull))
-		for f in fnmatch.filter(files, template)]
-	if 	len(jp2files) <= 1:
-		app.logger.warning( 'publishS2 - No {} files found in {}'.format(template,safeL2Afull))
-		template =  "L2A_T*.jp2"
-		jp2files = [os.path.join(dirpath, f)
-			for dirpath, dirnames, files in os.walk("{0}".format(safeL2Afull))
-			for f in fnmatch.filter(files, template)]
-		if 	len(jp2files) <= 1:
-			app.logger.warning( 'publishS2 - No {} files found in {}'.format(template,safeL2Afull))
-			return 1
-	bands = []
-	files = {}
-	app.logger.warning('publishS2 - safeL2Afull {} found {} files template {}'.format(safeL2Afull,len(jp2files),template))
-
-# Find the desired files to be published and put then in files
-	for jp2file in sorted(jp2files):
-		filename = os.path.basename(jp2file)
-		parts = filename.split('_')
-		band = parts[-2]
-		if band not in bands and band in sbands:
-			bands.append(band)
-			files[bandmap[band]] = jp2file
-		elif band == qlband:
-			files['qlfile'] = jp2file
-
-# Publish original products
-	for sband in bands:
-		band = bandmap[sband]
-		file = files[band]
-		newfile = publishAsTif(identifier,productdir,sband,file)
-
-# Create vegetation index
-	if generateVI(identifier,productdir,files) != 0:
-		return 1
-	bands.append('NDVI')
-	bands.append('EVI')
-	bandmap['NDVI'] = 'ndvi'
-	bandmap['EVI'] = 'evi'
-
-# Create Qlook file
-	qlfile =  files['qlfile']
-	pngname = os.path.join(productdir,identifier+'.png')
-	app.logger.warning('publishS2 - pngname {}'.format(pngname))
-	if not os.path.exists(pngname):
-		image = numpy.ones((768,768,3,), dtype=numpy.uint8)
-		dataset = gdal.Open(qlfile,GA_ReadOnly)
-		for nb in [0,1,2]:
-			raster = dataset.GetRasterBand(nb+1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
-			image[:,:,nb] = resize(raster, (768,768), order=1, preserve_range=True).astype(numpy.uint8)
-			write_png(pngname, image, transparent=(0, 0, 0))
-	qlfile =  pngname
-
-# Extract basic parameters from quality file
-	file = files['quality']
-	dataset = gdal.Open(file,GA_ReadOnly)
-	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
-	geotransform = dataset.GetGeoTransform()
-	projection = dataset.GetProjection()
-	datasetsrs = osr.SpatialReference()
-	datasetsrs.ImportFromWkt(projection)
-
-# Extract bounding box and resolution
-	RasterXSize = dataset.RasterXSize
-	RasterYSize = dataset.RasterYSize
-
-	resolutionx = geotransform[1]
-	resolutiony = geotransform[5]
-	fllx = fulx = geotransform[0]
-	fury = fuly = geotransform[3]
-	furx = flrx = fulx + resolutionx * RasterXSize
-	flly = flry = fuly + resolutiony * RasterYSize
-
-# Create transformation from files to ll coordinate
-	llsrs = osr.SpatialReference()
-	llsrs.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-	s2ll = osr.CoordinateTransformation ( datasetsrs, llsrs )
-
-# Evaluate corners coordinates in ll
-#	Upper left corner
-	(ullon, ullat, nkulz ) = s2ll.TransformPoint( fulx, fuly)
-#	Upper right corner
-	(urlon, urlat, nkurz ) = s2ll.TransformPoint( furx, fury)
-#	Lower left corner
-	(lllon, lllat, nkllz ) = s2ll.TransformPoint( fllx, flly)
-#	Lower right corner
-	(lrlon, lrlat, nklrz ) = s2ll.TransformPoint( flrx, flry)
-
-	result['Scene']['CenterLatitude'] = (ullat+lrlat+urlat+lllat)/4.
-	result['Scene']['CenterLongitude'] = (ullon+lrlon+urlon+lllon)/4.
-
-	result['Scene']['TL_LONGITUDE'] = ullon
-	result['Scene']['TL_LATITUDE'] = ullat
-
-	result['Scene']['BR_LONGITUDE'] = lrlon
-	result['Scene']['BR_LATITUDE'] = lrlat
-
-	result['Scene']['TR_LONGITUDE'] = urlon
-	result['Scene']['TR_LATITUDE'] = urlat
-
-	result['Scene']['BL_LONGITUDE'] = lllon
-	result['Scene']['BL_LATITUDE'] = lllat
-
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	result['Scene']['Deleted'] = 0
-
-# Compute cloud cover
-	"""
-	Label Classification
-	0		NO_DATA
-	1		SATURATED_OR_DEFECTIVE
-	2		DARK_AREA_PIXELS
-	3		CLOUD_SHADOWS
-	4		VEGETATION
-	5		BARE_SOILS
-	6		WATER
-	7		CLOUD_LOW_PROBABILITY
-	8		CLOUD_MEDIUM_PROBABILITY
-	9		CLOUD_HIGH_PROBABILITY
-	10		THIN_CIRRUS
-	11		SNOW
-	"""
-	unique, counts = numpy.unique(raster, return_counts=True)
-	clear = 0.
-	cloud = 0.
-	for i in range(0,unique.shape[0]):
-		if unique[i] == 0:
-			continue
-		elif unique[i] in [1,2,3,8,9,10]:
-			cloud += float(counts[i])
-		else:
-			clear += float(counts[i])
-	cloudcover = int(round(100.*cloud/(clear+cloud),0))
-	app.logger.warning('publishS2 - cloudcover {}'.format(cloudcover))
-
-	result['Scene']['CloudCoverMethod'] = 'A'
-	result['Scene']['CloudCoverQ1'] = cloudcover
-	result['Scene']['CloudCoverQ2'] = cloudcover
-	result['Scene']['CloudCoverQ3'] = cloudcover
-	result['Scene']['CloudCoverQ4'] = cloudcover
-
-# Connect to db and delete all data about this scene
-	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('CATALOG_USER'),
-											  os.environ.get('CATALOG_PASS'),
-											  os.environ.get('CATALOG_HOST'),
-											  'catalogo')
-	engine = sqlalchemy.create_engine(connection)
-	sql = "DELETE FROM Scene WHERE SceneId = '{0}'".format(identifier)
-	engine.execute(sql)
-	sql = "DELETE FROM Product WHERE SceneId = '{0}'".format(identifier)
-	engine.execute(sql)
-	sql = "DELETE FROM Qlook WHERE SceneId = '{0}'".format(identifier)
-	engine.execute(sql)
-
-# Inserting data into Scene table
-	params = ''
-	values = ''
-	for key,val in result['Scene'].items():
-		params += key+','
-		if type(val) is str:
-				values += "'{0}',".format(val)
-		else:
-				values += "{0},".format(val)
-
-	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
-	app.logger.warning('publishS2 - sql {}'.format(sql))
-	engine.execute(sql)
-
-# Inserting data into Qlook table
-	sql = "INSERT INTO Qlook (SceneId,QLfilename) VALUES('%s', '%s')" % (identifier, qlfile)
-	app.logger.warning('publishS2 - sql {}'.format(sql))
-	engine.execute(sql)
-
-# Inserting data into Product table
-	for sband in bands:
-		band = bandmap[sband]
-		file = files[band]
-		newfile = publishAsTif(identifier,productdir,sband,file)
-		if os.path.exists(file):
-			ProcessingDate = datetime.datetime.fromtimestamp(os.path.getctime(file)).strftime('%Y-%m-%d %H:%M:%S')
-			result['Product']['ProcessingDate'] = ProcessingDate
-			dataset = gdal.Open(newfile,GA_ReadOnly)
-			if dataset is None:
-				app.logger.warning('publishS2 - newfile {} is corrupted'.format(newfile))
-				continue
-			geotransform = dataset.GetGeoTransform()
-			result['Product']['Resolution'] = geotransform[1]
-		else:
-			app.logger.warning('publishS2 - newfile {} does not exist'.format(newfile))
-			continue
-		result['Product']['Band'] = band
-		result['Product']['Filename'] = newfile
 		params = ''
 		values = ''
 		for key,val in result['Product'].items():
@@ -2479,18 +2207,29 @@ def uploadS2(scene):
 	getS3Client()
 
 	safe = scene['file'].replace('MSIL1C','MSIL2A')
-	published = safe+'/PUBLISHED/'
+	safe = safe.replace('S2_MSI','S2SR')
 	prefix = safe[1:] + '/'
-	prefix = prefix.replace('S2_MSI','S2SR')
 	logging.warning('uploadS2 S3 prefix {} '.format(prefix))
 	s3tiffs = []
 	result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
 	if 'Contents' in result:
 		for obj in result['Contents']:
-			logging.warning('upS2 S3 tiff {} '.format(obj.get('Key')))
+			logging.warning('uploadS2 already in S3 {} '.format(obj.get('Key')))
 			s3tiffs.append(os.path.basename(obj.get('Key')))
-	tiffs = glob.glob(published+'*.tif')
+	if len(s3tiffs) == 16:
+		logging.warning('uploadS2 - {} files in {}'.format(len(s3tiffs),safe))
+		return 0
+	tiffs = glob.glob(safe+'/*.tif')
+	if len(tiffs) < 15:
+		logging.warning('uploadS2 error - {} files in {}'.format(len(tiffs),safe))
+		return 1
+	pngs = glob.glob(safe+'/*.png')
+	if len(pngs) == 0:
+		logging.warning('uploadS2 error - no png in {}'.format(safe))
+		return 1
+	tiffs.append(pngs[0])
 	count = 0
+	logging.warning('uploadS2 max_concurrency {}'.format(ACTIVITIES['uploadS2']['maximum']))
 	for tiff in tiffs:
 		count += 1
 		logging.warning('uploadS2 {}/{} - {}'.format(count,len(tiffs),tiff))
@@ -2498,9 +2237,7 @@ def uploadS2(scene):
 			logging.warning('uploadS2 {} already in S3'.format(os.path.basename(tiff)))
 			continue
 		mykey = tiff[1:]
-		#mykey = mykey.replace('/PUBLISHED', '')
-		#logging.warning('uploadS2 tiff {} mykey {}'.format(tiff,mykey))
-
+		
 		try:
 			tc = boto3.s3.transfer.TransferConfig(use_threads=True,max_concurrency=ACTIVITIES['uploadS2']['maximum'])
 			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
@@ -2509,16 +2246,6 @@ def uploadS2(scene):
 			logging.warning('uploadS2 error {}'.format(e))
 			return 1
 
-
-		"""
-		with open(tiff, 'rb') as data:
-			try:
-				S3Client.upload_fileobj(data, bucket_name, mykey)
-			#except botocore.exceptions.BotoCoreError as err:
-			except Exception as e:
-				logging.warning('uploadS2 error {}'.format(e))
-				return 1
-		"""
 	return 0
 
 ###################################################
@@ -2790,16 +2517,6 @@ def getSESSION():
 		auth = {"username": usgs_user, "password": usgs_pass, "csrf_token": csrf_token, "__ncforminfo": __ncforminfo}
 
 		SESSION.post(url_login, data=auth, allow_redirects=False)
-
-
-###################################################
-@app.route('/pause', methods=['GET'])
-def pause():
-	sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
-	do_command(sql)
-	msg = 'sql - {}\n'.format(sql)
-
-	return msg
 
 
 ###################################################
@@ -3225,9 +2942,9 @@ def start():
 
 ###################################################
 def manage(activity):
-	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+	global MAX_THREADS,ACTIVITIES,s2users,CUR_THREADS
 	#ACTIVITIES['downloadS2']['maximum'] = getS2Users()
-	app.logger.warning('manage start - lock : {} CUR_THREADS : {} ACTIVITIES : {} activity {}'.format(redis.get('rc_lock'),CUR_THREADS,ACTIVITIES,activity))
+	app.logger.warning('manage start - lock : {} CUR_THREADS : {} ACTIVITIES : {} activity {}'.format(redis.get('rc_lock'),CUR_THREADS.value,ACTIVITIES,activity))
 
 # Create the critical region while database is modified. Leave it if sleeping time is greater than 10 units to avoid sleeping forever in a buggy situation
 	countsleep = 0
@@ -3246,7 +2963,7 @@ def manage(activity):
 		activity['link'] = None
 		#do_upsert('activities',activity,['id','status','link','file','start','end','elapsed','retcode','message'])
 		do_update('activities',activity)
-		CUR_THREADS -= 1
+		CUR_THREADS.value -= 1
 		if activity['app'] in ACTIVITIES:
 			ACTIVITIES[activity['app']]['current'] -= 1
 
@@ -3325,7 +3042,7 @@ def manage(activity):
 	result = do_query(sql)
 
 	for newactivity in result:
-		if CUR_THREADS >= MAX_THREADS: break
+		if CUR_THREADS.value >= MAX_THREADS: break
 		if newactivity['app'] in ACTIVITIES:
 			if ACTIVITIES[newactivity['app']]['current'] >= ACTIVITIES[newactivity['app']]['maximum']:
 				#app.logger.warning('manage - not yet activity {} {}'.format(ACTIVITIES[newactivity['app']],newactivity))
@@ -3346,19 +3063,19 @@ def manage(activity):
 		# t = threading.Thread(target=run, args=(newactivity,))
 		t = multiprocessing.Process(target=run, args=(newactivity, ))
 
-		app.logger.warning('manage threading - lock : {} CUR_THREADS : {} MAX_THREADS : {} newactivity : {}'.format(redis.get('rc_lock'),CUR_THREADS,MAX_THREADS,newactivity))
+		app.logger.warning('manage threading - lock : {} CUR_THREADS : {} MAX_THREADS : {} newactivity : {}'.format(redis.get('rc_lock'),CUR_THREADS.value,MAX_THREADS,newactivity))
 		t.start()
 		newactivity_copy['link'] = None
 		newactivity_copy['retcode'] = None
 		newactivity_copy['message'] = None
 		#do_upsert('activities',newactivity_copy,['id','status','link','file','start','end','elapsed','retcode','message'])
 		do_update('activities',newactivity_copy)
-		CUR_THREADS += 1
-		app.logger.warning('manage loop - lock : {} CUR_THREADS : {} MAX_THREADS : {}'.format(redis.get('rc_lock'),CUR_THREADS,MAX_THREADS))
+		CUR_THREADS.value += 1
+		app.logger.warning('manage loop - lock : {} CUR_THREADS : {} MAX_THREADS : {}'.format(redis.get('rc_lock'),CUR_THREADS.value,MAX_THREADS))
 
 # Leave the critical region
 	redis.set('rc_lock',0)
-	app.logger.warning('manage end - lock : {} CUR_THREADS : {} activity {} s2users {}'.format(redis.get('rc_lock'),CUR_THREADS,activity,s2users.keys()))
+	app.logger.warning('manage end - lock : {} CUR_THREADS : {} activity {} s2users {}'.format(redis.get('rc_lock'),CUR_THREADS.value,activity,s2users.keys()))
 	return
 
 ###################################################
@@ -3558,7 +3275,7 @@ def restart():
 		sql = "UPDATE activities SET status='NOTDONE' WHERE id = {}".format(id)
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
-	CUR_THREADS = 0
+	CUR_THREADS.value = 0
 	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
@@ -3584,11 +3301,31 @@ def reset():
 	lock = getLock()
 	msg += 'lock is: {}\n'.format(lock)
 	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	CUR_THREADS = 0
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
+	CUR_THREADS.value = 0
+	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 
 	start()
+	return msg
+
+
+###################################################
+@app.route('/pause', methods=['GET'])
+def pause():
+	global ACTIVITIES
+	for activity in ACTIVITIES:
+		ACTIVITIES[activity]['maximum'] = 0
+	app.logger.warning('Activities maximum set to 0: {}'.format(ACTIVITIES))
+	return('Activities maximum set to 0')
+
+
+###################################################
+@app.route('/suspendnotdone', methods=['GET'])
+def suspendnotdone():
+	sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
+	do_command(sql)
+	msg = 'sql - {}\n'.format(sql)
+
 	return msg
 
 
@@ -3601,7 +3338,7 @@ def inspect():
 	lock = getLock()
 	msg += 'lock is: {}\n'.format(lock)
 	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
+	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 	msg += 's2users is: {}\n'.format(s2users.keys())
 

@@ -2011,6 +2011,20 @@ def getS3Client():
 		S3Client = boto3.client('s3', aws_access_key_id=cc[0],aws_secret_access_key=cc[1])
 		bucket_name = 'bdc-archive'
 
+
+#################################################
+def copytree(src, dst):
+        if not os.path.exists(dst):
+                os.makedirs(dst)
+        for item in os.listdir(src):
+                s = os.path.join(src, item)
+                d = os.path.join(dst, item)
+                if os.path.isdir(s):
+                        copytree(s, d)
+                else:
+                        if not os.path.exists(d) or os.stat(s).st_mtime - os.stat(d).st_mtime > 1:
+                            shutil.copy2(s, d)
+
 ###################################################
 @app.route('/uploadS2All', methods=['GET','POST'])
 def uploadS2All():

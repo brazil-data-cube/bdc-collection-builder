@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from celery import chain
@@ -17,9 +18,13 @@ def start():
 
     for activity in result:
         activity_ctx = activity['app']
-        activity['start'] = activity['start'].strftime("%Y-%m-%d %H:%M:%S")
-        activity['end'] = activity['end'].strftime("%Y-%m-%d %H:%M:%S")
-        activity['elapsed'] = str(activity['elapsed'])
+        if activity.get('start'):
+            activity['start'] = activity['start'].strftime("%Y-%m-%d %H:%M:%S")
+
+        if activity.get('end'):
+            activity['end'] = activity['end'].strftime("%Y-%m-%d %H:%M:%S")
+
+        activity['elapsed'] = str(activity['elapsed'] or '')
 
         tasks = []
 

@@ -2945,16 +2945,6 @@ def search():
 	return jsonify(scenes)
 
 ###################################################
-@app.route('/start', methods=['GET'])
-def start():
-	activity = {}
-	activity['id'] = -1
-	activity['app'] = 'START'
-	activity['status'] = 'START'
-	manage(activity)
-	return 'OK\n'
-
-###################################################
 def manage(activity):
 	global MAX_THREADS,ACTIVITIES,s2users,CUR_THREADS
 	#ACTIVITIES['downloadS2']['maximum'] = getS2Users()
@@ -3276,6 +3266,15 @@ def set():
 		msg += '{} = {}\n'.format(app,ACTIVITIES[app])
 	return msg
 
+###################################################
+@app.route('/start', methods=['GET'])
+def start():
+	activity = {}
+	activity['id'] = -1
+	activity['app'] = 'START'
+	activity['status'] = 'START'
+	manage(activity)
+	return 'OK\n'
 
 ###################################################
 @app.route('/restart', methods=['GET'])
@@ -3304,6 +3303,28 @@ def reset():
 	s2users = {}
 	getS2Users()
 	msg = 'Rc_Maestro reseting:\n'
+	
+	setActivities()
+	redis.set('rc_lock',0)
+	msg = 'Rc_Maestro reseting:\n'
+	status = request.args.get('status', None)
+	lock = getLock()
+	msg += 'lock is: {}\n'.format(lock)
+	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+	CUR_THREADS.value = 0
+	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+
+	return msg
+
+
+###################################################
+@app.route('/reset_activities', methods=['GET'])
+def reset_activities():
+	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+	s2users = {}
+	getS2Users()
+	msg = 'Rc_Maestro reseting:\n'
 	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
@@ -3319,13 +3340,12 @@ def reset():
 	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 
-	start()
 	return msg
 
-
+	
 ###################################################
-@app.route('/pause', methods=['GET'])
-def pause():
+@app.route('/finish_current', methods=['GET'])
+def finish_current():
 	global ACTIVITIES
 	for activity in ACTIVITIES:
 		ACTIVITIES[activity]['maximum'] = 0

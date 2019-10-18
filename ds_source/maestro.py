@@ -951,7 +951,7 @@ def restart():
 def reset():
 	global MAX_THREADS,CUR_THREADS,ACTIVITIES
 	msg = 'Maestro reseting:\n'
-	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING'"
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
 	CUR_THREADS = 0

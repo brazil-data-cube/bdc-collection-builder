@@ -28,7 +28,7 @@ def do_query(sql):
 	engine = sqlalchemy.create_engine(connection)
 	result = engine.execute(sql)
 	result = result.fetchall()
-	logging.warning('do_query - '+sql+' - Rows: {}'.format(len(result)))
+	# logging.warning('do_query - '+sql+' - Rows: {}'.format(len(result)))
 	engine.dispose()
 	return [dict(row) for row in result]
 
@@ -41,7 +41,7 @@ def do_command(sql):
 											  os.environ.get('DB_NAME'))
 	engine = sqlalchemy.create_engine(connection)
 	result = engine.execute(sql)
-	logging.warning('do_command - '+sql)
+	# logging.warning('do_command - '+sql)
 	engine.dispose()
 	return
 
@@ -64,7 +64,7 @@ def do_insert(table,activity):
 											  os.environ.get('DB_PASS'),
 											  os.environ.get('DB_HOST'),
 											  os.environ.get('DB_NAME'))
-	logging.warning('do_insert - '+sql)
+	# logging.warning('do_insert - '+sql)
 	engine = sqlalchemy.create_engine(connection)
 	engine.execute(sql)
 	engine.dispose()
@@ -80,24 +80,29 @@ def do_update(table,activity):
 											  os.environ.get('DB_NAME'))
 	engine = sqlalchemy.create_engine(connection)
 
+	import copy
+
+	activity = copy.deepcopy(activity)
+
 	params = ''
 	id = activity['id']
+	del activity['id']
 	for key,val in activity.items():
 		if key == 'id' or val is None: continue
 		params += key+'='
 		if type(val) is str or isinstance(val, datetime.date):
-				params += "'{0}',".format(val)
+				params += "%({})s,".format(key)
 		else:
-				params += "{0},".format(val)
+				params += "%({})s,".format(key)
 	sql = "UPDATE {} SET {} WHERE id = {}".format(table,params[:-1],id)
-	logging.warning('do_update - '+sql)
-	engine.execute(sql)
+	# logging.warning('do_update - '+sql)
+	engine.execute(sql, activity)
 	engine.dispose()
 	return
 
 
 ###################################################
-def do_upsert(table,activity,avoidlist=None,verbose=True):
+def do_upsert(table,activity,avoidlist=None,verbose=False):
 # Inserting data into activities table
 	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('DB_USER'),
 											  os.environ.get('DB_PASS'),

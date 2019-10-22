@@ -1,14 +1,205 @@
 import datetime
 import fnmatch
+import json
+import logging
 import os
 import time
 
 import gdal
 import numpy
 import osr
+import requests
+from tqdm.auto import tqdm
+import zlib
+import zipfile
 from skimage.transform import resize
 from numpngw import write_png
 import sqlalchemy
+
+
+logging.basicConfig(level=logging.DEBUG)
+
+s2users = {}
+
+
+def is_valid(zfile):
+    try:
+        archive = zipfile.ZipFile(zfile, 'r')
+        try:
+            corrupt = True if archive.testzip() else False
+        except zlib.error:
+            corrupt = True
+        archive.close()
+    except zipfile.BadZipfile:
+        corrupt = True
+    return not corrupt
+
+################################
+def extractall(zfile):
+    uzfile = zfile.replace('.zip','.SAFE')
+    if os.path.exists(uzfile): return
+    archive = zipfile.ZipFile(zfile, 'r')
+    archive.extractall(os.path.dirname(zfile))
+    archive.close()
+
+
+def get_s2_users():
+    global s2users
+    if len(s2users) == 0:
+        file = '/home/raphael/mydevel/cubo/bdc-scripts/rc_maestro/secrets_S2.JSON'
+        if not os.path.exists(file):
+            return 'No secrets_S2.JSON'
+        fh = open(file, 'r')
+        s2users = json.load(fh)
+    return 2*len(s2users)
+
+
+# s3_client, bucket_name = create_s3()
+
+def download_sentinel_images(link, zfile):
+    get_s2_users()
+    user = None
+    for s2user in s2users:
+        if s2users[s2user]['count'] < 2:
+            user = s2user
+            s2users[user]['count'] += 1
+            break
+    if user is None:
+        logging.warning('doDownloadS2 - nouser')
+        return False
+
+    logging.warning('doDownloadS2 - user {} link {}'.format(user, link))
+
+    try:
+        response = requests.get(link, auth=(user, s2users[user]['password']), stream=True)
+    except requests.exceptions.ConnectionError:
+        logging.warning('doDownloadS2 - Connection Error')
+        s2users[user]['count'] -= 1
+        return False
+    if 'Content-Length' not in response.headers:
+        logging.warning(
+            'doDownloadS2 - Content-Length not found for user {} in {} {}'.format(user, link, response.text))
+        s2users[user]['count'] -= 1
+        return False
+    size = int(response.headers['Content-Length'].strip())
+    if size < 30 * 1024 * 1024:
+        logging.warning(
+            'doDownloadS2 - user {} {} size {} MB too small'.format(user, zfile, int(size / 1024 / 1024)))
+        s2users[user]['count'] -= 1
+        return False
+    logging.warning('doDownloadS2 - user {} {} size {} MB'.format(user, zfile, int(size / 1024 / 1024)))
+    down = open(zfile, 'wb')
+
+    chunk_size = 2048
+    num_bars = int(size / chunk_size)
+    file = os.path.basename(zfile)
+
+    for chunk in tqdm(response.iter_content(chunk_size), total=num_bars, unit='KB', desc=file, leave=True):
+        down.write(chunk)
+    # for buf in response.iter_content(1024):
+    #     down.write(buf)
+
+    down.close()
+    s2users[user]['count'] -= 1
+    return True
+
+
+def download(scene):
+    cc = scene['sceneid'].split('_')
+    yyyymm = cc[2][:4] + '-' + cc[2][4:6]
+    # Output product dir
+    productdir = '/S2_MSI/{}'.format(yyyymm)
+    link = scene['link']
+    sceneId = scene['sceneid']
+    if not os.path.exists(productdir):
+        os.makedirs(productdir)
+    zfile = productdir + '/' + sceneId + '.zip'
+    safeL1Cfull = productdir + '/' + sceneId + '.SAFE'
+
+    logging.warning('downloadS2 - link {} file {}'.format(link, zfile))
+    if not os.path.exists(safeL1Cfull):
+        valid = True
+        if os.path.exists(zfile):
+            valid = is_valid(zfile)
+        if not os.path.exists(zfile) or not valid:
+            status = download_sentinel_images(link, zfile)
+            if not status:
+                return None
+
+            """
+            try:
+                if not os.path.exists("secrets_s2.csv"):
+                    return 'No secrets_s2.csv'
+                fh = open('secrets_s2.csv','r')
+                line = fh.readline()
+                line = fh.readline()
+                line = line.strip()
+                cc = line.split(",")
+
+                s2_user = str(cc[0])
+                s2_pass = str(cc[1])
+                response = requests.get(link, auth=(s2_user, s2_pass), stream=True)
+            except requests.exceptions.ConnectionError:
+                app.logger.exception('downloadS2 - Connection Error')
+                return None
+            if 'Content-Length' not in response.headers:
+                app.logger.exception('downloadS2 - Content-Length not found')
+                return None
+            size = int(response.headers['Content-Length'].strip())
+            app.logger.warning('downloadS2 - {} size {} MB'.format(zfile,int(size/1024/1024)))
+            down = open(zfile, 'wb')
+            for buf in response.iter_content(1024):
+                if buf:
+                    down.write(buf)
+            down.close()
+            """
+            # Check if file is valid
+            valid = is_valid(zfile)
+
+        if not valid:
+            os.remove(zfile)
+            return None
+        else:
+            extractall(zfile)
+
+    return safeL1Cfull
+
+
+def upload(scene):
+    # getS3Client()
+
+    # safe = scene['file'].replace('MSIL1C', 'MSIL2A')
+    # published = safe + '/PUBLISHED/'
+    # prefix = safe[1:] + '/'
+    # prefix = prefix.replace('S2_MSI', 'S2SR')
+    # # logging.warning('uploadS2 S3 prefix {} '.format(prefix))
+    # s3tiffs = []
+    # result = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+    # if 'Contents' in result:
+    #     for obj in result['Contents']:
+    #         # logging.warning('upS2 S3 tiff {} '.format(obj.get('Key')))
+    #         s3tiffs.append(os.path.basename(obj.get('Key')))
+    # tiffs = glob.glob(published + '*.tif')
+    # count = 0
+    # for tiff in tiffs:
+    #     count += 1
+    #     # logging.warning('uploadS2 {}/{} - {}'.format(count, len(tiffs), tiff))
+    #     if os.path.basename(tiff) in s3tiffs:
+    #         # logging.warning('uploadS2 {} already in S3'.format(os.path.basename(tiff)))
+    #         continue
+    #     mykey = tiff[1:]
+    #     # mykey = mykey.replace('/PUBLISHED', '')
+    #     # logging.warning('uploadS2 tiff {} mykey {}'.format(tiff,mykey))
+    #
+    #     try:
+    #         tc = boto3.s3.transfer.TransferConfig(use_threads=True, max_concurrency=ACTIVITIES['uploadS2']['maximum'])
+    #         transfer = boto3.s3.transfer.S3Transfer(client=s3_client, config=tc)
+    #         transfer.upload_file(tiff, bucket_name, mykey, extra_args={'ACL': 'public-read'})
+    #     except Exception as e:
+    #         print('uploadS2 error {}'.format(e))
+    #         return 1
+
+    return 0
 
 
 def publish(scene):

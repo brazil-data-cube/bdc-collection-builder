@@ -3,7 +3,7 @@ Infrastructure for creating brazil data cube environment in a local server machi
 
 ## Structure
 
-- [`ds_config`](./ds_config): Definitions and system configs (Reference Grids, Spetral bands mapping, etc) 
+- [`ds_config`](./ds_config): Definitions and system configs (Reference Grids, DB Scripts, Definitions etc) 
 
 - [`ds_cubesearch`](./ds_cubesearch): Web interface to view datacubes, download products, etc. 
 

@@ -26,7 +26,7 @@ def download_sentinel():
     logging.info('Done download.')
 
 
-@app.task(base=TaskHandler)
+@app.task(base=TaskHandler, queue='publish')
 def publish_sentinel():
     logging.info('Publish Sentinel...')
 
@@ -35,7 +35,7 @@ def publish_sentinel():
     logging.info('Done Publish Sentinel.')
 
 
-@app.task
+@app.task(base=TaskHandler, queue='upload')
 def upload_sentinel():
     logging.info('Upload sentinel to AWS...')
 

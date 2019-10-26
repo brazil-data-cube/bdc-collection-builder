@@ -1,3 +1,4 @@
+from flask import request
 from flask_restplus import Namespace, Resource
 from bdc_scripts.tasks import download_sentinel, publish_sentinel, upload_sentinel
 from celery import chain
@@ -9,13 +10,10 @@ ns = Namespace('sentinel', description='sentinel')
 @ns.route('/download')
 class DownloadSentinelController(Resource):
     def get(self):
-        number = 20
-        tasks = []
-        for i in range(number):
-            tasks.append(download_sentinel.s())
+        number = int(request.args.get('size', 20))
 
-        c = chain(*tasks)
-        c.apply_async()
+        for i in range(number):
+            download_sentinel.delay()
 
         return {"status": 200, "triggered": number}
 

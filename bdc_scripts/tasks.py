@@ -4,44 +4,41 @@ from celery import Celery
 import logging
 
 
-celery = Celery(__name__,
-                backend='rpc://',
-                broker='pyamqp://guest@localhost')
+app = Celery(__name__,
+             backend='rpc://',
+             broker='pyamqp://guest@localhost')
 
 
-class TaskHandler(celery.Task):
+class TaskHandler(app.Task):
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        print('{0!r} failed: {1!r}'.format(task_id, exc))
+        logging.error('{0!r} failed: {1!r}'.format(task_id, exc))
 
 
-@celery.task(base=TaskHandler, exchange='download_sentinel')
+@app.task(base=TaskHandler, queue='download')
 def download_sentinel():
-    current_id = celery.AsyncResult.task_id
+    logging.info('Starting Download...')
 
-    logging.info('Starting Download {}...'.format(current_id))
+    time.sleep(randint(3, 5))
 
-    time.sleep(randint(10, 15))
+    if randint(1, 10) == 1:
+        raise TypeError('Error here')
 
-    logging.info('Done download {}...'.format(current_id))
+    logging.info('Done download.')
 
 
-@celery.task(base=TaskHandler)
+@app.task(base=TaskHandler)
 def publish_sentinel():
-    current_id = celery.AsyncResult.task_id
-
-    logging.info('Publish Sentinel {}...'.format(current_id))
+    logging.info('Publish Sentinel...')
 
     time.sleep(randint(10, 15))
 
-    logging.info('Done Publish Sentinel {}...'.format(current_id))
+    logging.info('Done Publish Sentinel.')
 
 
-@celery.task
+@app.task
 def upload_sentinel():
-    current_id = celery.AsyncResult.task_id
-
-    logging.info('Upload sentinel to AWS {}...'.format(current_id))
+    logging.info('Upload sentinel to AWS...')
 
     time.sleep(randint(4, 8))
 
-    logging.info('Done Upload sentinel to AWS {}...'.format(current_id))
+    logging.info('Done Upload sentinel to AWS.')

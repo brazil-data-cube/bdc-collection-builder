@@ -29,14 +29,12 @@ setup(
     url='https://github.com/brazil-data-cube/bdc-scripts.git',
     packages=find_packages(),
     install_requires=[
-        'alembic>=1.0.10',
-        'GeoAlchemy2>=0.6.3',
         'Flask>=1.1.1',
         'Flask-Cors>=3.0.8',
         'flask-restplus>=0.13.0',
         'flask_bcrypt>=0.7.1',
         'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-        # TODO: Temporary workaround since kombu setting fixed version
+        # TODO: Temporary workaround since kombu has fixed version
         'celery[librabbitmq]==4.3.0',
         'librabbitmq==2.0.0',
         'vine==1.3.0',

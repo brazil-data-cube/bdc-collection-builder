@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Numeric, \
                        String, Text
+from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import BaseModel
 
 

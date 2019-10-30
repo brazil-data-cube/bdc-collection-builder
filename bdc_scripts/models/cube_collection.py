@@ -2,6 +2,7 @@ from sqlalchemy import Column, ForeignKey, Integer, Numeric, \
                        String, Text
 from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import BaseModel
+from bdc_scripts.models.cube_tile import CubeTile
 
 
 class CubeCollection(BaseModel):

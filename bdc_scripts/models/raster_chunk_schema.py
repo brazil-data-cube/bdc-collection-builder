@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, Numeric, \
                        String, Text
+from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import BaseModel
 
 
-class RasterChunkSchemas(BaseModel):
+class RasterChunkSchema(BaseModel):
     __tablename__ = 'raster_chunk_schemas'
 
     id = Column(Integer, auto_increment=True, primary_key=True)

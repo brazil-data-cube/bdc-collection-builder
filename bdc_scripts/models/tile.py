@@ -1,5 +1,5 @@
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Integer
+from sqlalchemy import Column, ForeignKey, Integer
 from bdc_scripts.models.base_sql import BaseModel
 
 

@@ -1,7 +1,6 @@
 from flask import request
 from flask_restplus import Namespace, Resource
-from bdc_scripts.tasks import download_sentinel, publish_sentinel, upload_sentinel
-from celery import chain
+from bdc_scripts.celery.tasks import download_sentinel, publish_sentinel, upload_sentinel
 
 
 ns = Namespace('sentinel', description='sentinel')

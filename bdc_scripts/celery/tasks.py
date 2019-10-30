@@ -1,12 +1,8 @@
 from random import randint
-import time
-from celery import Celery
 import logging
-
-
-app = Celery(__name__,
-             backend='rpc://',
-             broker='pyamqp://guest@localhost')
+import time
+from bdc_scripts.celery import app
+from bdc_scripts.sentinel.clients import sentinel_clients
 
 
 class TaskHandler(app.Task):

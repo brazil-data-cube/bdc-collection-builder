@@ -1,5 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, Numeric, \
-                       String, Text
+from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import BaseModel
 from bdc_scripts.models.cube_tile import CubeTile
@@ -8,19 +7,16 @@ from bdc_scripts.models.cube_tile import CubeTile
 class CubeCollection(BaseModel):
     __tablename__ = 'cube_collections'
 
-    id = Column(Integer, auto_increment=True, primary_key=True)
-    grs_schema_id = Column(Integer, ForeignKey('grs_schemas.id'))
-    spatial_resolution_schema_id = Column(
-        Integer,
-        ForeignKey('spatial_resolution_schemas.id')
-    )
-    temporal_composite_schema_id = Column(
-        Integer,
-        ForeignKey('temporal_composite_schemas.id')
-    )
-    raster_chunk_schema_id = Column(
-        Integer,
-        ForeignKey('raster_chunk_schemas.id')
-    )
+    id = Column(String(20), primary_key=True)
+    spatial_resolution_schema = Column(ForeignKey('spatial_resolution_schemas.id'), nullable=False)
+    temporal_composition_schema = Column(ForeignKey('temporal_composition_schemas.id'), nullable=False)
+    raster_chunk_schema = Column(ForeignKey('raster_chunk_schemas.id'), nullable=False)
+    grs_schema = Column(ForeignKey('grs_schemas.id'), nullable=False)
+    version = Column(String(16), nullable=False)
+    description = Column(String(64), nullable=False)
 
-    composite_functions = relationship('CompositeFunction')
+    # Associations
+    grs_schema_instance = relationship('GrsSchema')
+    raster_chunk_schema_instance = relationship('RasterChunkSchema')
+    spatial_resolution_schema_instance = relationship('SpatialResolutionSchema')
+    temporal_composition_schema_instance = relationship('TemporalCompositionSchema')

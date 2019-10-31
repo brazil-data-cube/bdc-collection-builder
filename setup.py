@@ -35,6 +35,10 @@ setup(
         'flask_bcrypt>=0.7.1',
         'redis>=3.3.11',
         'requests>=2.22.0',
+        'GDAL>=2.3.3',
+        'numpy>=1.17.2',
+        'numpngw>=0.0.8',  # TODO: Review this dependency
+        'scikit-image>=0.16.2',
         'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
         # TODO: Temporary workaround since kombu has fixed version
         'celery[librabbitmq]==4.3.0',

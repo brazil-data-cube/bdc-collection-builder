@@ -5,20 +5,21 @@ import time
 from random import randint
 
 # 3rdparty Libraries
-from celery.task import Task
+# from celery.task import Task
 
 # BDC Scripts
 from bdc_scripts.celery import app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.sentinel.clients import sentinel_clients
 from bdc_scripts.sentinel.download import download_sentinel_images
+from bdc_scripts.sentinel.publish import publish
 from bdc_scripts.utils import extractall, is_valid
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
 
-class DownloadSentinelTask(Task):
+class SentinelTask(app.Task):
     def get_user(self):
         user = None
 
@@ -41,7 +42,7 @@ class DownloadSentinelTask(Task):
     def download(self, scene):
         # Acquire User to download
         with self.get_user() as user:
-            logging.debug('Starting Download...')
+            logging.debug('Starting Download {}...'.format(user.username))
 
             cc = scene['scene_id'].split('_')
             year_month = cc[2][:4] + '-' + cc[2][4:6]
@@ -73,17 +74,26 @@ class DownloadSentinelTask(Task):
                     return None
                 else:
                     extractall(zip_file_name)
+            else:
+                logging.info('Skipping download since the file {} already exists'.format(extracted_file_path))
 
             logging.debug('Done download.')
 
-    def publish(self):
+        scene.update(dict(
+            file=extracted_file_path
+        ))
+
+        return scene
+
+    def publish(self, scene):
         logging.info('Publish Sentinel...')
 
-        time.sleep(randint(10, 15))
+        publish(scene)
+        # time.sleep(randint(10, 15))
 
         logging.info('Done Publish Sentinel.')
 
-    def upload(self):
+    def upload(self, scene):
         logging.info('Upload sentinel to AWS...')
 
         time.sleep(randint(4, 8))
@@ -91,16 +101,16 @@ class DownloadSentinelTask(Task):
         logging.info('Done Upload sentinel to AWS.')
 
 
-@app.task(base=DownloadSentinelTask, queue='download')
+@app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
-    download_sentinel.download(scene)
+    return download_sentinel.download(scene)
 
 
-@app.task(base=DownloadSentinelTask, queue='publish')
-def publish_sentinel():
-    publish_sentinel.publish()
+@app.task(base=SentinelTask, queue='publish')
+def publish_sentinel(scene):
+    return publish_sentinel.publish(scene)
 
 
-@app.task(base=DownloadSentinelTask, queue='upload')
-def upload_sentinel():
-    upload_sentinel.upload()
+@app.task(base=SentinelTask, queue='upload')
+def upload_sentinel(scene):
+    upload_sentinel.upload(scene)

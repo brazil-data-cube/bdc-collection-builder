@@ -1,85 +1,42 @@
 import logging
 import os
-from bdc_scripts.utils import extractall, is_valid
+import requests
 
 
-def download(scene):
-    cc = scene['sceneid'].split('_')
-    yyyymm = cc[2][:4] + '-' + cc[2][4:6]
-    # Output product dir
-    productdir = '/S2_MSI/{}'.format(yyyymm)
-    link = scene['link']
-    sceneId = scene['sceneid']
-    if not os.path.exists(productdir):
-        os.makedirs(productdir)
-    zfile = productdir + '/' + sceneId + '.zip'
-    safeL1Cfull = productdir + '/' + sceneId + '.SAFE'
+def download_sentinel_images(link, file_path, user):
+    """
+    Download sentinel image from Copernicus (compressed data)
 
-    logging.warning('downloadS2 - link {} file {}'.format(link, zfile))
-    if not os.path.exists(safeL1Cfull):
-        valid = True
-        if os.path.exists(zfile):
-            valid = is_valid(zfile)
-        if not os.path.exists(zfile) or not valid:
-            status = download_sentinel_images(link, zfile)
-            if not status:
-                return None
-
-            # Check if file is valid
-            valid = is_valid(zfile)
-
-        if not valid:
-            os.remove(zfile)
-            return None
-        else:
-            extractall(zfile)
-
-    return safeL1Cfull
-
-
-def download_sentinel_images(link, zfile):
-    get_s2_users()
-    user = None
-    for s2user in s2users:
-        if s2users[s2user]['count'] < 2:
-            user = s2user
-            s2users[user]['count'] += 1
-            break
-    if user is None:
-        logging.warning('doDownloadS2 - nouser')
-        return False
-
-    logging.warning('doDownloadS2 - user {} link {}'.format(user, link))
-
+    Args:
+        link (str) - Sentinel Image Link
+        file_path (str) - Path to save download file
+        user (AtomicUser) - User credential
+    """
     try:
-        response = requests.get(link, auth=(user, s2users[user]['password']), stream=True)
-    except requests.exceptions.ConnectionError:
-        logging.warning('doDownloadS2 - Connection Error')
-        s2users[user]['count'] -= 1
-        return False
-    if 'Content-Length' not in response.headers:
-        logging.warning(
-            'doDownloadS2 - Content-Length not found for user {} in {} {}'.format(user, link, response.text))
-        s2users[user]['count'] -= 1
-        return False
+        response = requests.get(link, auth=(user.username, user.password), stream=True)
+    except requests.exceptions.ConnectionError as e:
+        logging.error('Connection error during Sentinel Download')
+        raise e
+
+    if response.status_code >= 400:
+        raise requests.exceptions.HTTPError('Invalid sentinel request {}'.format(response.status_code))
+
     size = int(response.headers['Content-Length'].strip())
-    if size < 30 * 1024 * 1024:
-        logging.warning(
-            'doDownloadS2 - user {} {} size {} MB too small'.format(user, zfile, int(size / 1024 / 1024)))
-        s2users[user]['count'] -= 1
-        return False
-    logging.warning('doDownloadS2 - user {} {} size {} MB'.format(user, zfile, int(size / 1024 / 1024)))
-    down = open(zfile, 'wb')
 
+    logging.debug('Sentinel Image {}, user {}, size {} MB'.format(link, user, int(size / 1024 / 1024)))
+
+    dirname = os.path.dirname(file_path)
+
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+    # May throw exception for read-only directory
+    stream = open(file_path, 'wb')
+
+    # Read chunks of 2048 bytes
     chunk_size = 2048
-    num_bars = int(size / chunk_size)
-    file = os.path.basename(zfile)
 
-    for chunk in tqdm(response.iter_content(chunk_size), total=num_bars, unit='KB', desc=file, leave=True):
-        down.write(chunk)
-    # for buf in response.iter_content(1024):
-    #     down.write(buf)
+    for chunk in response.iter_content(chunk_size):
+        stream.write(chunk)
 
-    down.close()
-    s2users[user]['count'] -= 1
-    return True
+    stream.close()

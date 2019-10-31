@@ -25,13 +25,14 @@ class AtomicUser:
         >>>         user = sentinel_clients.use()
         >>>
         >>>     with user:
-        >>>         # Do things...
+        >>>         # Do things, download images...
         >>>         pass
         >>>     # User is released on redis
         >>> # Lock released
     """
-    def __init__(self, username):
+    def __init__(self, username, password):
         self.username = username
+        self.password = password
 
     def __repr__(self):
         return 'AtomicUser({})'.format(self.username)
@@ -40,7 +41,8 @@ class AtomicUser:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        logging.debug('Free {}'.format(self.username))
+        """Exit context. Release the user from redis client"""
+        logging.debug('Release {}'.format(self.username))
         sentinel_clients.done(self.username)
 
 
@@ -79,7 +81,7 @@ class UserClients:
 
                 self.users = users
 
-                return AtomicUser(username)
+                return AtomicUser(username, value['password'])
         return None
 
     def done(self, username):

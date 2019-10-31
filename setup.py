@@ -34,6 +34,7 @@ setup(
         'flask-restplus>=0.13.0',
         'flask_bcrypt>=0.7.1',
         'redis>=3.3.11',
+        'requests>=2.22.0',
         'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
         # TODO: Temporary workaround since kombu has fixed version
         'celery[librabbitmq]==4.3.0',

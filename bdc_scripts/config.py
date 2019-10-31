@@ -11,7 +11,7 @@ def get_settings(env):
 class Config:
     DEBUG = False
     TESTING = False
-    REDIS_URL = 'redis://localhost:6380'
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6380')
 
 
 class ProductionConfig(Config):

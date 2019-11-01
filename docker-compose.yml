@@ -1,0 +1,95 @@
+version: '3.1'
+
+networks:
+  bdc_net:
+
+services:
+  redis:
+    image: redis
+    container_name: bdc-scripts-redis
+    restart: "always"
+    ports:
+      - "6379:6379"
+    networks:
+      - bdc_net
+
+  mq:
+    image: rabbitmq:3-management
+    container_name: bdc-scripts-rabbitmq
+    restart: "always"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    networks:
+      - bdc_net
+
+  bdc-scripts:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    container_name: bdc-scripts-api
+    image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    restart: "always"
+    environment:
+      - "LC_ALL=C.UTF-8"
+      - "LANG=C.UTF-8"
+      - "REDIS_URL=redis://bdc-scripts-redis:6379"
+      - "FLASK_APP=bdc_scripts"
+      - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
+    networks:
+      - bdc_net
+    ports:
+      - "5000:5000"
+    command: >
+      flask run --host 0.0.0.0
+    depends_on:
+      - mq
+      - redis
+
+  worker-download:
+    container_name: bdc-scripts-worker-download
+    image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    depends_on:
+      - mq
+      - bdc-scripts
+    environment:
+      - "LC_ALL=C.UTF-8"
+      - "LANG=C.UTF-8"
+      - "REDIS_URL=redis://bdc-scripts-redis:6379"
+      - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
+    command: >
+      celery worker -A bdc_scripts.celery -l INFO --concurrency 4 -Q download
+    networks:
+      - bdc_net
+
+  worker-publish:
+    container_name: bdc-scripts-worker-publish
+    image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    depends_on:
+      - mq
+      - bdc-scripts
+    environment:
+      - "LC_ALL=C.UTF-8"
+      - "LANG=C.UTF-8"
+      - "REDIS_URL=redis://bdc-scripts-redis:6379"
+      - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
+    command: >
+        celery worker -A bdc_scripts.celery -l INFO --concurrency 2 -Q publish
+    networks:
+      - bdc_net
+
+  worker-upload:
+    container_name: bdc-scripts-worker-upload
+    image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    depends_on:
+      - mq
+      - bdc-scripts
+    environment:
+      - "LC_ALL=C.UTF-8"
+      - "LANG=C.UTF-8"
+      - "REDIS_URL=redis://bdc-scripts-redis:6379"
+      - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
+    command: >
+      celery worker -A bdc_scripts.celery -l INFO --concurrency 2 -Q upload
+    networks:
+      - bdc_net

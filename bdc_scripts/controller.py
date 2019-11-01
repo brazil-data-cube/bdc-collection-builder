@@ -1,15 +1,14 @@
 import os
-import tempfile
 from celery import chain, current_app
 from flask_restplus import Namespace, Resource
-from bdc_scripts.celery import app as celery_app
+from bdc_scripts.config import Config
 from bdc_scripts.celery.tasks import download_sentinel, publish_sentinel, upload_sentinel
 
 
 ns = Namespace('sentinel', description='sentinel')
 
 
-DESTINATION_DIR = os.path.join(tempfile.gettempdir(), 'celery-bdc-scripts')
+DESTINATION_DIR = os.path.join(Config.DATA_DIR, 'celery-bdc-scripts')
 
 scenes = [
     dict(

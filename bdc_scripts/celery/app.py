@@ -2,10 +2,11 @@ import logging
 from celery import Celery
 from celery.signals import worker_shutdown
 
+from bdc_scripts.config import Config
 
 app = Celery(__name__,
              backend='rpc://',
-             broker='pyamqp://guest@localhost')
+             broker=Config.RABBIT_MQ_URL)
 
 
 @worker_shutdown.connect

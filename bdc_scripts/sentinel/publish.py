@@ -3,12 +3,13 @@ import fnmatch
 import logging
 import os
 
-# 3rdparty
+# 3rd-party
 import gdal
 import numpy
 from numpngw import write_png
 from osgeo.osr import SpatialReference
 from skimage.transform import resize
+from bdc_scripts.core.utils import generate_cogs
 
 
 BAND_MAP = {
@@ -28,41 +29,25 @@ BAND_MAP = {
     'SCL': 'quality'
 }
 
+SENTINEL_BANDS = BAND_MAP.keys()
+
 
 def publish(scene):
     qlband = 'TCI'
 
-    # Basic information about scene
-    # S2B_MSIL1C_20180731T131239_N0206_R138_T24MTS_20180731T182838
-
-    # Find all jp2 files in L2A SAFE
-    safe_L2A_full = scene['file'].replace('MSIL1C', 'MSIL2A')
-    template = "T*.jp2"
-    jp2files = [os.path.join(dirpath, f)
-                for dirpath, dirnames, files in os.walk("{0}".format(safe_L2A_full))
-                for f in fnmatch.filter(files, template)]
-    if len(jp2files) <= 1:
-        template = "L2A_T*.jp2"
-        jp2files = [os.path.join(dirpath, f)
-                    for dirpath, dirnames, files in os.walk("{0}".format(safe_L2A_full))
-                    for f in fnmatch.filter(files, template)]
-        if len(jp2files) <= 1:
-            msg = 'No {} files found in {}'.format(template, safe_L2A_full)
-            logging.warning(msg)
-            raise FileNotFoundError(msg)
+    # Retrieves all jp2 files from scene
+    jp2files = get_jp2_files(scene)
 
     # Find the desired files to be published and put then in files
     bands = []
+
     files = {}
-
-    sentinel_bands = BAND_MAP.keys()
-
     for jp2file in sorted(jp2files):
         filename = os.path.basename(jp2file)
         parts = filename.split('_')
         band = parts[-2]
 
-        if band not in bands and band in sentinel_bands:
+        if band not in bands and band in SENTINEL_BANDS:
             bands.append(band)
             files[BAND_MAP[band]] = jp2file
         elif band == qlband:
@@ -92,8 +77,11 @@ def publish(scene):
     for sband in bands:
         band = BAND_MAP[sband]
         file = files[band]
-        # app.logger.warning('publishS2 - COG band {} sband {} file {}'.format(band,sband,file))
-        files[band] = publish_as_cog(file_basename, productdir, sband, file)
+
+        # Set destination of COG file
+        cog_file_path = os.path.join(productdir, '{}_{}.tif'.format(file_basename, sband))
+
+        files[band] = generate_cogs(file, cog_file_path)
 
     # Create Qlook file
     qlfile = files['qlfile']
@@ -114,46 +102,19 @@ def publish(scene):
     datasetsrs = SpatialReference()
     datasetsrs.ImportFromWkt(projection)
 
-    # Extract bounding box and resolution
-    # app.logger.warning('extract bb and resolution')
-
     # Create transformation from files to ll coordinate
     llsrs = SpatialReference()
     llsrs.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
 
     # Compute cloud cover
-    """
-    Label Classification
-    0      NO_DATA
-    1      SATURATED_OR_DEFECTIVE
-    2      DARK_AREA_PIXELS
-    3      CLOUD_SHADOWS
-    4      VEGETATION
-    5      BARE_SOILS
-    6      WATER
-    7      CLOUD_LOW_PROBABILITY
-    8      CLOUD_MEDIUM_PROBABILITY
-    9      CLOUD_HIGH_PROBABILITY
-    10     THIN_CIRRUS
-    11     SNOW
-    """
-    unique, counts = numpy.unique(raster, return_counts=True)
-    clear = 0.
-    cloud = 0.
-    for i in range(0, unique.shape[0]):
-        if unique[i] == 0:
-            continue
-        elif unique[i] in [1, 2, 3, 8, 9, 10]:
-            cloud += float(counts[i])
-        else:
-            clear += float(counts[i])
+    compute_cloud_cover(raster)
 
     # TODO: Inserting data into Product table
 
 
 def generate_vi(identifier, productdir, files):
-    ndvi_name = os.path.join(productdir,identifier+"_NDVI.tif")
-    evi_name = os.path.join(productdir,identifier+"_EVI.tif")
+    ndvi_name = os.path.join(productdir, identifier+"_NDVI.tif")
+    evi_name = os.path.join(productdir, identifier+"_EVI.tif")
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
@@ -204,18 +165,55 @@ def generate_vi(identifier, productdir, files):
     del data_set
 
 
-def publish_as_cog(identifier, product_dir, sband, jp2file):
-    cog_file = os.path.join(product_dir, identifier+'_'+sband+'.tif')
-    if os.path.exists(cog_file):
-        return cog_file
-    driver = gdal.GetDriverByName('GTiff')
+def filter_jp2_files(directory, pattern):
+    return [os.path.join(dirpath, f)
+            for dirpath, dirnames, files in os.walk("{0}".format(directory))
+            for f in fnmatch.filter(files, pattern)]
 
-    data_set = gdal.Open(jp2file, gdal.GA_ReadOnly)
-    dst_ds = driver.CreateCopy(cog_file, data_set,  options=['COMPRESS=LZW', 'TILED=YES'])
-    gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
-    dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
 
-    del dst_ds
-    del data_set
+def get_jp2_files(scene):
+    # Find all jp2 files in L2A SAFE
+    sentinel_folder_data = scene['file'].replace('MSIL1C', 'MSIL2A')
+    template = "T*.jp2"
+    jp2files = [os.path.join(dirpath, f)
+                for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
+                for f in fnmatch.filter(files, template)]
+    if len(jp2files) <= 1:
+        template = "L2A_T*.jp2"
+        jp2files = [os.path.join(dirpath, f)
+                    for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
+                    for f in fnmatch.filter(files, template)]
+        if len(jp2files) <= 1:
+            msg = 'No {} files found in {}'.format(template, sentinel_folder_data)
+            logging.warning(msg)
+            raise FileNotFoundError(msg)
 
-    return cog_file
+    return jp2files
+
+
+def compute_cloud_cover(raster):
+    """
+    Label Classification
+    0      NO_DATA
+    1      SATURATED_OR_DEFECTIVE
+    2      DARK_AREA_PIXELS
+    3      CLOUD_SHADOWS
+    4      VEGETATION
+    5      BARE_SOILS
+    6      WATER
+    7      CLOUD_LOW_PROBABILITY
+    8      CLOUD_MEDIUM_PROBABILITY
+    9      CLOUD_HIGH_PROBABILITY
+    10     THIN_CIRRUS
+    11     SNOW
+    """
+    unique, counts = numpy.unique(raster, return_counts=True)
+    clear = 0.
+    cloud = 0.
+    for i in range(0, unique.shape[0]):
+        if unique[i] == 0:
+            continue
+        elif unique[i] in [1, 2, 3, 8, 9, 10]:
+            cloud += float(counts[i])
+        else:
+            clear += float(counts[i])

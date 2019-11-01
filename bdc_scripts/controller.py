@@ -1,7 +1,8 @@
 import os
 import tempfile
-from celery import chain
+from celery import chain, current_app
 from flask_restplus import Namespace, Resource
+from bdc_scripts.celery import app as celery_app
 from bdc_scripts.celery.tasks import download_sentinel, publish_sentinel, upload_sentinel
 
 
@@ -43,6 +44,12 @@ scenes = [
     ),
 ]
 
+@ns.route('/tasks')
+class ListTasks(Resource):
+    def get(self):
+        inspector = current_app.control.inspect()
+
+        return inspector.active()
 
 @ns.route('/download')
 class DownloadSentinelController(Resource):

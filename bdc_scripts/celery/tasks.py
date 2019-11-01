@@ -13,7 +13,7 @@ from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.sentinel.clients import sentinel_clients
 from bdc_scripts.sentinel.download import download_sentinel_images
 from bdc_scripts.sentinel.publish import publish
-from bdc_scripts.utils import extractall, is_valid
+from bdc_scripts.core.utils import extractall, is_valid
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')

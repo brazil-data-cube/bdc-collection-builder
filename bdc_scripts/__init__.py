@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
+from flask_migrate import Migrate
 from bdc_scripts import celery
 from bdc_scripts.config import get_settings
 from bdc_scripts.models import db
@@ -23,6 +24,8 @@ def create_app(config_name='DevelopmentConfig'):
 
         # Initialize Flask SQLAlchemy
         db.init_app(app)
+
+        Migrate(internal_app, db)
 
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)

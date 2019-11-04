@@ -25,7 +25,7 @@ def create_app(config_name='DevelopmentConfig'):
         # Initialize Flask SQLAlchemy
         db.init_app(app)
 
-        Migrate(internal_app, db)
+        Migrate(app, db)
 
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)

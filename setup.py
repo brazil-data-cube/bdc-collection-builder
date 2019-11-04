@@ -35,6 +35,7 @@ setup(
         'flask_bcrypt>=0.7.1',
         'Flask-Migrate>=2.5.2',
         'Flask-SQLAlchemy>=2.4.1',
+        'GeoAlchemy2>=0.6.2',
         'SQLAlchemy[postgresql]>=1.3.10',
         'redis>=3.3.11',
         'requests>=2.22.0',

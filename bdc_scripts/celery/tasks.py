@@ -101,12 +101,6 @@ class SentinelTask(celery_app.Task):
 
 
 @celery_app.task(base=SentinelTask, queue='download')
-def do_sleep():
-    logging.info('Executing sleep...')
-    time.sleep(randint(30, 60))
-    logging.info('Done sleep')
-
-@celery_app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
     return download_sentinel.download(scene)
 

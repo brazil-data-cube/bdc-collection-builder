@@ -1,5 +1,5 @@
 import os
-from celery import chain, current_app
+from celery import chain
 from flask_restplus import Namespace, Resource
 from bdc_scripts.config import Config
 from bdc_scripts.celery import tasks
@@ -42,14 +42,6 @@ scenes = [
         destination=DESTINATION_DIR
     ),
 ]
-
-@ns.route('/test/<x>')
-class ListTasks(Resource):
-    def get(self, x):
-        for i in range(int(x)):
-            tasks.do_sleep.delay()
-
-        return {"triggered": x}
 
 
 @ns.route('/download')

@@ -5,10 +5,9 @@ import time
 from random import randint
 
 # 3rdparty Libraries
-# from celery.task import Task
+from bdc_scripts.celery import celery_app
 
 # BDC Scripts
-from bdc_scripts.celery import app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.sentinel.clients import sentinel_clients
 from bdc_scripts.sentinel.download import download_sentinel_images
@@ -19,7 +18,7 @@ from bdc_scripts.core.utils import extractall, is_valid
 lock = lock_handler.lock('sentinel_download_lock_4')
 
 
-class SentinelTask(app.Task):
+class SentinelTask(celery_app.Task):
     def get_user(self):
         user = None
 
@@ -32,7 +31,7 @@ class SentinelTask(app.Task):
             user = sentinel_clients.use()
 
             if user is None:
-                logging.warning('Waiting for available user to download...')
+                logging.info('Waiting for available user to download...')
                 time.sleep(1)
 
         lock.release()
@@ -101,16 +100,22 @@ class SentinelTask(app.Task):
         logging.info('Done Upload sentinel to AWS.')
 
 
-@app.task(base=SentinelTask, queue='download')
+@celery_app.task(base=SentinelTask, queue='download')
+def do_sleep():
+    logging.info('Executing sleep...')
+    time.sleep(randint(30, 60))
+    logging.info('Done sleep')
+
+@celery_app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
     return download_sentinel.download(scene)
 
 
-@app.task(base=SentinelTask, queue='publish')
+@celery_app.task(base=SentinelTask, queue='publish')
 def publish_sentinel(scene):
     return publish_sentinel.publish(scene)
 
 
-@app.task(base=SentinelTask, queue='upload')
+@celery_app.task(base=SentinelTask, queue='upload')
 def upload_sentinel(scene):
     upload_sentinel.upload(scene)

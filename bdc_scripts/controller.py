@@ -2,7 +2,7 @@ import os
 from celery import chain, current_app
 from flask_restplus import Namespace, Resource
 from bdc_scripts.config import Config
-from bdc_scripts.celery.tasks import download_sentinel, publish_sentinel, upload_sentinel
+from bdc_scripts.celery import tasks
 
 
 ns = Namespace('sentinel', description='sentinel')
@@ -43,18 +43,20 @@ scenes = [
     ),
 ]
 
-@ns.route('/tasks')
+@ns.route('/test/<x>')
 class ListTasks(Resource):
-    def get(self):
-        inspector = current_app.control.inspect()
+    def get(self, x):
+        for i in range(int(x)):
+            tasks.do_sleep.delay()
 
-        return inspector.active()
+        return {"triggered": x}
+
 
 @ns.route('/download')
 class DownloadSentinelController(Resource):
     def get(self):
         for scene in scenes:
-            download_sentinel.delay(scene)
+            tasks.download_sentinel.delay(scene)
 
         return {"status": 200, "triggered": len(scenes)}
 
@@ -63,9 +65,9 @@ class DownloadSentinelController(Resource):
 class DownloadSentinelController(Resource):
     def get(self):
         for scene in scenes:
-            tasks = download_sentinel.s(scene) | publish_sentinel.s()
+            task_chain = tasks.download_sentinel.s(scene) | tasks.publish_sentinel.s()
 
-            chain(tasks).apply_async()
+            chain(task_chain).apply_async()
 
         return {"status": 200, "triggered": len(scenes)}
 
@@ -74,7 +76,7 @@ class PublishSentinelController(Resource):
     def get(self):
         number = 5
         for i in range(number):
-            publish_sentinel.s()
+            tasks.publish_sentinel.s()
 
         return {"status": 200, "triggered": number}
 
@@ -84,6 +86,6 @@ class UploadSentinelController(Resource):
     def get(self):
         number = 5
         for i in range(number):
-            upload_sentinel.s()
+            tasks.upload_sentinel.s()
 
         return {"status": 200, "triggered": number}

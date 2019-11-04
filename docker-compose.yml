@@ -41,7 +41,7 @@ services:
     ports:
       - "5000:5000"
     command: >
-      flask run --host 0.0.0.0
+      bdc-scripts run --host 0.0.0.0
     depends_on:
       - mq
       - redis
@@ -58,7 +58,7 @@ services:
       - "REDIS_URL=redis://bdc-scripts-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
     command: >
-      celery worker -A bdc_scripts.celery -l INFO --concurrency 4 -Q download
+      celery worker -A bdc_scripts.celery.worker:celery -l INFO --concurrency 4 -Q download
     networks:
       - bdc_net
 
@@ -74,7 +74,7 @@ services:
       - "REDIS_URL=redis://bdc-scripts-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
     command: >
-        celery worker -A bdc_scripts.celery -l INFO --concurrency 2 -Q publish
+        celery worker -A bdc_scripts.celery.worker:celery -l INFO --concurrency 2 -Q publish
     networks:
       - bdc_net
 
@@ -90,6 +90,6 @@ services:
       - "REDIS_URL=redis://bdc-scripts-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
     command: >
-      celery worker -A bdc_scripts.celery -l INFO --concurrency 2 -Q upload
+      celery worker -A bdc_scripts.celery.worker:celery -l INFO --concurrency 2 -Q upload
     networks:
       - bdc_net

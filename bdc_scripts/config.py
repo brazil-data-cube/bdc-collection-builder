@@ -12,7 +12,12 @@ def get_settings(env):
 class Config:
     DEBUG = False
     TESTING = False
-    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6380')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        'SQLALCHEMY_DATABASE_URI',
+        'postgresql://postgres:postgres@localhost:5433/bdc_scripts'
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
 

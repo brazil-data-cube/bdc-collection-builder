@@ -2,18 +2,16 @@ import os
 from flask import Flask
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-from bdc_scripts.blueprint import bp
+from bdc_scripts import celery
 from bdc_scripts.config import get_settings
+from bdc_scripts.models import db
 
 
-flask_bcrypt = Bcrypt()
-
-
-def create_app(config_name):
+def create_app(config_name='DevelopmentConfig'):
     """
     Creates Brazil Data Cube WTSS application from config object
     Args:
-        config_name (string|bdc_sample.config.Config) Config instance
+        config_name (string) Config instance name
     Returns:
         Flask Application with config instance scope
     """
@@ -21,14 +19,22 @@ def create_app(config_name):
     app = Flask(__name__)
 
     with app.app_context():
-        app.config.from_object(config_name)
+        app.config.from_object(get_settings(config_name))
+
+        # Initialize Flask SQLAlchemy
+        db.init_app(app)
+
+        # Just make sure to initialize db before celery
+        celery_app = celery.create_celery_app(app)
+        celery.celery_app = celery_app
+
+        # Setup blueprint
+        from bdc_scripts.blueprint import bp
         app.register_blueprint(bp)
 
+        flask_bcrypt = Bcrypt()
         flask_bcrypt.init_app(app)
 
+        CORS(app, resorces={r'/d/*': {"origins": '*'}})
+
     return app
-
-
-app = create_app(get_settings(os.environ.get('ENVIRONMENT', 'DevelopmentConfig')))
-
-CORS(app, resorces={r'/d/*': {"origins": '*'}})

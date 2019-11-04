@@ -46,6 +46,11 @@ setup(
         'vine==1.3.0',
         'amqp==2.5.1',
     ],
+    entry_points={
+        'console_scripts': [
+            'bdc-scripts = bdc_scripts.cli:cli'
+        ]
+    },
     extras_require=extras_require,
     tests_require=tests_require,
     include_package_data=True,

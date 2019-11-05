@@ -49,6 +49,7 @@ services:
       - "FLASK_APP=bdc_scripts"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-scripts2019@bdc-scripts-pg:5432/bdc_scripts"
+      - "DATA_DIR=/data"
     networks:
       - bdc_net
     ports:

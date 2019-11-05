@@ -22,13 +22,18 @@ logger = logging.getLogger('alembic.env')
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from flask import current_app
+
+print( current_app.config.get(
+        'SQLALCHEMY_DATABASE_URI').replace('%', '%%'))
 config.set_main_option(
     'sqlalchemy.url', current_app.config.get(
         'SQLALCHEMY_DATABASE_URI').replace('%', '%%'))
 
+# Importing Celery backend database to autocreate task tables
+from celery.backends.database import models, session
 from bdc_scripts.models import *
 
-target_metadata = current_app.extensions['migrate'].db.metadata
+target_metadata = [current_app.extensions['migrate'].db.metadata, session.ResultModelBase.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -104,6 +109,9 @@ def run_migrations_online():
         )
 
         with context.begin_transaction():
+            # Ensure to run celery migration of Task and TaskSet
+            sm = session.SessionManager()
+            sm.prepare_models(connectable)
             context.run_migrations()
 
 

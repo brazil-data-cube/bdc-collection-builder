@@ -6,7 +6,8 @@ from bdc_scripts.models import db
 
 
 CELERY_TASKS = [
-    'bdc_scripts.sentinel'
+    'bdc_scripts.radcor.sentinel',
+    'bdc_scripts.radcor.landsat'
 ]
 
 celery_app = None

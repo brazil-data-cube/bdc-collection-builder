@@ -2,7 +2,7 @@ import os
 from celery import chain
 from flask_restplus import Namespace, Resource
 from bdc_scripts.config import Config
-from bdc_scripts.sentinel import tasks
+from bdc_scripts.radcor.sentinel import tasks
 
 
 ns = Namespace('sentinel', description='sentinel')

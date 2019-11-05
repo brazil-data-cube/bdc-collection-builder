@@ -346,112 +346,6 @@ def manage(activity):
 	return
 
 ###################################################
-# @app.route('/process', methods=['GET'])
-# def process():
-# 	global MAX_THREADS
-# 	msg = 'process - Maestro Processing:\n'
-# 	name = request.args.get('datacube', 'LC8')
-# 	msg += 'process - datacube is: {}\n'.format(name)
-# 	pathrow = request.args.get('pr', None)
-
-# # Manage lock
-# 	lock = getLock()
-# 	app.logger.warning('process - lock is: {}'.format(lock))
-# 	msg += 'process - lock is: {}\n'.format(lock)
-
-# # Manage MAX_THREADS
-# 	nt = request.args.get('nt', None)
-# 	msg += 'process - nt is: {}\n'.format(nt)
-# 	app.logger.warning('process - nt is: {}'.format(nt))
-# 	if MAX_THREADS is None:
-# 		MAX_THREADS = int(os.environ.get('MAX_THREADS'))
-# 		app.logger.warning('process - MAX_THREADS was None, now is: {} nt is: {}'.format(MAX_THREADS,nt))
-# 	if nt is not None:
-# 		MAX_THREADS = int(nt)
-# 	app.logger.warning('process - MAX_THREADS is: {} nt is: {}'.format(MAX_THREADS,nt))
-# 	msg += 'process - MAX_THREADS is: {} nt is: {}\n'.format(MAX_THREADS,nt)
-
-# # Retrieve datacube info
-# 	datacube = {}
-# 	sql = "SELECT * FROM datacubes WHERE datacube = '{}'".format(name)
-# 	result = do_query(sql)
-# 	if len(result) > 0:
-# 		for key,val in result[0].items():
-# 			datacube[key] = val
-# 	else:
-# 		app.logger.warning('process - datacube {} not yet created'.format(name))
-# 		return 'process - datacube {} not yet created'.format(name)
-
-# # Get the time line for the datacube
-# 	periodlist = decodePeriods(datacube['tschema'],datacube['start'],datacube['end'],datacube['step'])
-# 	app.logger.warning('process - periodlist {}'.format(periodlist))
-
-# # Get the requested period to be processed
-# 	dstart = request.args.get('start', None)
-# 	dend   = request.args.get('end', None)
-
-# # Decode the requested tiles to be processed
-# 	tileidlist = []
-# 	if pathrow is not None:
-# 		tileidlist = decodePathRow(pathrow)
-# 	else:
-# 		sql = "SELECT DISTINCT tileid FROM mosaics WHERE datacube = '{}'".format(datacube['datacube'])
-# 		results = do_query(sql)
-# 		for result in results:
-# 			tileidlist.append(result['tileid'])
-# 	app.logger.warning('process - tileidlist {}'.format(tileidlist))
-
-# # Retrieve the mosaics to be processed
-# 	for tileid in tileidlist:
-# # Get the wrs information for this tile
-# 		sql = "SELECT * FROM wrs WHERE name = '{}' AND tileid = '{}'".format(datacube['wrs'],tileid)
-# 		wrs = do_query(sql,True)
-# 		if wrs is None:
-# 			continue
-
-# 		for datekey in sorted(periodlist):
-# 			requestedperiod = periodlist[datekey]
-# 			for periodkey in requestedperiod:
-# 				(basedate,startdate,enddate) = periodkey.split('_')
-# 				if dstart is not None and startdate < dstart : continue
-# 				if dend is not None and enddate > dend : continue
-
-# # If this mosaic is not registered, insert it on mosaics table
-# 				where = "WHERE datacube = '{}'".format(datacube['datacube'])
-# 				where += " AND start >= '{}'".format(startdate)
-# 				where += " AND end <= '{}'".format(enddate)
-# 				where += " AND tileid = '{}'".format(tileid)
-# 				sql = "SELECT * FROM mosaics {}".format(where)
-# 				results = do_query(sql)
-# 				if len(results) == 0:
-# 					mosaics = {}
-# 					mosaics['datacube'] = datacube['datacube']
-# 					mosaics['tileid'] = tileid
-# 					mosaics['start'] = startdate
-# 					mosaics['end'] = enddate
-# 					mosaics['numcol'] = int(round((wrs['xmax']-wrs['xmin'])/datacube['resx'],0))
-# 					mosaics['numlin'] = int(round((wrs['ymax']-wrs['ymin'])/datacube['resy'],0))
-# 					do_insert('mosaics',mosaics)
-
-
-# # Process the mosaic
-# 				results = do_query(sql)
-# 				activity = {}
-# 				activity['app'] = 'search'
-# 				activity['status'] = 'NOTDONE'
-# 				activity['priority'] = 1
-# 				activity['ttable'] = 'mosaics'
-# 				for result in results:
-# 					activity['tid'] = result['id']
-# 				for key in ['datacube','tileid','start','end']:
-# 					activity[key] = result[key]
-# 				app.logger.warning('process - activity {}'.format(activity))
-# 				do_upsert('activities',activity,['id','status','pstart','pend','elapsed','retcode','message'])
-# 				#return jsonify(activity)
-
-# 	return start()
-
-###################################################
 @app.route('/process', methods=['GET'])
 def process():
 	global MAX_THREADS
@@ -833,8 +727,8 @@ def decodeRequest():
 
 
 ###################################################
-@app.route('/clean', methods=['GET'])
-def clean():
+@app.route('/clean_ALL', methods=['GET'])
+def clean_ALL():
 	global MAX_THREADS,CUR_THREADS
 	msg = 'Maestro Processing:\n'
 	redis.set('lock',0)
@@ -1039,7 +933,7 @@ def restart():
 	msg = 'Maestro restarting:\n'
 	id = request.args.get('id', None)
 	if id is None:
-		sql = "UPDATE activities SET status='NOTDONE' WHERE (status = 'ERROR' OR status = 'DOING')"
+		sql = "UPDATE activities SET status='NOTDONE' WHERE (status = 'ERROR' OR status = 'DOING' OR status = 'SUSPEND')"
 	else:
 		sql = "UPDATE activities SET status='NOTDONE' WHERE id = {}".format(id)
 	do_command(sql)
@@ -1050,6 +944,7 @@ def restart():
 
 	start()
 	return msg
+
 
 ###################################################
 @app.route('/reset', methods=['GET'])
@@ -1063,14 +958,47 @@ def reset():
 	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
-	start()
 	return msg
 
 ###################################################
-@app.route('/pause', methods=['GET'])
-def pause():
+@app.route('/reset_activities', methods=['GET'])
+def reset_activities():
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+        s2users = {}
+        getS2Users()
+        msg = 'Rc_Maestro reseting:\n'
+        sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+        do_command(sql)
+        msg += 'sql - {}\n'.format(sql)
+
+        setActivities()
+        redis.set('rc_lock',0)
+        msg = 'Rc_Maestro reseting:\n'
+        status = request.args.get('status', None)
+        lock = getLock()
+        msg += 'lock is: {}\n'.format(lock)
+        msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+        CUR_THREADS.value = 0
+        msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+        msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+
+        return msg
+
+###################################################
+@app.route('/finish_current', methods=['GET'])
+def finish_current():
+	global ACTIVITIES
+	for activity in ACTIVITIES:
+		ACTIVITIES[activity]['maximum'] = 0
+	app.logger.warning('Activities maximum set to 0: {}'.format(ACTIVITIES))
+	return('Activities maximum set to 0')
+
+	
+###################################################
+@app.route('/suspendnotdone', methods=['GET'])
+def suspendnotdone():
         global MAX_THREADS,CUR_THREADS,ACTIVITIES
-        msg = 'Maestro restarting:\n'
+        msg = 'DS Maestro suspendnotdone:\n'
         id = request.args.get('id', None)
         sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
         do_command(sql)

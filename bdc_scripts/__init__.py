@@ -10,7 +10,7 @@ from bdc_scripts.models import db
 
 def create_app(config_name='DevelopmentConfig'):
     """
-    Creates Brazil Data Cube WTSS application from config object
+    Creates Brazil Data Cube application from config object
     Args:
         config_name (string) Config instance name
     Returns:

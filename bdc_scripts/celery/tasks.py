@@ -20,6 +20,17 @@ lock = lock_handler.lock('sentinel_download_lock_4')
 
 class SentinelTask(celery_app.Task):
     def get_user(self):
+        """
+        Tries to get an iddle user to download images.
+
+        Since we are downloading images from Copernicus, you can only have
+        two concurrent download per account. In this way, we should handle the
+        access to the stack of SciHub accounts defined in `secrets_s2.json`
+        in order to avoid download interrupt.
+
+        Returns:
+            AtomicUser An atomic user
+        """
         user = None
 
         while lock.locked():
@@ -39,6 +50,16 @@ class SentinelTask(celery_app.Task):
         return user
 
     def download(self, scene):
+        """
+        Performs download sentinel images from copernicus
+
+        Args:
+            scene (dict) - Scene
+
+        Returns:
+            dict Scene with sentinel file path
+        """
+
         # Acquire User to download
         with self.get_user() as user:
             logging.debug('Starting Download {}...'.format(user.username))
@@ -70,6 +91,7 @@ class SentinelTask(celery_app.Task):
 
                 if not valid:
                     os.remove(zip_file_name)
+                    logging.error('Invalid zip file "{}"'.format(zip_file_name))
                     return None
                 else:
                     extractall(zip_file_name)
@@ -85,19 +107,18 @@ class SentinelTask(celery_app.Task):
         return scene
 
     def publish(self, scene):
-        logging.info('Publish Sentinel...')
+        logging.debug('Starting Publish Sentinel...')
 
         publish(scene)
-        # time.sleep(randint(10, 15))
 
-        logging.info('Done Publish Sentinel.')
+        logging.debug('Done Publish Sentinel.')
 
     def upload(self, scene):
-        logging.info('Upload sentinel to AWS...')
+        logging.debug('Starting Upload sentinel to AWS...')
 
         time.sleep(randint(4, 8))
 
-        logging.info('Done Upload sentinel to AWS.')
+        logging.debug('Done Upload sentinel to AWS.')
 
 
 @celery_app.task(base=SentinelTask, queue='download')

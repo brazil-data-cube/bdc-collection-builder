@@ -1,13 +1,12 @@
 import logging
 from celery import Celery
-from celery.signals import worker_shutdown
 from flask import Flask
 from bdc_scripts.config import Config
 from bdc_scripts.models import db
 
 
 CELERY_TASKS = [
-    'bdc_scripts.celery.tasks'
+    'bdc_scripts.sentinel'
 ]
 
 celery_app = None
@@ -76,12 +75,5 @@ def create_celery_app(flask_app: Flask):
                 db.session.remove()
 
     celery.Task = ContextTask
-
-    @worker_shutdown.connect
-    def on_shutdown_release_locks(sender, **kwargs):
-        from bdc_scripts.celery.cache import lock_handler
-
-        logging.info('Turning off Celery...')
-        lock_handler.release_all()
 
     return celery

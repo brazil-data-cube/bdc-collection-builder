@@ -10,7 +10,7 @@ import logging
 from bdc_scripts import create_app
 from bdc_scripts.celery import create_celery_app
 from bdc_scripts.models import db
-from celery.signals import task_received, task_prerun
+from celery.signals import task_received, task_prerun, worker_shutdown
 from celery.backends.database import Task
 from celery.states import PENDING, STARTED
 
@@ -65,3 +65,17 @@ def on_before_task_run(task_id, task, *args, **kwargs):
         db.session.commit()
 
         logging.debug('Setting task {} to STARTED on database'.format(task_id))
+
+
+@worker_shutdown.connect
+def on_shutdown_release_locks(sender, **kwargs):
+    """
+    Signal handler of Celery Worker shutdown
+
+    Tries to release Redis Lock if there is.
+    """
+
+    from bdc_scripts.celery.cache import lock_handler
+
+    logging.info('Turning off Celery...')
+    lock_handler.release_all()

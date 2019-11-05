@@ -9,10 +9,10 @@ from bdc_scripts.celery import celery_app
 
 # BDC Scripts
 from bdc_scripts.celery.cache import lock_handler
+from bdc_scripts.core.utils import extractall, is_valid
 from bdc_scripts.sentinel.clients import sentinel_clients
 from bdc_scripts.sentinel.download import download_sentinel_images
 from bdc_scripts.sentinel.publish import publish
-from bdc_scripts.core.utils import extractall, is_valid
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -43,7 +43,7 @@ class SentinelTask(celery_app.Task):
 
             if user is None:
                 logging.info('Waiting for available user to download...')
-                time.sleep(1)
+                time.sleep(5)
 
         lock.release()
 
@@ -121,6 +121,9 @@ class SentinelTask(celery_app.Task):
         logging.debug('Done Upload sentinel to AWS.')
 
 
+# TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection
+# We should set "autoretry_for" and retry_kwargs={'max_retries': 3} to retry
+# task execution since it seems to be bug related to the api
 @celery_app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
     return download_sentinel.download(scene)

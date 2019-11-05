@@ -92,8 +92,5 @@ class UserClients:
 
         self.users = users
 
-    def is_busy(self):
-        return all(value['count'] >= 2 for _, value in self.users.items())
-
 
 sentinel_clients = UserClients()

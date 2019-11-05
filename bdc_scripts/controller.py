@@ -2,7 +2,7 @@ import os
 from celery import chain
 from flask_restplus import Namespace, Resource
 from bdc_scripts.config import Config
-from bdc_scripts.celery import tasks
+from bdc_scripts.sentinel import tasks
 
 
 ns = Namespace('sentinel', description='sentinel')
@@ -54,7 +54,7 @@ class DownloadSentinelController(Resource):
 
 
 @ns.route('/download+publish')
-class DownloadSentinelController(Resource):
+class DownloadSentinelPublishController(Resource):
     def get(self):
         for scene in scenes:
             task_chain = tasks.download_sentinel.s(scene) | tasks.publish_sentinel.s()
@@ -67,7 +67,7 @@ class DownloadSentinelController(Resource):
 class PublishSentinelController(Resource):
     def get(self):
         number = 5
-        for i in range(number):
+        for _ in range(number):
             tasks.publish_sentinel.s()
 
         return {"status": 200, "triggered": number}
@@ -77,7 +77,7 @@ class PublishSentinelController(Resource):
 class UploadSentinelController(Resource):
     def get(self):
         number = 5
-        for i in range(number):
+        for _ in range(number):
             tasks.upload_sentinel.s()
 
         return {"status": 200, "triggered": number}

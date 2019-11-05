@@ -727,8 +727,8 @@ def decodeRequest():
 
 
 ###################################################
-@app.route('/clean', methods=['GET'])
-def clean():
+@app.route('/clean_ALL', methods=['GET'])
+def clean_ALL():
 	global MAX_THREADS,CUR_THREADS
 	msg = 'Maestro Processing:\n'
 	redis.set('lock',0)
@@ -960,6 +960,29 @@ def reset():
 
 	return msg
 
+###################################################
+@app.route('/reset_activities', methods=['GET'])
+def reset_activities():
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+        s2users = {}
+        getS2Users()
+        msg = 'Rc_Maestro reseting:\n'
+        sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+        do_command(sql)
+        msg += 'sql - {}\n'.format(sql)
+
+        setActivities()
+        redis.set('rc_lock',0)
+        msg = 'Rc_Maestro reseting:\n'
+        status = request.args.get('status', None)
+        lock = getLock()
+        msg += 'lock is: {}\n'.format(lock)
+        msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+        CUR_THREADS.value = 0
+        msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+        msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+
+        return msg
 
 ###################################################
 @app.route('/finish_current', methods=['GET'])

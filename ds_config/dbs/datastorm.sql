@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 4.8.5
+-- version 4.9.0.1
 -- https://www.phpmyadmin.net/
 --
 -- Host: ds_db
--- Generation Time: 05-Jun-2019 às 16:11
--- Versão do servidor: 10.3.15-MariaDB-1:10.3.15+maria~bionic
--- versão do PHP: 7.2.14
+-- Tempo de geração: 23-Out-2019 às 11:37
+-- Versão do servidor: 10.4.7-MariaDB-1:10.4.7+maria~bionic
+-- versão do PHP: 7.2.19
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
@@ -19,10 +19,8 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `datastorm`
+-- Banco de dados: `datastorm`
 --
-CREATE DATABASE IF NOT EXISTS `datastorm` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;
-USE `datastorm`;
 
 -- --------------------------------------------------------
 
@@ -184,45 +182,45 @@ CREATE TABLE `wrs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 --
--- Indexes for dumped tables
+-- Índices para tabelas despejadas
 --
 
 --
--- Indexes for table `activities`
+-- Índices para tabela `activities`
 --
 ALTER TABLE `activities`
   ADD UNIQUE KEY `id` (`id`),
   ADD KEY `sceneid` (`tsceneid`,`band`) USING BTREE;
 
 --
--- Indexes for table `datacubes`
+-- Índices para tabela `datacubes`
 --
 ALTER TABLE `datacubes`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `mosaics`
+-- Índices para tabela `mosaics`
 --
 ALTER TABLE `mosaics`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `general` (`datacube`,`tileid`,`start`,`end`);
 
 --
--- Indexes for table `products`
+-- Índices para tabela `products`
 --
 ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
   ADD KEY `general` (`type`,`datacube`,`tileid`,`start`,`end`);
 
 --
--- Indexes for table `qlook`
+-- Índices para tabela `qlook`
 --
 ALTER TABLE `qlook`
   ADD PRIMARY KEY (`id`),
   ADD KEY `sceneid` (`sceneid`);
 
 --
--- Indexes for table `scenes`
+-- Índices para tabela `scenes`
 --
 ALTER TABLE `scenes`
   ADD PRIMARY KEY (`id`),
@@ -230,48 +228,48 @@ ALTER TABLE `scenes`
   ADD KEY `enab` (`enabled`);
 
 --
--- Indexes for table `wrs`
+-- Índices para tabela `wrs`
 --
 ALTER TABLE `wrs`
   ADD UNIQUE KEY `geo` (`lonmin`,`lonmax`,`latmin`,`latmax`),
   ADD UNIQUE KEY `npr` (`name`,`tileid`);
 
 --
--- AUTO_INCREMENT for dumped tables
+-- AUTO_INCREMENT de tabelas despejadas
 --
 
 --
--- AUTO_INCREMENT for table `activities`
+-- AUTO_INCREMENT de tabela `activities`
 --
 ALTER TABLE `activities`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `datacubes`
+-- AUTO_INCREMENT de tabela `datacubes`
 --
 ALTER TABLE `datacubes`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `mosaics`
+-- AUTO_INCREMENT de tabela `mosaics`
 --
 ALTER TABLE `mosaics`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `products`
+-- AUTO_INCREMENT de tabela `products`
 --
 ALTER TABLE `products`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `qlook`
+-- AUTO_INCREMENT de tabela `qlook`
 --
 ALTER TABLE `qlook`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `scenes`
+-- AUTO_INCREMENT de tabela `scenes`
 --
 ALTER TABLE `scenes`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;

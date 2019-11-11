@@ -7,7 +7,6 @@ import io
 import json
 import logging
 import os
-import multiprocessing
 import numpy
 import random
 import requests
@@ -52,8 +51,7 @@ redis = Redis(host="redis", db=0)
 app.logger.warning('connected to Redis.')
 
 MAX_THREADS = int(os.environ.get('MAX_THREADS'))
-manager = multiprocessing.Manager()
-CUR_THREADS = manager.Value('i',0)
+CUR_THREADS = 0
 SESSION = None
 S3Client = None
 CLOUD_DEFAULT = 90
@@ -64,7 +62,7 @@ ACTIVITIES = {}
 ###################################################
 def setActivities():
 	global ACTIVITIES
-	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':4},'publishLC8':{'current':0,'maximum':4},'downloadS2':{'current':0,'maximum':0},'downloadLC8':{'current':0,'maximum':0},'sen2cor':{'current':0,'maximum':4},'espa':{'current':0,'maximum':4}}
+	ACTIVITIES = {'uploadS2':{'current':0,'maximum':0},'publishS2':{'current':0,'maximum':0},'publishLC8':{'current':0,'maximum':0},'downloadS2':{'current':0,'maximum':8},'downloadLC8':{'current':0,'maximum':4},'sen2cor':{'current':0,'maximum':10},'espa':{'current':0,'maximum':4}}
 	app.logger.warning('Activities set as: {}'.format(ACTIVITIES))
 	return('Activities were set')
 setActivities()
@@ -110,11 +108,11 @@ def downloadLC8(scene):
 	cc = scene['sceneid'].split('_')
 	pathrow = cc[2]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Output product dir
+# Output product dir 
 	productdir = '/LC8/{}/{}'.format(yyyymm,pathrow)
 	if not os.path.exists(productdir):
 		os.makedirs(productdir)
-
+	
 	link = scene['link']
 	app.logger.warning('downloadLC8 - link {}'.format(link))
 	getSESSION()
@@ -130,7 +128,7 @@ def downloadLC8(scene):
 		last = chr(last)
 		cc[-3] = sid[:-1]+last
 		link = '/'.join(cc)
-		r = SESSION.get(link, stream=True)
+		r = SESSION.get(link, stream=True)	
 	if count == 2:
 		return None
 	outtar = os.path.join(productdir, r.headers.get("Content-Disposition").split('=')[1])
@@ -194,9 +192,9 @@ def developmentSeed(wlon,nlat,elon,slat,startdate,enddate,cloud,limit):
 			scenes[identifier]['elon'] = max(float(val['upperRightCornerLongitude']),float(val['lowerRightCornerLongitude']))
 			scenes[identifier]['slat'] = min(float(val['lowerLeftCornerLatitude']),float(val['lowerRightCornerLatitude']))
 			scenes[identifier]['nlat'] = max(float(val['upperLeftCornerLatitude']),float(val['upperRightCornerLatitude']))
-			scenes[identifier]['path'] = int(val['path'])
-			scenes[identifier]['row'] = int(val['row'])
-			scenes[identifier]['resolution'] = int(val['GRID_CELL_SIZE_REFLECTIVE'])
+			scenes[identifier]['path'] = int(val['path'])				
+			scenes[identifier]['row'] = int(val['row'])	
+			scenes[identifier]['resolution'] = int(val['GRID_CELL_SIZE_REFLECTIVE'])	
 # Get file names
 			#download_url = api.download('LANDSAT_8', 'EE', [val['scene_id']], api_key=api_key)
 			scenes[identifier]['link'] = val['download_links']['usgs']
@@ -212,7 +210,7 @@ def developmentSeed_sat_api(wlon,nlat,elon,slat,startdate,enddate,cloud,limit):
 		enddate = datetime.datetime.now().strftime("%Y-%m-%d")
 	if limit is None:
 		limit = 299
-
+	
 	url = 'https://sat-api.developmentseed.org/stac/search'
 	params = {
 		"bbox": [
@@ -266,7 +264,7 @@ def espaDone(scene):
 	pathrow = cc[2]
 	date = cc[3]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Product dir
+# Product dir 
 	productdir = '/LC8SR/{}/{}'.format(yyyymm,pathrow)
 	template = productdir+'/LC08_*_{}_{}_*.tif'.format(pathrow,date)
 	fs = glob.glob(template)
@@ -274,7 +272,7 @@ def espaDone(scene):
 	if len(fs) > 0:
 		return True
 	return False
-
+	
 #########################################
 def publishLC8(scene):
 	identifier = scene['sceneid']
@@ -282,7 +280,7 @@ def publishLC8(scene):
 	pathrow = cc[2]
 	date = cc[3]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-# Product dir
+# Product dir 
 	productdir = '/LC8SR/{}/{}'.format(yyyymm,pathrow)
 	Type='SCENE'
 	GeometricProcessing='ortho'
@@ -296,8 +294,8 @@ def publishLC8(scene):
 	result['Scene']['Satellite'] = 'LC8'
 	result['Scene']['Sensor'] = 'OLI'
 	result['Scene']['Date'] = date
-	result['Scene']['Path'] = path
-	result['Scene']['Row'] = row
+	result['Scene']['Path'] = path					
+	result['Scene']['Row'] = row		
 
 	result['Product']['SceneId'] = identifier
 	result['Product']['Dataset'] = 'LC8SR'
@@ -319,7 +317,7 @@ def publishLC8(scene):
 	engine.execute(sql)
 
 # Get the product files
-	bandmap= {
+	bandmap= {		
 			'coastal': 'sr_band1',
 			'blue': 'sr_band2',
 			'green': 'sr_band3',
@@ -361,8 +359,6 @@ def publishLC8(scene):
 	RasterXSize = dataset.RasterXSize
 	RasterYSize = dataset.RasterYSize
 
-	del dataset
-
 	resolutionx = geotransform[1]
 	resolutiony = geotransform[5]
 	fllx = fulx = geotransform[0]
@@ -401,7 +397,7 @@ def publishLC8(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
 	result['Scene']['Deleted'] = 0
 	result['Scene']['CloudCoverMethod'] = 'M'
 	result['Scene']['CloudCoverQ1'] = 0
@@ -414,9 +410,6 @@ def publishLC8(scene):
 		template = qlfiles[band]
 		dataset = gdal.Open(template,GA_ReadOnly)
 		raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
-
-		del dataset
-
 		app.logger.warning('publishLC8 - file {} raster before min {} max {} {}'.format(template,raster.min(),raster.max(),raster))
 		#raster = scipy.misc.imresize(raster,(numlin,numcol))
 		raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
@@ -457,8 +450,6 @@ def publishLC8(scene):
 		result['Product']['Filename'] = template
 		dataset = gdal.Open(template,GA_ReadOnly)
 		geotransform = dataset.GetGeoTransform()
-
-		del dataset
 		result['Product']['Resolution'] = geotransform[1]
 		ProcessingDate = datetime.datetime.fromtimestamp(os.path.getctime(template)).strftime('%Y-%m-%d %H:%M:%S')
 		result['Product']['ProcessingDate'] = ProcessingDate
@@ -501,7 +492,7 @@ def extractall(zfile):
 def downloadS2(scene):
 	cc = scene['sceneid'].split('_')
 	yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir
+# Output product dir 
 	productdir = '/S2_MSI/{}'.format(yyyymm)
 	link = scene['link']
 	sceneId = scene['sceneid']
@@ -509,7 +500,7 @@ def downloadS2(scene):
 		os.makedirs(productdir)
 	zfile = productdir + '/' + sceneId + '.zip'
 	safeL1Cfull = productdir + '/' + sceneId + '.SAFE'
-
+	
 	app.logger.warning('downloadS2 - link {} file {}'.format(link,zfile))
 	if not os.path.exists(safeL1Cfull):
 		valid = True
@@ -601,7 +592,6 @@ def doDownloadS2(link,zfile):
 	app.logger.warning('doDownloadS2 - user {} {} size {} MB'.format(user,zfile,int(size/1024/1024)))
 	down = open(zfile, 'wb')
 
-	# TODO: Remove IF since we are working with chunks of 1Kb, which turns out several iterations
 	for buf in response.iter_content(1024):
 		if buf:
 			down.write(buf)
@@ -635,7 +625,7 @@ def openSearchS2SAFE(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productTy
 	else:
 		pfootprintWkt,footprintPoly = createWkt(wlon,nlat,elon,slat)
 		pquery += ' AND (footprint:"Intersects({})")'.format(footprintPoly)
-
+	
 	limit = int(limit)
 	rows = min(100,limit)
 	count_results = 0
@@ -678,7 +668,7 @@ def openSearchS2SAFE(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productTy
 				identifier = result['title']
 				type = identifier.split('_')[1]
 				date = identifier.split('_')[2][:8]
-				if date > '20181220' and type == 'MSIL1C':
+				if date > '20181220' and type == 'MSIL1C': 
 					app.logger.warning('openSearchS2SAFE skipping {}'.format(identifier))
 					continue
 				scenes[identifier] = {}
@@ -719,13 +709,10 @@ def publishAsCOG(identifier,productdir,sband,jp2file,alreadyTiled=False):
 		return cogfile
 	driver = gdal.GetDriverByName('GTiff')
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
-	dst_ds = driver.CreateCopy(cogfile, dataset,  options=['COMPRESS=LZW', 'TILED=YES'])
+	dst_ds = driver.CreateCopy(cogfile, dataset,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
 	gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
 	dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
-
-	del dst_ds
-	del dataset
-
+	dst_ds = None
 	return cogfile
 
 #########################################
@@ -734,20 +721,19 @@ def publishAsTif(identifier,productdir,sband,jp2file):
 	tiffile = os.path.join(productdir,identifier+'_'+sband+'.tif')
 	if os.path.exists(tiffile):
 		return tiffile
-
+	
 	dataset = gdal.Open(jp2file,GA_ReadOnly)
 	raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
 	driver = gdal.GetDriverByName('GTiff')
 	tifdataset = driver.Create( tiffile, dataset.RasterXSize, dataset.RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
 	tifdataset.SetGeoTransform(dataset.GetGeoTransform())
 	tifdataset.SetProjection(dataset.GetProjection())
-	tifdataset.GetRasterBand(1).WriteArray(raster)
+	tifdataset.GetRasterBand(1).WriteArray( raster )
 	tifdataset.GetRasterBand(1).SetNoDataValue(0)
-
-	del dataset
-	del tifdataset
-
+	dataset = None
+	tifdataset = None
 	return tiffile
+
 
 ################################
 def publishS2(scene):
@@ -1015,131 +1001,10 @@ def publishS2(scene):
 	return 0
 
 
-#########################################
-def generateVI(identifier,productdir,files):
-	ndviname = os.path.join(productdir,identifier+"_NDVI.tif")
-	eviname = os.path.join(productdir,identifier+"_EVI.tif")
-	app.logger.warning('generateVI - ndviname {}'.format(ndviname))
-	app.logger.warning('generateVI - eviname {}'.format(eviname))
-	app.logger.warning('generateVI - nir {}'.format(files['nir']))
-	app.logger.warning('generateVI - red {}'.format(files['red']))
-	app.logger.warning('generateVI - blue {}'.format(files['blue']))
-	files['ndvi'] = ndviname
-	files['evi'] = eviname
-	if os.path.exists(ndviname) and os.path.exists(eviname):
-		app.logger.warning('generateVI returning 0 cause ndvi and evi exists')
-		return 0
 
-	app.logger.warning('open red band, read band')
-	step_start = time.time()
-	dataset = gdal.Open(files['red'],GA_ReadOnly)
-	RasterXSize = dataset.RasterXSize
-	RasterYSize = dataset.RasterYSize
-	red = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
-	app.logger.warning('open nir band, read band')
 
-	del dataset
-	dataset = gdal.Open(files['nir'],GA_ReadOnly)
-	nir = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
-	app.logger.warning('resize')
-	nir = resize(nir,red.shape, order=1, preserve_range=True).astype(numpy.float32)
-	app.logger.warning('open blue band, read band')
 
-	del dataset
-	dataset = gdal.Open(files['blue'],GA_ReadOnly)
-	blue = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize).astype(numpy.float32)/10000.
-
-# Create the ndvi image dataset if it not exists
-	app.logger.warning('Create the ndvi image dataset if it not exists')
-	driver = gdal.GetDriverByName('GTiff')
-	if not os.path.exists(ndviname):
-		rasterndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
-		#rasterndvi[rasterndvi<=0] = 0
-		app.logger.warning('generateVI - ndviname {} shape {} {} {}'.format(ndviname,rasterndvi.shape,dataset.RasterXSize, dataset.RasterYSize))
-		ndvidataset = driver.Create( ndviname, RasterXSize, RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES' ] )
-		ndvidataset.SetGeoTransform(dataset.GetGeoTransform())
-		ndvidataset.SetProjection(dataset.GetProjection())
-		ndvidataset.GetRasterBand(1).WriteArray( rasterndvi )
-		#ndvidataset.GetRasterBand(1).SetNoDataValue(0)
-		rasterndvi = None
-		del ndvidataset
-
-# Create the evi image dataset if it not exists
-	app.logger.warning('Create the evi image dataset if it not exists')
-	if not os.path.exists(eviname):
-		evidataset = driver.Create( eviname, RasterXSize, RasterYSize, 1, gdal.GDT_Int16,  options = [ 'COMPRESS=LZW', 'TILED=YES'  ] )
-		rasterevi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
-		app.logger.warning('generateVI - eviname {} shape {} {} {}'.format(eviname,rasterevi.shape,dataset.RasterXSize, dataset.RasterYSize))
-		#rasterevi[rasterevi<=0] = 0
-		evidataset.SetGeoTransform(dataset.GetGeoTransform())
-		evidataset.SetProjection(dataset.GetProjection())
-		evidataset.GetRasterBand(1).WriteArray( rasterevi )
-		#evidataset.GetRasterBand(1).SetNoDataValue(0)
-		rasterevi = None
-		evidataset = None
-	dataset = nir = red = blue = None
-	elapsedtime = time.time() - step_start
-	ela = str(datetime.timedelta(seconds=elapsedtime))
-	app.logger.warning('create VI returning 0 Ok')
-	return 0
-
-###################################################
-@app.route('/checkdup', methods=['GET','POST'])
-def checkdup():
-	global S3Client,bucket_name
-	getS3Client()
-	start = request.args.get('start', '2018-12-10')
-# Connect to db and delete all data about this scene
-	connection = 'mysql://{}:{}@{}/{}'.format(os.environ.get('CATALOG_USER'),
-											  os.environ.get('CATALOG_PASS'),
-											  os.environ.get('CATALOG_HOST'),
-											  'catalogo')
-	engine = sqlalchemy.create_engine(connection)
-	sql = "SELECT * FROM Scene WHERE Date > '{0}' AND Dataset = 'S2SR' ORDER BY SceneId DESC".format(start)
-	scenes = engine.execute(sql)
-	scenes = scenes.fetchall()
-	scenes = [dict(scene) for scene in scenes]
-	logging.warning('checkdup - '+sql+' - Rows: {}'.format(len(scenes)))
-	scenesperid = {}
-	for scene in scenes:
-#    "SceneId": "S2A_MSIL2A_20190512T131251_N0212_R138_T23KPT_20190512T152952",
-		SceneId = scene['SceneId']
-		parts = SceneId.split('_')
-		logging.warning('checkdup - SceneId: {} parts {}'.format(SceneId,parts))
-		date = parts[2]
-		tile = parts[5]
-		id = tile+date
-		if id not in scenesperid:
-			scenesperid[id] = 0
-		else:
-			sql = "SELECT * FROM Product WHERE SceneId = '{0}'".format(SceneId)
-			products = engine.execute(sql)
-			products = products.fetchall()
-			products = [dict(product) for product in products]
-			for product in products[0:1]:
-				dir = product['Filename'].split('/')
-				dir = '/'.join(dir[:-2])
-				logging.warning('checkdup - dir {}'.format(dir))
-# Delete dir
-				if os.path.exists(dir):
-					shutil.rmtree(dir, ignore_errors=True)
-				sql = "DELETE FROM Product WHERE SceneId = '{0}'".format(SceneId)
-				engine.execute(sql)
-				sql = "DELETE FROM Qlook WHERE SceneId = '{0}'".format(SceneId)
-				engine.execute(sql)
-				result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=dir[1:])
-				logging.warning('checkdup S3 result {} '.format(result))
-				object_names = []
-				if 'Contents' in result:
-					#S3Client.delete_objects(Bucket=bucket_name,Delete={'Objects': [{'Key':dir[1:],}]},RequestPayer='requester')
-					for obj in result['Contents']:
-						logging.warning('checkdup S3 dir {} '.format(obj.get('Key')))
-						object_names.append(obj.get('Key'))
-					objlist = [{'Key': obj} for obj in object_names]
-					S3Client.delete_objects(Bucket=bucket_name, Delete={'Objects': objlist})
-	engine.dispose()
-	return jsonify(scenesperid)
-
+	 	
 ###################################################
 @app.route('/espaAll', methods=['GET','POST'])
 def espaAll():
@@ -1277,27 +1142,27 @@ def publisHLS():
 def publishOneHLS(scene):
 	hdffile = scene['hdffile']
 	bands = {}
-	bands['HLS.L30'] = {
+	bands['HLS.L30'] = { 
 		0 : 'coastal',
-		1 : 'blue',
-		2 : 'green',
-		3 : 'red',
-		4 : 'nir',
-		5 : 'swir1',
+		1 : 'blue', 
+		2 : 'green', 
+		3 : 'red', 
+		4 : 'nir', 
+		5 : 'swir1', 
 		6 : 'swir2',
 		10 : 'quality' }
 
-	bands['HLS.S30'] = {
+	bands['HLS.S30'] = { 
 		0 : 'coastal',
-		1 : 'blue',
-		2 : 'green',
-		3 : 'red',
-		4 : 'redge1',
-		5 : 'redge2',
-		6 : 'redge3',
-		7 : 'bnir',
-		8 : 'nir',
-		11 : 'swir1',
+		1 : 'blue', 
+		2 : 'green', 
+		3 : 'red', 
+		4 : 'redge1', 
+		5 : 'redge2', 
+		6 : 'redge3', 
+		7 : 'bnir', 
+		8 : 'nir', 
+		11 : 'swir1', 
 		12 : 'swir2',
 		13 : 'quality' }
 
@@ -1357,8 +1222,8 @@ def publishOneHLS(scene):
 	result['Scene']['Satellite'] = 'LC8' if identifier.find('HLS.L3') == 0 else 'S2'
 	result['Scene']['Sensor'] = 'OLI' if identifier.find('HLS.L3') == 0 else 'MSI'
 	result['Scene']['Date'] = cddate
-	result['Scene']['Path'] = -1
-	result['Scene']['Row'] = -1
+	result['Scene']['Path'] = -1			
+	result['Scene']['Row'] = -1	
 	result['Product']['Dataset'] = scene['product']
 	result['Product']['Type'] = 'SCENE'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -1367,7 +1232,7 @@ def publishOneHLS(scene):
 	result['Product']['SceneId'] = str(identifier)
 
 	subdataset = gdal.Open(subdatasets[0][0],GA_ReadOnly)
-	subdataset_tags = subdataset.GetMetadata('')
+	subdataset_tags = subdataset.GetMetadata('') 
 	app.logger.warning('publishOneHLS - identifier {} subdataset_tags {}'.format(identifier,subdataset_tags))
 	mgeotransform = subdataset.GetGeoTransform()
 	mRasterXSize = subdataset.RasterXSize
@@ -1414,7 +1279,7 @@ def publishOneHLS(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
 	result['Scene']['Deleted'] = 0
 
 	result['Scene']['CloudCoverMethod'] = 'A'
@@ -1445,7 +1310,7 @@ def publishOneHLS(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-
+		
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishOneHLS - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1576,7 +1441,7 @@ def uploadModis(scene):
 			logging.warning('uploadModis {} already in S3'.format(os.path.basename(tiff)))
 			continue
 		mykey = tiff[1:]
-
+		
 		try:
 			tc = boto3.s3.transfer.TransferConfig()
 			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
@@ -1600,13 +1465,13 @@ def j2cyd(juliandate):
 ###################################################
 def publishOneModis(scene):
 	hdffile = scene['hdffile']
-	bands = {
+	bands = { 
 		0 : 'ndvi',
-		1 : 'evi',
-		2 : 'quality',
-		3 : 'red',
-		4 : 'nir',
-		5 : 'blue',
+		1 : 'evi', 
+		2 : 'quality', 
+		3 : 'red', 
+		4 : 'nir', 
+		5 : 'blue', 
 		6 : 'swir2',
 		11 : 'reliability' }
 	hdfdate = scene['basename'][9:16]
@@ -1674,8 +1539,8 @@ def publishOneModis(scene):
 	result['Scene']['Satellite'] = 'T1' if identifier.find('MOD') == 0 else 'A1'
 	result['Scene']['Sensor'] = 'MODIS'
 	result['Scene']['Date'] = cddate
-	result['Scene']['Path'] = path
-	result['Scene']['Row'] = row
+	result['Scene']['Path'] = path			
+	result['Scene']['Row'] = row	
 	result['Product']['Dataset'] = scene['product']
 	result['Product']['Type'] = 'MOSAIC'
 	result['Product']['RadiometricProcessing'] = 'SR'
@@ -1729,7 +1594,7 @@ def publishOneModis(scene):
 	result['Scene']['BL_LONGITUDE'] = lllon
 	result['Scene']['BL_LATITUDE'] = lllat
 
-	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")	
 	result['Scene']['Deleted'] = 0
 
 	result['Scene']['CloudCoverMethod'] = 'A'
@@ -1760,7 +1625,7 @@ def publishOneModis(scene):
 				values += "'{0}',".format(val)
 		else:
 				values += "{0},".format(val)
-
+		
 	sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
 	app.logger.warning('publishOneModis - sql {}'.format(sql))
 	engine.execute(sql)
@@ -1890,10 +1755,10 @@ def upS2():
 	for bucket in buckets:
 		if bucket.find('datastorm-repository') == 0:
 			bucket_name = bucket
-
+	
 	if bucket_name is None:
 		return 'No datastorm-repository'
-
+	
 	basedir = '/S2_MSI/2*'
 	datedirs = sorted(glob.glob(basedir))
 	for dir in datedirs:
@@ -1947,7 +1812,7 @@ def checkS3():
 	for bucket in buckets:
 		if bucket.find('datastorm-archive') == 0:
 			bucket_name = bucket
-
+	
 	if bucket_name is None:
 		return 'No datastorm-archive'
 
@@ -2010,7 +1875,6 @@ def getS3Client():
 	# Create an S3 client
 		S3Client = boto3.client('s3', aws_access_key_id=cc[0],aws_secret_access_key=cc[1])
 		bucket_name = 'bdc-archive'
-
 
 #################################################
 def copytree(src, dst):
@@ -2217,50 +2081,50 @@ def uploadS2All():
 
 ###################################################
 def uploadS2(scene):
-	global S3Client,bucket_name
-	getS3Client()
+        global S3Client,bucket_name
+        getS3Client()
 
-	safe = scene['file'].replace('MSIL1C','MSIL2A')
-	safe = safe.replace('S2_MSI','S2SR')
-	prefix = safe[1:] + '/'
-	logging.warning('uploadS2 S3 prefix {} '.format(prefix))
-	s3tiffs = []
-	result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-	if 'Contents' in result:
-		for obj in result['Contents']:
-			logging.warning('uploadS2 already in S3 {} '.format(obj.get('Key')))
-			s3tiffs.append(os.path.basename(obj.get('Key')))
-	if len(s3tiffs) == 16:
-		logging.warning('uploadS2 - {} files in {}'.format(len(s3tiffs),safe))
-		return 0
-	tiffs = glob.glob(safe+'/*.tif')
-	if len(tiffs) < 15:
-		logging.warning('uploadS2 error - {} files in {}'.format(len(tiffs),safe))
-		return 1
-	pngs = glob.glob(safe+'/*.png')
-	if len(pngs) == 0:
-		logging.warning('uploadS2 error - no png in {}'.format(safe))
-		return 1
-	tiffs.append(pngs[0])
-	count = 0
-	logging.warning('uploadS2 max_concurrency {}'.format(ACTIVITIES['uploadS2']['maximum']))
-	for tiff in tiffs:
-		count += 1
-		logging.warning('uploadS2 {}/{} - {}'.format(count,len(tiffs),tiff))
-		if os.path.basename(tiff) in s3tiffs:
-			logging.warning('uploadS2 {} already in S3'.format(os.path.basename(tiff)))
-			continue
-		mykey = tiff[1:]
-		
-		try:
-			tc = boto3.s3.transfer.TransferConfig(use_threads=True,max_concurrency=ACTIVITIES['uploadS2']['maximum'])
-			t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
-			t.upload_file( tiff, bucket_name, mykey, extra_args={'ACL': 'public-read'})
-		except Exception as e:
-			logging.warning('uploadS2 error {}'.format(e))
-			return 1
+        safe = scene['file'].replace('MSIL1C','MSIL2A')
+        safe = safe.replace('S2_MSI','S2SR')
+        prefix = safe[1:] + '/'
+        logging.warning('uploadS2 S3 prefix {} '.format(prefix))
+        s3tiffs = [] 
+        result = S3Client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        if 'Contents' in result:
+                for obj in result['Contents']:
+                        logging.warning('uploadS2 already in S3 {} '.format(obj.get('Key')))
+                        s3tiffs.append(os.path.basename(obj.get('Key')))
+        if len(s3tiffs) == 16:
+                logging.warning('uploadS2 - {} files in {}'.format(len(s3tiffs),safe))
+                return 0
+        tiffs = glob.glob(safe+'/*.tif')
+        if len(tiffs) < 15:
+                logging.warning('uploadS2 error - {} files in {}'.format(len(tiffs),safe))
+                return 1
+        pngs = glob.glob(safe+'/*.png')
+        if len(pngs) == 0:
+                logging.warning('uploadS2 error - no png in {}'.format(safe))
+                return 1
+        tiffs.append(pngs[0])
+        count = 0
+        logging.warning('uploadS2 max_concurrency {}'.format(ACTIVITIES['uploadS2']['maximum']))
+        for tiff in tiffs:
+                count += 1 
+                logging.warning('uploadS2 {}/{} - {}'.format(count,len(tiffs),tiff))
+                if os.path.basename(tiff) in s3tiffs:
+                        logging.warning('uploadS2 {} already in S3'.format(os.path.basename(tiff)))
+                        continue
+                mykey = tiff[1:]
+     
+                try:
+                        tc = boto3.s3.transfer.TransferConfig(use_threads=True,max_concurrency=ACTIVITIES['uploadS2']['maximum'])
+                        t = boto3.s3.transfer.S3Transfer( client=S3Client, config=tc )
+                        t.upload_file( tiff, bucket_name, mykey, extra_args={'ACL': 'public-read'})
+                except Exception as e:
+                        logging.warning('uploadS2 error {}'.format(e))
+                        return 1
 
-	return 0
+        return 0
 
 ###################################################
 @app.route('/getS2', methods=['GET','POST'])
@@ -2363,7 +2227,7 @@ def getS2():
 		count += 1
 		if action != 'search':
 			do_upsert('activities',activity,['id','status','link'])
-
+				
 	if action != 'search':
 		start()
 	scenes['scenes']=count
@@ -2496,7 +2360,7 @@ def getS2old():
 					do_upsert('activities',activity,['id','status','link'])
 				else:
 					app.logger.warning('getS2 - already queued {}'.format(activity))
-
+				
 	#start()
 	scenes['scenes']=len(scenes)
 	return jsonify(scenes)
@@ -2655,7 +2519,7 @@ def doradcor(args):
 	e = float(args['e'])
 	s = float(args['s'])
 	n = float(args['n'])
-
+	
 # Get the requested period to be processed
 	rstart = args['start']
 	rend   = args['end']
@@ -2682,7 +2546,7 @@ def doradcor(args):
 			template =  LC8SRfull+'{}.png'.format(sceneid)
 			app.logger.warning('doradcor - find {}'.format(template))
 			LC8SRfiles = glob.glob(template)
-			if len(LC8SRfiles) > 0:
+			if len(LC8SRfiles) > 0: 
 				logging.warning('radcor - {} already done'.format(sceneid))
 				scene['status'] = 'DONE'
 				continue
@@ -2706,7 +2570,7 @@ def doradcor(args):
 # Check if this scene is already in Repository as Level 2A
 			cc = sceneid.split('_')
 			yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir
+# Output product dir 
 			productdir = '/S2_MSI/{}/'.format(yyyymm)
 # Check if an equivalent sceneid has already been downloaded
 			date = cc[2]
@@ -2717,13 +2581,13 @@ def doradcor(args):
 				logging.warning('radcor - {} already done'.format(sceneid))
 				scene['status'] = 'DONE'
 				continue
-
+			
 			safeL2Afull = productdir+sceneid.replace('MSIL1C','MSIL2A')+'.SAFE'
 			if os.path.exists(safeL2Afull):
 				app.logger.warning('radcor - scene exists {}'.format(safeL2Afull))
 				scene['status'] = 'DONE'
 				continue
-
+				
 			scene['status'] = 'NOTDONE'
 			activity = {}
 			activity['app'] = 'downloadS2'
@@ -2762,7 +2626,7 @@ def consultscenes():
 	args = {}
 	for key in request.args:
 		args[key] = request.args.get(key)
-
+		
 	# Get the requested period
 	rstart = args['start'] if 'start' in args else None
 	rend = args['end'] if 'end' in args else None
@@ -2777,7 +2641,7 @@ def consultscenes():
 
 	# Get information from datacube
 	sql = "SELECT SceneId FROM `Scene` WHERE (Date >= '{}' AND Date <= '{}') AND (".format(rstart, rend)
-	cont_satsen = 0
+	cont_satsen = 0 
 	for satsen in satsens:
 		sql += "Sensor = '{}'".format(satsen)
 		cont_satsen += 1
@@ -2811,7 +2675,7 @@ def radcorold():
 	e = float(e)
 	s = float(s)
 	n = float(n)
-
+	
 # Get the requested period to be processed
 	rstart = request.args.get('start', '2019-02-01')
 	rend   = request.args.get('end', None)
@@ -2856,7 +2720,7 @@ def radcorold():
 # Check if this scene is already in Repository as Level 2A
 			cc = sceneid.split('_')
 			yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-# Output product dir
+# Output product dir 
 			productdir = '/S2_MSI/{}/'.format(yyyymm)
 # Check if an equivalent sceneid has already been downloaded
 			date = cc[2]
@@ -2866,12 +2730,12 @@ def radcorold():
 			if len(files) > 0:
 				logging.warning('radcor - {} already done'.format(sceneid))
 				continue
-
+			
 			safeL2Afull = productdir+sceneid.replace('MSIL1C','MSIL2A')+'.SAFE'
 			if os.path.exists(safeL2Afull):
 				app.logger.warning('radcor - scene exists {}'.format(safeL2Afull))
 				continue
-
+				
 			activity = {}
 			activity['app'] = 'downloadS2'
 			activity['sceneid'] = sceneid
@@ -2946,9 +2810,9 @@ def search():
 
 ###################################################
 def manage(activity):
-	global MAX_THREADS,ACTIVITIES,s2users,CUR_THREADS
+	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
 	#ACTIVITIES['downloadS2']['maximum'] = getS2Users()
-	app.logger.warning('manage start - lock : {} CUR_THREADS : {} ACTIVITIES : {} activity {}'.format(redis.get('rc_lock'),CUR_THREADS.value,ACTIVITIES,activity))
+	app.logger.warning('manage start - lock : {} CUR_THREADS : {} ACTIVITIES : {} activity {}'.format(redis.get('rc_lock'),CUR_THREADS,ACTIVITIES,activity))
 
 # Create the critical region while database is modified. Leave it if sleeping time is greater than 10 units to avoid sleeping forever in a buggy situation
 	countsleep = 0
@@ -2967,10 +2831,10 @@ def manage(activity):
 		activity['link'] = None
 		#do_upsert('activities',activity,['id','status','link','file','start','end','elapsed','retcode','message'])
 		do_update('activities',activity)
-		CUR_THREADS.value -= 1
+		CUR_THREADS -= 1
 		if activity['app'] in ACTIVITIES:
 			ACTIVITIES[activity['app']]['current'] -= 1
-
+			
 # activity just finished, lets see what must be done
 	if activity['status'] == 'DONE':
 # Create the next activities
@@ -3046,7 +2910,7 @@ def manage(activity):
 	result = do_query(sql)
 
 	for newactivity in result:
-		if CUR_THREADS.value >= MAX_THREADS: break
+		if CUR_THREADS >= MAX_THREADS: break
 		if newactivity['app'] in ACTIVITIES:
 			if ACTIVITIES[newactivity['app']]['current'] >= ACTIVITIES[newactivity['app']]['maximum']:
 				#app.logger.warning('manage - not yet activity {} {}'.format(ACTIVITIES[newactivity['app']],newactivity))
@@ -3064,22 +2928,20 @@ def manage(activity):
 		step_start = time.time()
 		newactivity['start'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_start)))
 		newactivity_copy = newactivity.copy()
-		# t = threading.Thread(target=run, args=(newactivity,))
-		t = multiprocessing.Process(target=run, args=(newactivity, ))
-
-		app.logger.warning('manage threading - lock : {} CUR_THREADS : {} MAX_THREADS : {} newactivity : {}'.format(redis.get('rc_lock'),CUR_THREADS.value,MAX_THREADS,newactivity))
+		t = threading.Thread(target=run, args=(newactivity,))
+		app.logger.warning('manage threading - lock : {} CUR_THREADS : {} MAX_THREADS : {} newactivity : {}'.format(redis.get('rc_lock'),CUR_THREADS,MAX_THREADS,newactivity))
 		t.start()
 		newactivity_copy['link'] = None
 		newactivity_copy['retcode'] = None
 		newactivity_copy['message'] = None
 		#do_upsert('activities',newactivity_copy,['id','status','link','file','start','end','elapsed','retcode','message'])
 		do_update('activities',newactivity_copy)
-		CUR_THREADS.value += 1
-		app.logger.warning('manage loop - lock : {} CUR_THREADS : {} MAX_THREADS : {}'.format(redis.get('rc_lock'),CUR_THREADS.value,MAX_THREADS))
+		CUR_THREADS += 1
+		app.logger.warning('manage loop - lock : {} CUR_THREADS : {} MAX_THREADS : {}'.format(redis.get('rc_lock'),CUR_THREADS,MAX_THREADS))
 
 # Leave the critical region
 	redis.set('rc_lock',0)
-	app.logger.warning('manage end - lock : {} CUR_THREADS : {} activity {} s2users {}'.format(redis.get('rc_lock'),CUR_THREADS.value,activity,s2users.keys()))
+	app.logger.warning('manage end - lock : {} CUR_THREADS : {} activity {} s2users {}'.format(redis.get('rc_lock'),CUR_THREADS,activity,s2users.keys()))
 	return
 
 ###################################################
@@ -3269,12 +3131,12 @@ def set():
 ###################################################
 @app.route('/start', methods=['GET'])
 def start():
-	activity = {}
-	activity['id'] = -1
-	activity['app'] = 'START'
-	activity['status'] = 'START'
-	manage(activity)
-	return 'OK\n'
+        activity = {}
+        activity['id'] = -1
+        activity['app'] = 'START'
+        activity['status'] = 'START'
+        manage(activity)
+        return 'OK\n'
 
 ###################################################
 @app.route('/restart', methods=['GET'])
@@ -3288,7 +3150,7 @@ def restart():
 		sql = "UPDATE activities SET status='NOTDONE' WHERE id = {}".format(id)
 	do_command(sql)
 	msg += 'sql - {}\n'.format(sql)
-	CUR_THREADS.value = 0
+	CUR_THREADS = 0
 	setActivities()
 	msg += 'ACTIVITIES - {}\n'.format(ACTIVITIES)
 
@@ -3299,68 +3161,69 @@ def restart():
 ###################################################
 @app.route('/reset', methods=['GET'])
 def reset():
-	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
-	s2users = {}
-	getS2Users()
-	msg = 'Rc_Maestro reseting:\n'
-	
-	setActivities()
-	redis.set('rc_lock',0)
-	msg = 'Rc_Maestro reseting:\n'
-	status = request.args.get('status', None)
-	lock = getLock()
-	msg += 'lock is: {}\n'.format(lock)
-	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	CUR_THREADS.value = 0
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
-	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+        s2users = {}
+        getS2Users()
+        msg = 'Rc_Maestro reseting:\n'
 
-	return msg
+        setActivities()
+        redis.set('rc_lock',0)
+        msg = 'Rc_Maestro reseting:\n'
+        status = request.args.get('status', None)
+        lock = getLock()
+        msg += 'lock is: {}\n'.format(lock)
+        msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+        CUR_THREADS.value = 0
+        msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+        msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 
+        return msg
 
 ###################################################
 @app.route('/reset_activities', methods=['GET'])
 def reset_activities():
-	global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
-	s2users = {}
-	getS2Users()
-	msg = 'Rc_Maestro reseting:\n'
-	sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
-	do_command(sql)
-	msg += 'sql - {}\n'.format(sql)
+        global MAX_THREADS,CUR_THREADS,ACTIVITIES,s2users
+        s2users = {}
+        getS2Users()
+        msg = 'Rc_Maestro reseting:\n'
+        sql = "UPDATE activities SET status='NOTDONE' WHERE status = 'DOING' "
+        do_command(sql)
+        msg += 'sql - {}\n'.format(sql)
 
-	setActivities()
-	redis.set('rc_lock',0)
-	msg = 'Rc_Maestro reseting:\n'
-	status = request.args.get('status', None)
-	lock = getLock()
-	msg += 'lock is: {}\n'.format(lock)
-	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	CUR_THREADS.value = 0
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
-	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
+        setActivities()
+        redis.set('rc_lock',0)
+        msg = 'Rc_Maestro reseting:\n'
+        status = request.args.get('status', None)
+        lock = getLock()
+        msg += 'lock is: {}\n'.format(lock)
+        msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
+        CUR_THREADS.value = 0
+        msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+        msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 
-	return msg
+        return msg
 
-	
+
 ###################################################
 @app.route('/finish_current', methods=['GET'])
 def finish_current():
-	global ACTIVITIES
-	for activity in ACTIVITIES:
-		ACTIVITIES[activity]['maximum'] = 0
-	app.logger.warning('Activities maximum set to 0: {}'.format(ACTIVITIES))
-	return('Activities maximum set to 0')
+        global ACTIVITIES
+        for activity in ACTIVITIES:
+                ACTIVITIES[activity]['maximum'] = 0
+        app.logger.warning('Activities maximum set to 0: {}'.format(ACTIVITIES))
+        return('Activities maximum set to 0')
 
 
 ###################################################
 @app.route('/suspendnotdone', methods=['GET'])
 def suspendnotdone():
-	sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
-	do_command(sql)
-	msg = 'sql - {}\n'.format(sql)
+        sql = "UPDATE activities SET status='SUSPEND' WHERE status = 'NOTDONE'"
+        do_command(sql)
+        msg = 'sql - {}\n'.format(sql)
 
-	return msg
+        return msg
+
+
 
 
 ###################################################
@@ -3372,10 +3235,10 @@ def inspect():
 	lock = getLock()
 	msg += 'lock is: {}\n'.format(lock)
 	msg += 'MAX_THREADS is: {}\n'.format(MAX_THREADS)
-	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS.value)
+	msg += 'CUR_THREADS is: {}\n'.format(CUR_THREADS)
 	msg += 'ACTIVITIES is: {}\n'.format(ACTIVITIES)
 	msg += 's2users is: {}\n'.format(s2users.keys())
-
+	
 	if status is not None:
 		sql = "SELECT * FROM activities WHERE status = '{}' ORDER BY id".format(status)
 	else:
@@ -3385,7 +3248,7 @@ def inspect():
 	for activity in result:
 		msg += '{} - {} - {} -> {}\n'.format(activity['id'],activity['app'],activity['sceneid'],activity['status'])
 	return msg
-
+	
 
 ###################################################
 @app.errorhandler(400)

@@ -23,8 +23,6 @@ logger = logging.getLogger('alembic.env')
 # target_metadata = mymodel.Base.metadata
 from flask import current_app
 
-print( current_app.config.get(
-        'SQLALCHEMY_DATABASE_URI').replace('%', '%%'))
 config.set_main_option(
     'sqlalchemy.url', current_app.config.get(
         'SQLALCHEMY_DATABASE_URI').replace('%', '%%'))

@@ -6,7 +6,7 @@ from bdc_scripts.models.base_sql import BaseModel
 class Scene(BaseModel):
     __tablename__ = 'scenes'
     __table_args__ = (
-        Index('general', 'datacube', 'tileid', 'start', 'end', 'band'),
+        Index('scenes_general', 'datacube', 'tileid', 'start', 'end', 'band'),
         dict(schema='datastore')
     )
 

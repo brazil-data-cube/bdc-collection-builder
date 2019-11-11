@@ -10,7 +10,7 @@ from numpngw import write_png
 from osgeo.osr import SpatialReference
 from skimage.transform import resize
 from bdc_scripts.core.utils import generate_cogs
-
+from bdc_scripts.radcor.models import RadcorActivity
 
 BAND_MAP = {
     'B01': 'coastal',
@@ -32,7 +32,7 @@ BAND_MAP = {
 SENTINEL_BANDS = BAND_MAP.keys()
 
 
-def publish(scene):
+def publish(scene: RadcorActivity):
     qlband = 'TCI'
 
     # Retrieves all jp2 files from scene
@@ -171,9 +171,9 @@ def filter_jp2_files(directory, pattern):
             for f in fnmatch.filter(files, pattern)]
 
 
-def get_jp2_files(scene):
+def get_jp2_files(scene: RadcorActivity):
     # Find all jp2 files in L2A SAFE
-    sentinel_folder_data = scene['file'].replace('MSIL1C', 'MSIL2A')
+    sentinel_folder_data = scene.file.replace('MSIL1C', 'MSIL2A')
     template = "T*.jp2"
     jp2files = [os.path.join(dirpath, f)
                 for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))

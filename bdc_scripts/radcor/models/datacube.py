@@ -4,7 +4,7 @@ from bdc_scripts.models.base_sql import BaseModel
 
 class Datacube(BaseModel):
     __tablename__ = 'datacubes'
-    __tableargs__ = dict(schema='datastore')
+    __table_args__ = dict(schema='datastore')
 
     id = Column(BigInteger, primary_key=True)
     datacube = Column(String(48), nullable=False)

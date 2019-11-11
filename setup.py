@@ -36,6 +36,7 @@ setup(
         'Flask-Migrate>=2.5.2',
         'Flask-SQLAlchemy>=2.4.1',
         'GeoAlchemy2>=0.6.2',
+        'marshmallow-sqlalchemy>=0.19.0',
         # Utils for database creation
         'SQLAlchemy-Utils>=0.34.2',
         'SQLAlchemy[postgresql]>=1.3.10',

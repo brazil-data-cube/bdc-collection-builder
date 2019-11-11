@@ -5,7 +5,7 @@ from bdc_scripts.models.base_sql import BaseModel
 class Mosaic(BaseModel):
     __tablename__ = 'mosaics'
     __table_args__ = (
-        Index('general', 'datacube', 'tileid', 'start', 'end', unique=True),
+        Index('mosaics_general', 'datacube', 'tileid', 'start', 'end', unique=True),
         dict(schema='datastore')
     )
 

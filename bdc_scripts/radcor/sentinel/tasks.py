@@ -10,6 +10,8 @@ from bdc_scripts.celery import celery_app
 # BDC Scripts
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
+from bdc_scripts.radcor.forms import RadcorActivityForm
+from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
@@ -60,58 +62,96 @@ class SentinelTask(celery_app.Task):
             dict Scene with sentinel file path
         """
 
+        # Persist the activity to done
+        activity = RadcorActivity.get(id=scene.get('id'))
+        activity.status = 'DOING'
+        activity.save()
+
         # Acquire User to download
         with self.get_user() as user:
             logging.debug('Starting Download {}...'.format(user.username))
 
-            cc = scene['scene_id'].split('_')
-            year_month = cc[2][:4] + '-' + cc[2][4:6]
+            try:
+                cc = scene['sceneid'].split('_')
+                year_month = cc[2][:4] + '-' + cc[2][4:6]
 
-            # Output product dir
-            product_dir = os.path.join(scene.get('destination'), year_month)
-            link = scene['link']
-            scene_id = scene['scene_id']
+                # Output product dir
+                product_dir = os.path.join(scene.get('file'), year_month)
+                link = scene['link']
+                scene_id = scene['sceneid']
 
-            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+                zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
 
-            extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
+                extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
 
-            if not os.path.exists(extracted_file_path):
-                valid = True
+                if not os.path.exists(extracted_file_path):
+                    valid = True
 
-                if os.path.exists(zip_file_name):
-                    valid = is_valid(zip_file_name)
+                    if os.path.exists(zip_file_name):
+                        valid = is_valid(zip_file_name)
 
-                if not os.path.exists(zip_file_name) or not valid:
-                    # Download from Copernicus
-                    download_sentinel_images(link, zip_file_name, user)
+                    if not os.path.exists(zip_file_name) or not valid:
+                        # Download from Copernicus
+                        download_sentinel_images(link, zip_file_name, user)
 
-                    # Check if file is valid
-                    valid = is_valid(zip_file_name)
+                        # Check if file is valid
+                        valid = is_valid(zip_file_name)
 
-                if not valid:
-                    os.remove(zip_file_name)
-                    logging.error('Invalid zip file "{}"'.format(zip_file_name))
-                    return None
+                    if not valid:
+                        os.remove(zip_file_name)
+                        logging.error('Invalid zip file "{}"'.format(zip_file_name))
+                        return None
+                    else:
+                        extractall(zip_file_name)
                 else:
-                    extractall(zip_file_name)
-            else:
-                logging.info('Skipping download since the file {} already exists'.format(extracted_file_path))
+                    logging.info('Skipping download since the file {} already exists'.format(extracted_file_path))
 
-            logging.debug('Done download.')
+                logging.debug('Done download.')
+                activity.status = 'DONE'
+            except BaseException as e:
+                logging.error('An error occurred during task execution', e)
+                activity.status = 'ERROR'
+
+                raise e
+            finally:
+                activity.save()
 
         scene.update(dict(
             file=extracted_file_path
         ))
 
-        return scene
+        # Create new activity 'publish' to continue task chain
+        new_activity = RadcorActivity(**scene)
+        new_activity.app = 'publishS2'
+        new_activity.save()
+
+        return RadcorActivityForm().dump(new_activity)
 
     def publish(self, scene):
         logging.debug('Starting Publish Sentinel...')
 
-        publish(scene)
+        activity = RadcorActivity.get(id=scene.get('id'))
+        activity.status = 'DOING'
+        activity.save()
+
+        try:
+            publish(activity)
+            activity.status = 'DONE'
+        except BaseException as e:
+            logging.error('An error occurred during task execution', e)
+            activity.status = 'ERROR'
+            raise e
+        finally:
+            activity.save()
+
+        # Create new activity 'publish' to continue task chain
+        new_activity = RadcorActivity(**scene)
+        new_activity.app = 'uploadS2'
+        new_activity.save()
 
         logging.debug('Done Publish Sentinel.')
+
+        return RadcorActivityForm().dump(new_activity)
 
     def upload(self, scene):
         logging.debug('Starting Upload sentinel to AWS...')

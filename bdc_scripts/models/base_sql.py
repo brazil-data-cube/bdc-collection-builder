@@ -19,6 +19,11 @@ class BaseModel(db.Model):
                                   onupdate=datetime.utcnow())
 
     @classmethod
+    def query(cls):
+        """Wraps an SQLAlchemy session query for your own model"""
+        return db.session.query(cls)
+
+    @classmethod
     def _filter(cls, **properties):
         """Filter abstraction"""
         return db.session.query(cls).filter_by(**properties)

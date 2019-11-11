@@ -1,15 +1,5 @@
 from bdc_scripts.models.base_sql import db
 
-# Catalog
-from bdc_scripts.models.catalog.datacube import Datacube
-from bdc_scripts.models.catalog.datastore_activity import DataStoreActivity
-from bdc_scripts.models.catalog.mosaic import Mosaic
-from bdc_scripts.models.catalog.product import Product
-from bdc_scripts.models.catalog.qlook import Qlook
-from bdc_scripts.models.catalog.radcor_activity import RadcorActivity
-from bdc_scripts.models.catalog.scene import Scene
-from bdc_scripts.models.catalog.wrs import WRS
-
 # Cube
 from bdc_scripts.models.cube.asset import Asset
 from bdc_scripts.models.cube.asset_composition import AssetComposition

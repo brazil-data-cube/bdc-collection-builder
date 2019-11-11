@@ -5,7 +5,7 @@ from bdc_scripts.models.base_sql import BaseModel
 class Product(BaseModel):
     __tablename__ = 'products'
     __table_args__ = (
-        Index('general', 'type', 'datacube', 'tileid', 'start', 'end'),
+        Index('products_general', 'type', 'datacube', 'tileid', 'start', 'end'),
         dict(schema='datastore')
     )
 

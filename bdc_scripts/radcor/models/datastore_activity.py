@@ -4,7 +4,7 @@ from bdc_scripts.models.base_sql import BaseModel
 
 class DataStoreActivity(BaseModel):
     __tablename__ = 'activities'
-    _table_args__ = (
+    __table_args__ = (
         Index('sceneid', 'tsceneid', 'band'),
         dict(schema='datastore')
     )

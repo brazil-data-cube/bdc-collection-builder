@@ -60,6 +60,9 @@ def create_celery_app(flask_app: Flask):
             else:
                 logging.warning('Not Call context Task')
 
+        def get_activity(self):
+            raise NotImplementedError()
+
         def after_return(self, status, retval, task_id, args, kwargs, einfo):
             """
             Called after task execution.

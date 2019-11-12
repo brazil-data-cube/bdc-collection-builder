@@ -4,10 +4,8 @@ import os
 import time
 from random import randint
 
-# 3rdparty Libraries
-from bdc_scripts.celery import celery_app
-
 # BDC Scripts
+from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
 from bdc_scripts.radcor.forms import RadcorActivityForm
@@ -15,7 +13,7 @@ from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
-
+from bdc_scripts.radcor.utils import get_task_activity
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
@@ -63,7 +61,8 @@ class SentinelTask(celery_app.Task):
         """
 
         # Persist the activity to done
-        activity = RadcorActivity.get(id=scene.get('id'))
+        activity = get_task_activity()
+
         activity.status = 'DOING'
         activity.save()
 
@@ -121,16 +120,14 @@ class SentinelTask(celery_app.Task):
         ))
 
         # Create new activity 'publish' to continue task chain
-        new_activity = RadcorActivity(**scene)
-        new_activity.app = 'publishS2'
-        new_activity.save()
+        scene['app'] = 'publishS2'
 
-        return RadcorActivityForm().dump(new_activity)
+        return scene
 
     def publish(self, scene):
         logging.debug('Starting Publish Sentinel...')
 
-        activity = RadcorActivity.get(id=scene.get('id'))
+        activity = get_task_activity()
         activity.status = 'DOING'
         activity.save()
 

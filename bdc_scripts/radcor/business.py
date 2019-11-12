@@ -5,7 +5,6 @@ import logging
 
 # BDC Scripts
 from bdc_scripts.config import Config
-from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes
 
@@ -17,13 +16,13 @@ DESTINATION_DIR = Config.DATA_DIR
 
 class RadcorBusiness:
     @classmethod
-    def start(cls, activity: RadcorActivity):
+    def start(cls, activity):
         """Dispatch the celery tasks"""
 
-        dispatch(activity)
+        return dispatch(activity)
 
     @classmethod
-    def radcor(cls, args: dict) -> RadcorActivity:
+    def radcor(cls, args: dict):
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
@@ -72,7 +71,8 @@ class RadcorBusiness:
                 activity['sceneid'] = scene['sceneid']
                 activity['satellite'] = 'LC8'
                 activity['priority'] = 1
-                activity['link'] = scene['link'].replace("'","''")
+                activity['link'] = scene['link']
+                cls.start(activity)
         if 'S2' in sat or 'S2SR' in sat:
             result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
             scenes.update(result)
@@ -83,12 +83,12 @@ class RadcorBusiness:
                 cc = sceneid.split('_')
                 yyyymm = cc[2][:4]+'-'+cc[2][4:6]
                 # Output product dir
-                productdir = resource_path.join(DESTINATION_DIR, '/S2_MSI/{}/'.format(yyyymm))
+                base_dir = resource_path.join(DESTINATION_DIR, 'S2_MSI')
+                productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
                 # Check if an equivalent sceneid has already been downloaded
                 date = cc[2]
                 tile = cc[5]
                 files = glob.glob(productdir+'S*MSIL2A_{}*{}*.SAFE'.format(date,tile))
-                logging.warning('radcor - {} {}'.format(productdir+'S*MSIL2A_{}*{}*.SAFE'.format(date,tile),files))
                 if len(files) > 0:
                     logging.warning('radcor - {} already done'.format(sceneid))
                     scene['status'] = 'DONE'
@@ -108,20 +108,19 @@ class RadcorBusiness:
                     logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
 
-                activity = RadcorActivity()
-                activity.file = productdir
-                activity.app = 'downloadS2'
-                activity.sceneid = sceneid
-                activity.satellite = 'S2'
-                activity.priority = 1
-                activity.link = scene['link']
-                activity.status = 'NOTDONE'
+                activity = {}
+                activity['file'] = base_dir
+                activity['app'] = 'downloadS2'
+                activity['sceneid'] = sceneid
+                activity['satellite'] = 'S2'
+                activity['priority'] = 1
+                activity['link'] = scene['link']
+                activity['status'] = 'NOTDONE'
 
-                logging.warning('radcor - activity new {}'.format(activity))
-
+                # logging.warning('radcor - activity new {}'.format(activity))
                 scenes[id] = scene
 
-                activity.save()
+                # activity.save()
 
                 cls.start(activity)
 

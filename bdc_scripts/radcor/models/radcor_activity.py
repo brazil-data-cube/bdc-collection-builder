@@ -1,4 +1,6 @@
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Time, or_
+from celery.backends.database import Task
+from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Time, or_, ForeignKey
+from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import db, BaseModel
 
 
@@ -6,7 +8,7 @@ class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
     __table_args__ = dict(schema='radcor')
 
-    id = Column('id', BigInteger, nullable=False, unique=True, primary_key=True)
+    id = Column('id', Integer, nullable=False, unique=True, primary_key=True)
     app = Column('app', String(64), nullable=False)
     sceneid = Column('sceneid', String(64), nullable=False)
     satellite = Column('satellite', String(8))
@@ -19,11 +21,18 @@ class RadcorActivity(BaseModel):
     elapsed = Column('elapsed', Time)
     retcode = Column('retcode', Integer)
     message = Column('message', String(512))
+    task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
+
+    task = relationship(Task, uselist=False)
+
+    @classmethod
+    def get_by_task_id(cls, task_id: str):
+        return cls.query().filter(cls.task.has(task_id=task_id)).one()
 
     @classmethod
     def reset_status(cls, id=None):
         """
-        Reset the inconsistency activities to NOTDONE
+        Reset inconsistent activities to NOTDONE
 
         Args:
             id (int or None) - Activity Id. Default is None, which represents all
@@ -31,6 +40,10 @@ class RadcorActivity(BaseModel):
         Returns:
             list of RadcorActivity
         """
+
+        from bdc_scripts.celery.utils import list_active_tasks
+
+        tasks = list_active_tasks()
 
         with db.session.begin_nested():
             if id is not None:

@@ -2,21 +2,19 @@
 import datetime
 import json
 import logging
-import os
 
 # 3rdparty
-from celery import chain
+from celery import chain, current_task
 import requests
 
 # BDC Scripts
 from bdc_scripts.radcor.models import RadcorActivity
-from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel import tasks as sentinel_tasks
 from bdc_scripts.radcor.landsat import tasks as landsat_tasks
 
 
-def dispatch(activity: RadcorActivity):
+def dispatch(activity: dict):
     """
     Dispatches the activity to the respective celery task handler
 
@@ -24,24 +22,29 @@ def dispatch(activity: RadcorActivity):
         activity (RadcorActivity) - A not done activity
     """
 
-    # Transform Model with marshmallow to dict
-    dump = RadcorActivityForm().dump(activity)
+    app = activity.get('app')
 
-    if activity.app == 'downloadS2':
+    if app == 'downloadS2':
         # TODO: Add marshmallow-sqlalchemy to enable serialization
-        task_chain = sentinel_tasks.download_sentinel.s(dump) | sentinel_tasks.publish_sentinel.s()
-        chain(task_chain).apply_async()
-    elif activity.app == 'publishS2':
-        task_chain = sentinel_tasks.publish_sentinel.s(dump) | sentinel_tasks.upload_sentinel.s()
-        chain(task_chain).apply_async()
-    elif activity.app == 'downloadL8':
-        task_chain = landsat_tasks.publish_landsat(dump) | landsat_tasks.upload_landsat.s()
-        chain(task_chain).apply_async()
-    elif activity.app == 'publishL8':
-        task_chain = landsat_tasks.publish_landsat(dump) | landsat_tasks.upload_landsat.s()
-        chain(task_chain).apply_async()
+        task_chain = sentinel_tasks.download_sentinel.s(activity) | sentinel_tasks.publish_sentinel.s()
+        return chain(task_chain).apply_async()
+    elif app == 'publishS2':
+        task_chain = sentinel_tasks.publish_sentinel.s(activity) | sentinel_tasks.upload_sentinel.s()
+        return chain(task_chain).apply_async()
+    elif app == 'downloadL8':
+        task_chain = landsat_tasks.publish_landsat(activity) | landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
+    elif app == 'publishL8':
+        task_chain = landsat_tasks.publish_landsat(activity) | landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
     else:
-        raise ValueError('Not implemented. "{}"'.format(activity.app))
+        raise ValueError('Not implemented. "{}"'.format(app))
+
+
+def get_task_activity():
+    task_id = current_task.request.id
+
+    return RadcorActivity.get_by_task_id(task_id)
 
 
 def create_wkt(ullon,ullat,lrlon,lrlat):

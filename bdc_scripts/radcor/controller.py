@@ -30,15 +30,15 @@ class RadcorController(Resource):
         # Prepare radcor activity and start
         result = RadcorBusiness.radcor(args)
 
-        if 'LC8' in args.get('satsen') or 'LC8SR' in args.get('satsen'):
-            result = filter(result,tags=['cloud','date','status'])
-        else:
-            result = filter(result)
+        # if 'LC8' in args.get('satsen') or 'LC8SR' in args.get('satsen'):
+        #     result = filter(result,tags=['cloud','date','status'])
+        # else:
+        #     result = filter(result)
 
         tile = '{}-{}-{}'.format(args['tileid'], args['start'], args['end'])
 
         scenes = {
-            tile: RadcorActivityForm().dump(result),
+            tile: result,
             'Results': len(result)
         }
 

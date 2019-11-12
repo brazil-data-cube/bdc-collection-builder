@@ -10,7 +10,7 @@ It allows to call own
 import click
 from flask.cli import FlaskGroup, with_appcontext
 from flask_migrate.cli import db as flask_migrate_db
-from sqlalchemy_utils.functions import create_database, database_exists
+from sqlalchemy_utils.functions import create_database, database_exists, drop_database
 from bdc_scripts import create_app
 from bdc_scripts.models import db
 
@@ -46,8 +46,24 @@ def create():
     if not database_exists(str(db.engine.url)):
         create_database(str(db.engine.url))
 
+    click.secho('Creating schemas...', fg='green')
+    with db.session.begin_nested():
+        db.session.execute('CREATE SCHEMA IF NOT EXISTS datastore')
+        db.session.execute('CREATE SCHEMA IF NOT EXISTS radcor')
+
     click.secho('Creating extension postgis...', fg='green')
     with db.session.begin_nested():
         db.session.execute('CREATE EXTENSION IF NOT EXISTS postgis')
 
     db.session.commit()
+
+
+@flask_migrate_db.command()
+@with_appcontext
+@click.pass_context
+def recreate(ctx):
+    if database_exists(str(db.engine.url)):
+        click.secho('Droping database...', fg='red')
+        drop_database(str(db.engine.url))
+
+    ctx.forward(create)

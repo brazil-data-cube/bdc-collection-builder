@@ -27,12 +27,14 @@ class RadcorBusiness:
         # Skip pending or started tasks
         if activity.task.status in ['PENDING', 'STARTED']:
             logging.warning('Skipped activity {} - {}'.format(activity, activity.task.status))
-            return
+        else:
+            dumps = RadcorActivityForm().dump(activity)
 
-        dumps = RadcorActivityForm().dump(activity)
-        del dumps['task']
+            del dumps['task']
 
-        cls.start(dumps)
+            cls.start(dumps)
+
+        return activity
 
     @classmethod
     def radcor(cls, args: dict):

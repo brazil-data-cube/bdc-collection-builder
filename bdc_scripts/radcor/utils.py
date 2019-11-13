@@ -156,7 +156,10 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
         first = count_results
         query = pquery + '&rows={}&start={}'.format(rows,first)
         try:
-            r = requests.get(query, auth=(user.username, user.password), verify=True)
+            # Using sentinel user and release on out of scope
+            with user:
+                r = requests.get(query, auth=(user.username, user.password), verify=True)
+
             if not r.status_code // 100 == 2:
                 logging.exception('openSearchS2SAFE API returned unexpected response {}:'.format(r.status_code))
                 return {}

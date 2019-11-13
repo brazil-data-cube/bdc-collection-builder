@@ -30,7 +30,7 @@ def on_received_store_in_db(sender, request, **kwargs):
     """
     Signal handler of Celery Task Receiver
 
-    Whenever task received, we must persist the task in database 
+    Whenever task received, we must persist the task in database
     as 'PENDING' in order to keep execution history
 
     Args:
@@ -53,10 +53,10 @@ def on_received_store_in_db(sender, request, **kwargs):
 
                 handler = TaskActivityFactory.get(context_name)
 
-                if not handler:
-                    logging.debug('No handler to attach task')
-                else:
+                if handler:
                     handler(t, *arguments)
+                else:
+                    logging.debug('No handler to attach task')
             else:
                 logging.debug('No arguments passed. Skipping task association')
 

@@ -15,23 +15,50 @@ class LandsatTask(celery_app.Task):
         activity.status = 'DOING'
         activity.save()
 
-        cc = scene['sceneid'].split('_')
-        pathrow = cc[2]
-        yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-        # Output product dir
-        productdir = os.path.join(Config.DATA_DIR, 'LC8/{}/{}'.format(yyyymm,pathrow))
+        try:
 
-        if not os.path.exists(productdir):
-            os.makedirs(productdir)
+            cc = scene['sceneid'].split('_')
+            pathrow = cc[2]
+            yyyymm = cc[3][:4]+'-'+cc[3][4:6]
 
-        link = scene['link']
+            # Output product dir
+            productdir = os.path.join(Config.DATA_DIR, 'LC8/{}/{}'.format(yyyymm,pathrow))
 
-        file = download_landsat_images(link, productdir)
+            if not os.path.exists(productdir):
+                os.makedirs(productdir)
 
+            link = scene['link']
 
+            file = download_landsat_images(link, productdir)
+
+        except BaseException as e:
+            logging.error('An error occurred during task execution', e)
+            activity.status = 'ERROR'
+
+            raise e
+        finally:
+            activity.save()
+
+        scene.update(dict(
+            file=file
+        ))
 
     def publish(self, scene):
-        pass
+        activity = get_task_activity()
+        activity.status = 'DOING'
+        activity.save()
+
+        try:
+            pass
+        except BaseException as e:
+            logging.error('An error occurred during task execution', e)
+            activity.status = 'ERROR'
+
+            raise e
+        finally:
+            activity.save()
+
+        return scene
 
     def upload(self, scene):
         pass

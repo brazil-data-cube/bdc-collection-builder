@@ -11,6 +11,12 @@ from bdc_scripts.core.utils import get_credentials
 
 
 def get_session() -> RequestSession:
+    """
+    Creates a session with USGS channel.
+
+    TODO: Use development seed STAC instead
+    """
+
     url_login = 'https://ers.cr.usgs.gov/login/'
     session = RequestSession()
     login_html = session.get(url_login)
@@ -44,7 +50,7 @@ def download_landsat_images(link, destination):
         last = chr(last)
         cc[-3] = sid[:-1]+last
         link = '/'.join(cc)
-        r = session.get(link, stream=True)
+        req = session.get(link, stream=True)
     if count == 2:
         return None
     outtar = os.path.join(destination, req.headers.get("Content-Disposition").split('=')[1])

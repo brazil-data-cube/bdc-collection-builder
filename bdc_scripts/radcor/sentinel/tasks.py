@@ -142,13 +142,11 @@ class SentinelTask(celery_app.Task):
             activity.save()
 
         # Create new activity 'publish' to continue task chain
-        new_activity = RadcorActivity(**scene)
-        new_activity.app = 'uploadS2'
-        new_activity.save()
+        scene['app'] = 'uploadS2'
 
         logging.debug('Done Publish Sentinel.')
 
-        return RadcorActivityForm().dump(new_activity)
+        return scene
 
     def upload(self, scene):
         logging.debug('Starting Upload sentinel to AWS...')

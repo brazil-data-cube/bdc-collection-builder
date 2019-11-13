@@ -48,10 +48,12 @@ class RadcorController(Resource):
 @api.route('/restart')
 class RadcorRestartController(Resource):
     def get(self):
-        activities = RadcorActivity.reset_status(id=request.args.get('id'))
+        # activities = RadcorActivity.reset_status(id=request.args.get('id'))
 
-        # Dispatch to the celery
-        for activity in activities:
-            RadcorBusiness.start(activity)
+        # # Dispatch to the celery
+        # for activity in activities:
+        #     RadcorBusiness.start(activity)
+
+        RadcorBusiness.restart(id=request.args.get('id'))
 
         return dict()

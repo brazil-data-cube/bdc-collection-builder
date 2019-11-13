@@ -1,5 +1,6 @@
-from celery import current_app
-from celery.app.control import Inspect
+"""
+Defines the utility functions to use among celery tasks
+"""
 
 
 class TaskActivityFactory:
@@ -17,11 +18,3 @@ class TaskActivityFactory:
             return None
 
         return cls._drivers[name]
-
-
-def list_active_tasks():
-    inspector: Inspect = current_app.control.inspect()
-
-    active_tasks = inspector.active()
-
-    return [task for task in active_tasks]

@@ -41,9 +41,10 @@ class RadcorActivity(BaseModel):
             list of RadcorActivity
         """
 
-        from bdc_scripts.celery.utils import list_active_tasks
-
-        tasks = list_active_tasks()
+        # if id is not None:
+        #     where = cls.id == id
+        # else:
+        #     where = None
 
         with db.session.begin_nested():
             if id is not None:

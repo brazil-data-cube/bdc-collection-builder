@@ -5,9 +5,9 @@ import logging
 
 # BDC Scripts
 from bdc_scripts.config import Config
+from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes
-
 
 # Consts
 CLOUD_DEFAULT = 90
@@ -20,6 +20,19 @@ class RadcorBusiness:
         """Dispatch the celery tasks"""
 
         return dispatch(activity)
+
+    @classmethod
+    def restart(cls, id):
+        activity = RadcorActivity.get(id=id)
+        # Skip pending or started tasks
+        if activity.task.status in ['PENDING', 'STARTED']:
+            logging.warning('Skipped activity {} - {}'.format(activity, activity.task.status))
+            return
+
+        dumps = RadcorActivityForm().dump(activity)
+        del dumps['task']
+
+        cls.start(dumps)
 
     @classmethod
     def radcor(cls, args: dict):

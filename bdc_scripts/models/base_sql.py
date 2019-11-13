@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, DateTime
+from sqlalchemy.orm import Query
 
 
 db = SQLAlchemy()
@@ -19,7 +20,7 @@ class BaseModel(db.Model):
                                   onupdate=datetime.utcnow())
 
     @classmethod
-    def query(cls):
+    def query(cls) -> Query:
         """Wraps an SQLAlchemy session query for your own model"""
         return db.session.query(cls)
 

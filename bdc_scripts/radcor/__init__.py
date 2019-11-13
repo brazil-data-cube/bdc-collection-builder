@@ -12,6 +12,7 @@ from bdc_scripts.radcor.models import RadcorActivity
 
 def create_activity(task, activity, *args, **kwargs):
     model = RadcorActivity(**activity)
+    model.id = None
     model.task = task
     model.save()
 

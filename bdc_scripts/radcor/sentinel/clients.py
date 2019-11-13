@@ -53,14 +53,18 @@ class UserClients:
         self._load_from_disk()
 
     def _load_from_disk(self):
-        file = os.path.join(os.path.dirname(CURRENT_DIR), 'secrets_s2.json')
+        file = os.path.join(os.path.dirname(CURRENT_DIR), 'secrets.json')
 
         if not os.path.exists(file):
             raise FileNotFoundError('The file "{}" does not exists'.format(file))
 
         content = open(file, 'r')
 
-        self.users = json.loads(content.read())
+        data = json.loads(content.read())
+
+        assert 'sentinel' in data
+
+        self.users = data['sentinel']
 
     @property
     def users(self):

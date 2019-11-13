@@ -8,8 +8,6 @@ from random import randint
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
-from bdc_scripts.radcor.forms import RadcorActivityForm
-from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
@@ -114,6 +112,8 @@ class SentinelTask(celery_app.Task):
                 raise e
             finally:
                 activity.save()
+
+        # TODO: Add atmospheric correction (sen2cor, espa)
 
         scene.update(dict(
             file=extracted_file_path

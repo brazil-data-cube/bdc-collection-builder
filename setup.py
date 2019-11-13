@@ -29,6 +29,7 @@ setup(
     url='https://github.com/brazil-data-cube/bdc-scripts.git',
     packages=find_packages(),
     install_requires=[
+        'beautifulsoup4>=4.8.1',
         'Flask>=1.1.1',
         'Flask-Cors>=3.0.8',
         'flask-restplus>=0.13.0',

@@ -10,11 +10,12 @@ import requests
 # BDC Scripts
 from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
-from bdc_scripts.radcor.sentinel import tasks as sentinel_tasks
-from bdc_scripts.radcor.landsat import tasks as landsat_tasks
 
 
 def dispatch(activity: dict):
+    from bdc_scripts.radcor.sentinel import tasks as sentinel_tasks
+    from bdc_scripts.radcor.landsat import tasks as landsat_tasks
+
     """
     Dispatches the activity to the respective celery task handler
 
@@ -31,10 +32,10 @@ def dispatch(activity: dict):
     elif app == 'publishS2':
         task_chain = sentinel_tasks.publish_sentinel.s(activity) | sentinel_tasks.upload_sentinel.s()
         return chain(task_chain).apply_async()
-    elif app == 'downloadL8':
-        task_chain = landsat_tasks.publish_landsat(activity) | landsat_tasks.upload_landsat.s()
+    elif app == 'downloadLC8':
+        task_chain = landsat_tasks.download_landsat.s(activity) | landsat_tasks.publish_landsat.s()
         return chain(task_chain).apply_async()
-    elif app == 'publishL8':
+    elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat(activity) | landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
     else:

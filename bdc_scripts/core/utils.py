@@ -1,10 +1,21 @@
 # Python Native
+from json import loads as json_parser
 from os import path as resource_path
 from zlib import error as zlib_error
 from zipfile import BadZipfile, ZipFile
 
 # 3rd-party
 import gdal
+
+# BDC Scripts
+from bdc_scripts.config import CURRENT_DIR
+
+
+def get_credentials():
+    file = resource_path.join(resource_path.dirname(CURRENT_DIR), 'secrets.json')
+
+    with open(file) as f:
+        return json_parser(f.read())
 
 
 def extractall(file):

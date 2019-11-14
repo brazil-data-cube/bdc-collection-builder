@@ -43,6 +43,8 @@ class LandsatTask(celery_app.Task):
             file=file
         ))
 
+        return scene
+
     def publish(self, scene):
         activity = get_task_activity()
         activity.status = 'DOING'

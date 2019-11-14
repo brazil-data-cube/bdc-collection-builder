@@ -8,7 +8,7 @@ class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
     __table_args__ = dict(schema='radcor')
 
-    id = Column('id', Integer, nullable=False, unique=True, primary_key=True)
+    id = Column(Integer, primary_key=True)
     app = Column('app', String(64), nullable=False)
     sceneid = Column('sceneid', String(64), nullable=False)
     satellite = Column('satellite', String(8))
@@ -21,7 +21,7 @@ class RadcorActivity(BaseModel):
     elapsed = Column('elapsed', Time)
     retcode = Column('retcode', Integer)
     message = Column('message', String(512))
-    task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
+    task_id = Column(ForeignKey(Task.id), nullable=False)
 
     task = relationship(Task, uselist=False)
 

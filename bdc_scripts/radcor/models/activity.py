@@ -1,5 +1,5 @@
 from celery.backends.database import Task
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Time, or_, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Time, or_, ForeignKey
 from sqlalchemy.orm import relationship
 from bdc_scripts.models.base_sql import db, BaseModel
 

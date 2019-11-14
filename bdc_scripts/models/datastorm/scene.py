@@ -2,12 +2,11 @@ from sqlalchemy import Column, Date, String, BigInteger, Float, text, Index, Sma
 from bdc_scripts.models.base_sql import BaseModel
 
 
-
 class Scene(BaseModel):
     __tablename__ = 'scenes'
     __table_args__ = (
         Index('scenes_general', 'datacube', 'tileid', 'start', 'end', 'band'),
-        dict(schema='datastore')
+        dict(schema='datastorm')
     )
 
     id = Column(BigInteger, primary_key=True)

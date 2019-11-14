@@ -1,4 +1,4 @@
-"""empty message
+"""Add cube models
 
 Revision ID: 0fac592968d3
 Revises:

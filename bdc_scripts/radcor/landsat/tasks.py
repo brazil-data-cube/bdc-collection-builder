@@ -3,9 +3,9 @@ import logging
 import os
 
 # BDC Scripts
-from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
 from bdc_scripts.radcor.landsat.download import download_landsat_images
+from bdc_scripts.radcor.landsat.publish import publish
 from bdc_scripts.radcor.utils import get_task_activity
 
 
@@ -22,7 +22,7 @@ class LandsatTask(celery_app.Task):
             yyyymm = cc[3][:4]+'-'+cc[3][4:6]
 
             # Output product dir
-            productdir = os.path.join(Config.DATA_DIR, 'LC8/{}/{}'.format(yyyymm,pathrow))
+            productdir = os.path.join(scene.get('file'), '{}/{}'.format(yyyymm, pathrow))
 
             if not os.path.exists(productdir):
                 os.makedirs(productdir)
@@ -51,7 +51,7 @@ class LandsatTask(celery_app.Task):
         activity.save()
 
         try:
-            pass
+            publish(scene)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             activity.status = 'ERROR'

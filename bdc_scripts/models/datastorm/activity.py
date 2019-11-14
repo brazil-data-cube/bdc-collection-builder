@@ -2,11 +2,11 @@ from sqlalchemy import BigInteger, Column, Date, DateTime, Index, Integer, Strin
 from bdc_scripts.models.base_sql import BaseModel
 
 
-class DataStoreActivity(BaseModel):
+class DataStormActivity(BaseModel):
     __tablename__ = 'activities'
     __table_args__ = (
         Index('sceneid', 'tsceneid', 'band'),
-        dict(schema='datastore')
+        dict(schema='datastorm')
     )
 
     id = Column(BigInteger, primary_key=True)

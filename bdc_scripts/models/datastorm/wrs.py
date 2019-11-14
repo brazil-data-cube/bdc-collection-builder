@@ -7,7 +7,7 @@ class WRS(BaseModel):
     __table_args__ = (
         Index('npr', 'name', 'tileid', unique=True),
         Index('geo', 'lonmin', 'lonmax', 'latmin', 'latmax', unique=True),
-        dict(schema='datastore')
+        dict(schema='datastorm')
     )
 
     id = Column(Integer, primary_key=True)

@@ -4,7 +4,7 @@ from bdc_scripts.models.base_sql import BaseModel
 
 class Qlook(BaseModel):
     __tablename__ = 'qlook'
-    __table_args__ = dict(schema='datastore')
+    __table_args__ = dict(schema='datastorm')
 
     id = Column(BigInteger, primary_key=True)
     datacube = Column(String(48), nullable=False)

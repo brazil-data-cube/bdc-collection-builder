@@ -6,7 +6,7 @@ class Mosaic(BaseModel):
     __tablename__ = 'mosaics'
     __table_args__ = (
         Index('mosaics_general', 'datacube', 'tileid', 'start', 'end', unique=True),
-        dict(schema='datastore')
+        dict(schema='datastorm')
     )
 
     id = Column(BigInteger, primary_key=True)

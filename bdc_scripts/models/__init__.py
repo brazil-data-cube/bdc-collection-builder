@@ -18,3 +18,9 @@ from bdc_scripts.models.cube.raster_chunk_schema import RasterChunkSchema
 from bdc_scripts.models.cube.spatial_resolution_schema import SpatialResolutionSchema
 from bdc_scripts.models.cube.temporal_composite_schema import TemporalCompositionSchema
 from bdc_scripts.models.cube.tile import Tile
+
+# Catalog
+from bdc_scripts.models.catalog import *
+
+# Datastorm
+from bdc_scripts.models.datastorm import *

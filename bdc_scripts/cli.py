@@ -48,7 +48,8 @@ def create():
 
     click.secho('Creating schemas...', fg='green')
     with db.session.begin_nested():
-        db.session.execute('CREATE SCHEMA IF NOT EXISTS datastore')
+        db.session.execute('CREATE SCHEMA IF NOT EXISTS catalogo')
+        db.session.execute('CREATE SCHEMA IF NOT EXISTS datastorm')
         db.session.execute('CREATE SCHEMA IF NOT EXISTS radcor')
 
     click.secho('Creating extension postgis...', fg='green')

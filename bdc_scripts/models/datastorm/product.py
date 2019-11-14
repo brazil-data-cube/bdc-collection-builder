@@ -6,7 +6,7 @@ class Product(BaseModel):
     __tablename__ = 'products'
     __table_args__ = (
         Index('products_general', 'type', 'datacube', 'tileid', 'start', 'end'),
-        dict(schema='datastore')
+        dict(schema='datastorm')
     )
 
     id = Column(BigInteger, primary_key=True)

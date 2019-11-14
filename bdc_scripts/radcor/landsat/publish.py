@@ -1,5 +1,19 @@
+# Python Native
+import datetime
+import glob
+import os
+
+# 3rdparty
+from gdal import GA_ReadOnly, Open as GDALOpen
+from numpngw import write_png
+from ogr import osr
+from skimage import exposure
+from skimage.transform import resize
+import numpy
+
+# BDC Scripts
 from bdc_scripts.models import db
-from bdc_scripts.radcor.models import Product, Qlook, Scene
+from bdc_scripts.models import CatalogProduct, CatalogQlook, CatalogScene
 
 
 def publish(scene):
@@ -8,20 +22,18 @@ def publish(scene):
     pathrow = cc[2]
     date = cc[3]
     yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-    # Product dir
+    # CatalogProduct dir
     productdir = '/LC8SR/{}/{}'.format(yyyymm, pathrow)
     Type='SCENE'
-    GeometricProcessing='ortho'
-    RadiometricProcessing='SR'
     path = int(pathrow[0:3])
     row  = int(pathrow[3:])
 
     # Delete scene
-    Scene.query().filter(Scene.sceneid == identifier).delete()
+    CatalogScene.query().filter(CatalogScene.sceneid == identifier).delete()
     # Delete products
-    Product.query().filter(Product.sceneid == identifier).delete()
+    CatalogProduct.query().filter(CatalogProduct.sceneid == identifier).delete()
     # Delete products
-    Qlook.query().filter(Qlook.sceneid == identifier).delete()
+    CatalogQlook.query().filter(CatalogQlook.sceneid == identifier).delete()
 
     # Get the product files
     bandmap= {
@@ -50,11 +62,8 @@ def publish(scene):
 
     # Extract basic scene information and build the quicklook
     pngname = productdir+'/{}.png'.format(identifier)
-    pngexists = False
-    if os.path.exists(pngname):
-        pngexists = True
 
-    dataset = gdal.Open(qlfiles['nir'],GA_ReadOnly)
+    dataset = GDALOpen(qlfiles['nir'], GA_ReadOnly)
     numlin = 768
     numcol = int(float(dataset.RasterXSize)/float(dataset.RasterYSize)*numlin)
     image = numpy.zeros((numlin,numcol,len(qlfiles),), dtype=numpy.uint8)
@@ -83,76 +92,63 @@ def publish(scene):
     s2ll = osr.CoordinateTransformation ( datasetsrs, llsrs )
 
     # Evaluate corners coordinates in ll
-    #	Upper left corner
+    # Upper left corner
     (ullon, ullat, nkulz ) = s2ll.TransformPoint( fulx, fuly)
-    #	Upper right corner
+    # Upper right corner
     (urlon, urlat, nkurz ) = s2ll.TransformPoint( furx, fury)
-    #	Lower left corner
+    # Lower left corner
     (lllon, lllat, nkllz ) = s2ll.TransformPoint( fllx, flly)
-    #	Lower right corner
+    # Lower right corner
     (lrlon, lrlat, nklrz ) = s2ll.TransformPoint( flrx, flry)
 
-    product = Product()
+    product = CatalogProduct()
     product.sceneid = identifier
     product.type = 'SCENE'
 
-    scene_model = Scene()
+    scene_model = CatalogScene()
     scene_model.sceneid = identifier
     scene_model.dataset = 'LC8SR'
     scene_model.satellite = 'LC8'
     scene_model.date = date
+    scene_model.path = path
+    scene_model.row = row
+    scene_model.center_latitude = (ullat+lrlat+urlat+lllat)/4
+    scene_model.center_longitude = (ullon + lrlon + urlon + lllon) / 4.
+    scene_model.tl_longitude = ullon
+    scene_model.tl_latitude = ullat
+    scene_model.br_longitude = lrlon
+    scene_model.br_latitude = lrlat
+    scene_model.tr_longitude = urlon
+    scene_model.tr_latitude = urlat
+    scene_model.bl_longitude = lllon
+    scene_model.bl_latitude = lllat
+    scene_model.ingest_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    scene_model.deleted = 0
+    scene_model.cloud_cover_method = 'M'
+    scene_model.cloud_cover_Q1 = 0
+    scene_model.cloud_cover_Q2 = 0
+    scene_model.cloud_cover_Q3 = 0
+    scene_model.cloud_cover_Q4 = 0
 
     result = {'Scene':{},'Product':{}}
-    result['Scene']['SceneId'] = identifier
-    result['Scene']['Dataset'] = 'LC8SR'
-    result['Scene']['Satellite'] = 'LC8'
-    result['Scene']['Sensor'] = 'OLI'
-    result['Scene']['Date'] = date
-    result['Scene']['Path'] = path
-    result['Scene']['Row'] = row
 
     result['Product']['SceneId'] = identifier
     result['Product']['Dataset'] = 'LC8SR'
     result['Product']['Type'] = 'SCENE'
-    result['Product']['GeometricProcessing'] = GeometricProcessing
-    result['Product']['RadiometricProcessing'] = RadiometricProcessing
-
-    result['Scene']['CenterLatitude'] = (ullat+lrlat+urlat+lllat)/4.
-    result['Scene']['CenterLongitude'] = (ullon+lrlon+urlon+lllon)/4.
-
-    result['Scene']['TL_LONGITUDE'] = ullon
-    result['Scene']['TL_LATITUDE'] = ullat
-
-    result['Scene']['BR_LONGITUDE'] = lrlon
-    result['Scene']['BR_LATITUDE'] = lrlat
-
-    result['Scene']['TR_LONGITUDE'] = urlon
-    result['Scene']['TR_LATITUDE'] = urlat
-
-    result['Scene']['BL_LONGITUDE'] = lllon
-    result['Scene']['BL_LATITUDE'] = lllat
-
-    result['Scene']['IngestDate'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    result['Scene']['Deleted'] = 0
-    result['Scene']['CloudCoverMethod'] = 'M'
-    result['Scene']['CloudCoverQ1'] = 0
-    result['Scene']['CloudCoverQ2'] = 0
-    result['Scene']['CloudCoverQ3'] = 0
-    result['Scene']['CloudCoverQ4'] = 0
+    result['Product']['GeometricProcessing'] = 'ortho'
+    result['Product']['RadiometricProcessing'] = 'SR'
 
     nb = 0
     for band in quicklook:
         template = qlfiles[band]
-        dataset = gdal.Open(template,GA_ReadOnly)
+        dataset = GDALOpen(template,GA_ReadOnly)
         raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
 
         del dataset
 
-        app.logger.warning('publishLC8 - file {} raster before min {} max {} {}'.format(template,raster.min(),raster.max(),raster))
         #raster = scipy.misc.imresize(raster,(numlin,numcol))
         raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
         nodata = raster == -9999
-        app.logger.warning('publishLC8 - file {} raster after min {} max {} {}'.format(template,raster.min(),raster.max(),raster))
       # Evaluate minimum and maximum values
         a = numpy.array(raster.flatten())
         p1, p99 = numpy.percentile(a[a>0], (1, 99))
@@ -175,18 +171,17 @@ def publish(scene):
             values += "{0},".format(val)
 
     sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
-    engine.execute(sql)
 
     with db.session.begin_nested():
         # Inserting data into Qlook table
-        qlook = Qlook(sceneid=identifier, qlookfile=pngname)
-        qlook.save(False)
+        qlook = CatalogQlook(sceneid=identifier, qlookfile=pngname)
+        qlook.save(commit=False)
 
         # Inserting data into Product table
         for band in bandmap:
             template = files[band]
 
-            dataset = gdal.Open(template,GA_ReadOnly)
+            dataset = GDALOpen(template,GA_ReadOnly)
             geotransform = dataset.GetGeoTransform()
 
             del dataset
@@ -198,7 +193,7 @@ def publish(scene):
             product.filename = template
             product.processingdate = processing_date
 
-            product.save(False)
+            product.save(commit=False)
     
     db.session.commit()
 

@@ -100,7 +100,7 @@ class RadcorBusiness:
                 cc = sceneid.split('_')
                 yyyymm = cc[2][:4]+'-'+cc[2][4:6]
                 # Output product dir
-                base_dir = resource_path.join(DESTINATION_DIR, 'S2_MSI')
+                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/S2_MSI')
                 productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
                 # Check if an equivalent sceneid has already been downloaded
                 date = cc[2]

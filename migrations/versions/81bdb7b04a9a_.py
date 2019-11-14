@@ -1,8 +1,8 @@
-"""empty message
+"""Add radcor activities and datastorm tables
 
-Revision ID: 7ae47c138adf
+Revision ID: 81bdb7b04a9a
 Revises: 0fac592968d3
-Create Date: 2019-11-11 09:51:00.163606
+Create Date: 2019-11-14 09:15:05.121193
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7ae47c138adf'
+revision = '81bdb7b04a9a'
 down_revision = '0fac592968d3'
 branch_labels = None
 depends_on = None
@@ -39,9 +39,9 @@ def upgrade():
     sa.Column('retcode', sa.Integer(), nullable=True),
     sa.Column('message', sa.String(length=512), nullable=True),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index('sceneid', 'activities', ['tsceneid', 'band'], unique=False, schema='datastore')
+    op.create_index('sceneid', 'activities', ['tsceneid', 'band'], unique=False, schema='datastorm')
     op.create_table('datacubes',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -58,7 +58,7 @@ def upgrade():
     sa.Column('resx', sa.Float(), nullable=False),
     sa.Column('resy', sa.Float(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
     op.create_table('mosaics',
     sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -71,9 +71,9 @@ def upgrade():
     sa.Column('numcol', sa.Integer(), nullable=False),
     sa.Column('numlin', sa.Integer(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index('mosaics_general', 'mosaics', ['datacube', 'tileid', 'start', 'end'], unique=True, schema='datastore')
+    op.create_index('mosaics_general', 'mosaics', ['datacube', 'tileid', 'start', 'end'], unique=True, schema='datastorm')
     op.create_table('products',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -97,9 +97,9 @@ def upgrade():
     sa.Column('BL_Longitude', sa.Float(), nullable=True),
     sa.Column('filename', sa.String(length=255), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index('products_general', 'products', ['type', 'datacube', 'tileid', 'start', 'end'], unique=False, schema='datastore')
+    op.create_index('products_general', 'products', ['type', 'datacube', 'tileid', 'start', 'end'], unique=False, schema='datastorm')
     op.create_table('qlook',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -111,9 +111,9 @@ def upgrade():
     sa.Column('sceneid', sa.String(length=64), nullable=False),
     sa.Column('qlookfile', sa.String(length=256), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index(op.f('ix_datastore_qlook_sceneid'), 'qlook', ['sceneid'], unique=False, schema='datastore')
+    op.create_index(op.f('ix_datastorm_qlook_sceneid'), 'qlook', ['sceneid'], unique=False, schema='datastorm')
     op.create_table('scenes',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -138,10 +138,10 @@ def upgrade():
     sa.Column('warped', sa.String(length=256), nullable=False),
     sa.Column('enabled', sa.SmallInteger(), server_default=sa.text('1'), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index(op.f('ix_datastore_scenes_enabled'), 'scenes', ['enabled'], unique=False, schema='datastore')
-    op.create_index('scenes_general', 'scenes', ['datacube', 'tileid', 'start', 'end', 'band'], unique=False, schema='datastore')
+    op.create_index(op.f('ix_datastorm_scenes_enabled'), 'scenes', ['enabled'], unique=False, schema='datastorm')
+    op.create_index('scenes_general', 'scenes', ['datacube', 'tileid', 'start', 'end', 'band'], unique=False, schema='datastorm')
     op.create_table('wrs',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -161,14 +161,14 @@ def upgrade():
     sa.Column('srs', sa.String(length=128), nullable=False),
     sa.Column('geom', sa.String(length=1024), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    schema='datastore'
+    schema='datastorm'
     )
-    op.create_index('geo', 'wrs', ['lonmin', 'lonmax', 'latmin', 'latmax'], unique=True, schema='datastore')
-    op.create_index('npr', 'wrs', ['name', 'tileid'], unique=True, schema='datastore')
+    op.create_index('geo', 'wrs', ['lonmin', 'lonmax', 'latmin', 'latmax'], unique=True, schema='datastorm')
+    op.create_index('npr', 'wrs', ['name', 'tileid'], unique=True, schema='datastorm')
     op.create_table('activities',
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('id', sa.BigInteger(), nullable=False),
+    sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('app', sa.String(length=64), nullable=False),
     sa.Column('sceneid', sa.String(length=64), nullable=False),
     sa.Column('satellite', sa.String(length=8), nullable=True),
@@ -181,7 +181,9 @@ def upgrade():
     sa.Column('elapsed', sa.Time(), nullable=True),
     sa.Column('retcode', sa.Integer(), nullable=True),
     sa.Column('message', sa.String(length=512), nullable=True),
-    sa.PrimaryKeyConstraint('id'),
+    sa.Column('task_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['task_id'], ['celery_taskmeta.id'], ),
+    sa.PrimaryKeyConstraint('id', 'task_id'),
     sa.UniqueConstraint('id'),
     schema='radcor'
     )
@@ -195,19 +197,19 @@ def downgrade():
     op.create_index('idx_tiles_geom_wgs84', 'tiles', ['geom_wgs84'], unique=False)
     op.create_index('idx_tiles_geom', 'tiles', ['geom'], unique=False)
     op.drop_table('activities', schema='radcor')
-    op.drop_index('npr', table_name='wrs', schema='datastore')
-    op.drop_index('geo', table_name='wrs', schema='datastore')
-    op.drop_table('wrs', schema='datastore')
-    op.drop_index('scenes_general', table_name='scenes', schema='datastore')
-    op.drop_index(op.f('ix_datastore_scenes_enabled'), table_name='scenes', schema='datastore')
-    op.drop_table('scenes', schema='datastore')
-    op.drop_index(op.f('ix_datastore_qlook_sceneid'), table_name='qlook', schema='datastore')
-    op.drop_table('qlook', schema='datastore')
-    op.drop_index('products_general', table_name='products', schema='datastore')
-    op.drop_table('products', schema='datastore')
-    op.drop_index('mosaics_general', table_name='mosaics', schema='datastore')
-    op.drop_table('mosaics', schema='datastore')
-    op.drop_table('datacubes', schema='datastore')
-    op.drop_index('sceneid', table_name='activities', schema='datastore')
-    op.drop_table('activities', schema='datastore')
+    op.drop_index('npr', table_name='wrs', schema='datastorm')
+    op.drop_index('geo', table_name='wrs', schema='datastorm')
+    op.drop_table('wrs', schema='datastorm')
+    op.drop_index('scenes_general', table_name='scenes', schema='datastorm')
+    op.drop_index(op.f('ix_datastorm_scenes_enabled'), table_name='scenes', schema='datastorm')
+    op.drop_table('scenes', schema='datastorm')
+    op.drop_index(op.f('ix_datastorm_qlook_sceneid'), table_name='qlook', schema='datastorm')
+    op.drop_table('qlook', schema='datastorm')
+    op.drop_index('products_general', table_name='products', schema='datastorm')
+    op.drop_table('products', schema='datastorm')
+    op.drop_index('mosaics_general', table_name='mosaics', schema='datastorm')
+    op.drop_table('mosaics', schema='datastorm')
+    op.drop_table('datacubes', schema='datastorm')
+    op.drop_index('sceneid', table_name='activities', schema='datastorm')
+    op.drop_table('activities', schema='datastorm')
     # ### end Alembic commands ###

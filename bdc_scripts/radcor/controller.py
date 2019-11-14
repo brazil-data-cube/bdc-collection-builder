@@ -8,6 +8,7 @@ from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.business import RadcorBusiness
 
+import requests
 
 api = Namespace('radcor', description='radcor')
 
@@ -60,3 +61,15 @@ class RadcorRestartController(Resource):
         RadcorBusiness.restart(id=request.args.get('id'))
 
         return dict()
+
+
+@api.route('/espa/<int:activity_id>')
+class RadcorRestartController(Resource):
+    def get(self, activity_id):
+        activity = RadcorActivity.get(id=activity_id)
+
+        params = RadcorActivityForm().dump(activity)
+
+        req = requests.get('http://127.0.0.1:5032/espa', params=params)
+
+        return {}, 200

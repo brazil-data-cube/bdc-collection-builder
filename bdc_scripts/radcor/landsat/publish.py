@@ -23,17 +23,17 @@ def publish(scene):
     date = cc[3]
     yyyymm = cc[3][:4]+'-'+cc[3][4:6]
     # CatalogProduct dir
-    productdir = '/LC8SR/{}/{}'.format(yyyymm, pathrow)
-    Type='SCENE'
+    productdir = scene.get('file') # '/LC8SR/{}/{}'.format(yyyymm, pathrow)
+
     path = int(pathrow[0:3])
-    row  = int(pathrow[3:])
+    row = int(pathrow[3:])
 
     # Delete scene
-    CatalogScene.query().filter(CatalogScene.sceneid == identifier).delete()
+    CatalogScene.query().filter(CatalogScene.SceneId == identifier).delete()
     # Delete products
-    CatalogProduct.query().filter(CatalogProduct.sceneid == identifier).delete()
+    CatalogProduct.query().filter(CatalogProduct.SceneId == identifier).delete()
     # Delete products
-    CatalogQlook.query().filter(CatalogQlook.sceneid == identifier).delete()
+    CatalogQlook.query().filter(CatalogQlook.SceneId == identifier).delete()
 
     # Get the product files
     bandmap= {
@@ -48,7 +48,7 @@ def publish(scene):
         'ndvi': 'sr_ndvi',
         'quality': 'pixel_qa'
     }
-    quicklook = ["swir2","nir","red"]
+    quicklook = ["swir2", "nir", "red"]
 
     files = {}
     qlfiles = {}
@@ -101,97 +101,81 @@ def publish(scene):
     # Lower right corner
     (lrlon, lrlat, nklrz ) = s2ll.TransformPoint( flrx, flry)
 
-    product = CatalogProduct()
-    product.sceneid = identifier
-    product.type = 'SCENE'
-
-    scene_model = CatalogScene()
-    scene_model.sceneid = identifier
-    scene_model.dataset = 'LC8SR'
-    scene_model.satellite = 'LC8'
-    scene_model.date = date
-    scene_model.path = path
-    scene_model.row = row
-    scene_model.center_latitude = (ullat+lrlat+urlat+lllat)/4
-    scene_model.center_longitude = (ullon + lrlon + urlon + lllon) / 4.
-    scene_model.tl_longitude = ullon
-    scene_model.tl_latitude = ullat
-    scene_model.br_longitude = lrlon
-    scene_model.br_latitude = lrlat
-    scene_model.tr_longitude = urlon
-    scene_model.tr_latitude = urlat
-    scene_model.bl_longitude = lllon
-    scene_model.bl_latitude = lllat
-    scene_model.ingest_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    scene_model.deleted = 0
-    scene_model.cloud_cover_method = 'M'
-    scene_model.cloud_cover_Q1 = 0
-    scene_model.cloud_cover_Q2 = 0
-    scene_model.cloud_cover_Q3 = 0
-    scene_model.cloud_cover_Q4 = 0
-
-    result = {'Scene':{},'Product':{}}
-
-    result['Product']['SceneId'] = identifier
-    result['Product']['Dataset'] = 'LC8SR'
-    result['Product']['Type'] = 'SCENE'
-    result['Product']['GeometricProcessing'] = 'ortho'
-    result['Product']['RadiometricProcessing'] = 'SR'
-
     nb = 0
     for band in quicklook:
         template = qlfiles[band]
-        dataset = GDALOpen(template,GA_ReadOnly)
+        dataset = GDALOpen(template, GA_ReadOnly)
         raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
 
         del dataset
 
-        #raster = scipy.misc.imresize(raster,(numlin,numcol))
+        # raster = scipy.misc.imresize(raster,(numlin,numcol))
         raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
         nodata = raster == -9999
-      # Evaluate minimum and maximum values
+        # Evaluate minimum and maximum values
         a = numpy.array(raster.flatten())
         p1, p99 = numpy.percentile(a[a>0], (1, 99))
-      # Convert minimum and maximum values to 1,255 - 0 is nodata
-        raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1,255)).astype(numpy.uint8)
-        #app.logger.warning('publishLC8 - band {} p1 {} p99 {}'.format(band,p1,p99))
-        image[:,:,nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
+        # Convert minimum and maximum values to 1,255 - 0 is nodata
+        raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1, 255)).astype(numpy.uint8)
+        # app.logger.warning('publishLC8 - band {} p1 {} p99 {}'.format(band,p1,p99))
+        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
         nb += 1
 
     write_png(pngname, image, transparent=(0, 0, 0))
 
-    # Inserting data into Scene table
-    params = ''
-    values = ''
-    for key,val in result['Scene'].items():
-        params += key+','
-        if type(val) is str:
-            values += "'{0}',".format(val)
-        else:
-            values += "{0},".format(val)
-
-    sql = "INSERT INTO Scene ({0}) VALUES({1})".format(params[:-1],values[:-1])
+    scene_model = CatalogScene()
+    scene_model.SceneId = identifier
+    scene_model.Dataset = 'LC8SR'
+    scene_model.Satellite = 'LC8'
+    scene_model.Sensor = 'OLI'
+    scene_model.Date = date
+    scene_model.Path = path
+    scene_model.Row = row
+    scene_model.CenterLatitude = (ullat + lrlat + urlat + lllat) / 4
+    scene_model.CenterLongitude = (ullon + lrlon + urlon + lllon) / 4.
+    scene_model.TL_Longitude = ullon
+    scene_model.TL_Latitude = ullat
+    scene_model.BR_Longitude = lrlon
+    scene_model.BR_Latitude = lrlat
+    scene_model.TR_Longitude = urlon
+    scene_model.TR_Latitude = urlat
+    scene_model.BL_Longitude = lllon
+    scene_model.BL_Latitude = lllat
+    scene_model.IngestDate = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    scene_model.Deleted = 0
+    scene_model.CloudCoverMethod = 'M'
+    scene_model.CloudCoverQ1 = 0
+    scene_model.CloudCoverQ2 = 0
+    scene_model.CloudCoverQ3 = 0
+    scene_model.CloudCoverQ4 = 0
 
     with db.session.begin_nested():
+        scene_model.save(commit=False)
+
         # Inserting data into Qlook table
-        qlook = CatalogQlook(sceneid=identifier, qlookfile=pngname)
+        qlook = CatalogQlook(SceneId=identifier, QLfilename=pngname)
         qlook.save(commit=False)
 
         # Inserting data into Product table
         for band in bandmap:
             template = files[band]
 
-            dataset = GDALOpen(template,GA_ReadOnly)
+            dataset = GDALOpen(template, GA_ReadOnly)
             geotransform = dataset.GetGeoTransform()
 
             del dataset
 
-            result['Product']['Resolution'] = geotransform[1]
+            product = CatalogProduct()
+            product.SceneId = identifier
+            product.Type = 'SCENE'
+            product.GeometricProcessing = 'ortho'
+            product.RadiometricProcessing = 'SR'
+            product.Dataset = 'LC8SR'
+            product.Resolution = geotransform[1]
             processing_date = datetime.datetime.fromtimestamp(os.path.getctime(template)).strftime('%Y-%m-%d %H:%M:%S')
-
-            product.band = band
-            product.filename = template
-            product.processingdate = processing_date
+            product.Band = band
+            product.Filename = template
+            product.ProcessingDate = processing_date
 
             product.save(commit=False)
     

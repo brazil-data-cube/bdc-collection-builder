@@ -43,6 +43,8 @@ class LandsatTask(celery_app.Task):
             file=file
         ))
 
+        scene['app'] = 'publishLC8'
+
         return scene
 
     def publish(self, scene):

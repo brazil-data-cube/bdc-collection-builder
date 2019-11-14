@@ -24,6 +24,9 @@ class RadcorBusiness:
     @classmethod
     def restart(cls, id):
         activity = RadcorActivity.get(id=id)
+
+        # TODO: List tasks in celery and match if there are any dumb task
+
         # Skip pending or started tasks
         if activity.task.status in ['PENDING', 'STARTED']:
             logging.warning('Skipped activity {} - {}'.format(activity, activity.task.status))
@@ -73,7 +76,7 @@ class RadcorBusiness:
                 yyyymm = cc[3][:4]+'-'+cc[3][4:6]
                 tileid = cc[2]
                 # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
-                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8SR')
+                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
                 LC8SRfull = resource_path.join(base_dir, '{}/{}/'.format(yyyymm,tileid))
                 template =  LC8SRfull+'{}.png'.format(sceneid)
                 LC8SRfiles = glob.glob(template)

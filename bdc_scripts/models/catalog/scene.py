@@ -10,7 +10,7 @@ class Scene(BaseModel):
         dict(schema='catalogo')
     )
 
-    SceneId = Column('SceneId', String(64), primary_key=True, server_default=text("''"))
+    SceneId = Column('SceneId', String(64), primary_key=True)
     IdRunMode = Column('IdRunMode', Integer)
     Satellite = Column('Satellite', String(50))
     Sensor = Column('Sensor', String(6), nullable=False, index=True)
@@ -21,7 +21,7 @@ class Scene(BaseModel):
     CenterLatitude = Column('CenterLatitude', Float)
     CenterLongitude = Column('CenterLongitude', Float)
     TL_Latitude = Column('TL_Latitude', Float)
-    tl_longitude = Column('TL_Longitude', Float)
+    TL_Longitude = Column('TL_Longitude', Float)
     BR_Latitude = Column('BR_Latitude', Float)
     BR_Longitude = Column('BR_Longitude', Float)
     TR_Latitude = Column('TR_Latitude', Float)

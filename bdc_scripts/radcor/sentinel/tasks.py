@@ -5,6 +5,7 @@ import time
 from random import randint
 
 # BDC Scripts
+from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
@@ -155,6 +156,24 @@ class SentinelTask(celery_app.Task):
 
         logging.debug('Done Upload sentinel to AWS.')
 
+    def correction(self, scene):
+        # Send scene to the sen2cor service
+        req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
+        # Ensure the request has been successfully
+        assert req.status_code == 200
+        
+        while not SentinelTask.sen2cor_done(productdir):
+            logging.debug('Atmospheric correction is not done yet...')
+            time.sleep(5)
+
+        scene['app'] = 'publishLC8'
+
+        return scene
+
+    @staticmethod
+    def sen2cor_done():
+        return True
+
 
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection
 # We should set "autoretry_for" and retry_kwargs={'max_retries': 3} to retry
@@ -162,6 +181,11 @@ class SentinelTask(celery_app.Task):
 @celery_app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
     return download_sentinel.download(scene)
+
+
+@celery_app.task(base=LandsatTask, queue='atm-correction')
+def amt_correction_sentinel(scene):
+    return amt_correction_sentinel.correction(scene)
 
 
 @celery_app.task(base=SentinelTask, queue='publish')

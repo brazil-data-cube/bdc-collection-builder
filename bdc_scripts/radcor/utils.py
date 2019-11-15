@@ -33,7 +33,15 @@ def dispatch(activity: dict):
         task_chain = sentinel_tasks.publish_sentinel.s(activity) | sentinel_tasks.upload_sentinel.s()
         return chain(task_chain).apply_async()
     elif app == 'downloadLC8':
-        task_chain = landsat_tasks.download_landsat.s(activity) | landsat_tasks.publish_landsat.s()
+        task_chain = landsat_tasks.download_landsat.s(activity) | \
+                        landsat_tasks.amt_correction_landsat.s(activity) | \
+                        landsat_tasks.publish_landsat.s() | \
+                        landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
+    elif app == 'correctionLC8':
+        task_chain = landsat_tasks.amt_correction_landsat.s(activity) | \
+                        landsat_tasks.publish_landsat.s() | \
+                        landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()

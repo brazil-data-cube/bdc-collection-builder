@@ -20,6 +20,8 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
+    ESPA_URL = os.environ.get('ESPA_URL', 'http://127.0.0.1:5032')
+    SEN2COR_URL = os.environ.get('SEN2COR_URL', 'http://127.0.0.1:5031')
 
 
 class ProductionConfig(Config):

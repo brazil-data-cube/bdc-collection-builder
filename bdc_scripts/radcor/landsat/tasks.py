@@ -2,8 +2,12 @@
 import logging
 import os
 
+# 3rdparty
+from requests import get as resource_get
+
 # BDC Scripts
 from bdc_scripts.celery import celery_app
+from bdc_scripts.config import Config
 from bdc_scripts.radcor.landsat.download import download_landsat_images
 from bdc_scripts.radcor.landsat.publish import publish
 from bdc_scripts.radcor.utils import get_task_activity
@@ -67,10 +71,45 @@ class LandsatTask(celery_app.Task):
     def upload(self, scene):
         pass
 
+    @staticmethod
+    def espa_done(productdir, pathrow, date):
+        template = os.path.join(productdir, 'LC08_*_{}_{}_*.tif'.format(pathrow, date))
+
+        fs = glob.glob(template)
+
+        return len(fs) > 0
+
+    def correction(self, scene):
+        # Send scene to the ESPA service
+        req = resource_get('{}/espa'.format(Config.ESPA_URL), params=scene)
+        # Ensure the request has been successfully
+        assert req.status_code == 200
+
+        identifier = scene['sceneid']
+        cc = scene['sceneid'].split('_')
+        pathrow = cc[2]
+        date = cc[3]
+        yyyymm = cc[3][:4]+'-'+cc[3][4:6]
+        # Product dir
+        productdir = scene.get('file')
+        
+        while not LandsatTask.espa_done(productdir, pathrow, date):
+            logging.debug('Atmospheric correction is not done yet...')
+            time.sleep(5)
+
+        scene['app'] = 'publishLC8'
+
+        return scene
+
 
 @celery_app.task(base=LandsatTask, queue='download')
 def download_landsat(scene):
     return download_landsat.download(scene)
+
+
+@celery_app.task(base=LandsatTask, queue='atm-correction')
+def amt_correction_landsat(scene):
+    return amt_correction_landsat.correction(scene)
 
 
 @celery_app.task(base=LandsatTask, queue='publish')

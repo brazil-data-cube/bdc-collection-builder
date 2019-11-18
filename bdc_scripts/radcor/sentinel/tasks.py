@@ -4,6 +4,9 @@ import os
 import time
 from random import randint
 
+# 3rdparty
+from requests import get as resource_get
+
 # BDC Scripts
 from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
@@ -161,8 +164,10 @@ class SentinelTask(celery_app.Task):
         req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
         # Ensure the request has been successfully
         assert req.status_code == 200
+
+        # productdir = os.path.dirname(scene.get('file'))
         
-        while not SentinelTask.sen2cor_done(productdir):
+        while not SentinelTask.sen2cor_done():
             logging.debug('Atmospheric correction is not done yet...')
             time.sleep(5)
 
@@ -183,7 +188,7 @@ def download_sentinel(scene):
     return download_sentinel.download(scene)
 
 
-@celery_app.task(base=LandsatTask, queue='atm-correction')
+@celery_app.task(base=SentinelTask, queue='atm-correction')
 def amt_correction_sentinel(scene):
     return amt_correction_sentinel.correction(scene)
 

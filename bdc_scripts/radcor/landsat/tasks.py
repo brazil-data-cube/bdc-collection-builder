@@ -1,8 +1,10 @@
 # Python Native
 import logging
 import os
+import time
 
 # 3rdparty
+from glob import glob as resource_glob
 from requests import get as resource_get
 
 # BDC Scripts
@@ -47,7 +49,7 @@ class LandsatTask(celery_app.Task):
             file=file
         ))
 
-        scene['app'] = 'publishLC8'
+        scene['app'] = 'correctionLC8'
 
         return scene
 
@@ -75,11 +77,15 @@ class LandsatTask(celery_app.Task):
     def espa_done(productdir, pathrow, date):
         template = os.path.join(productdir, 'LC08_*_{}_{}_*.tif'.format(pathrow, date))
 
-        fs = glob.glob(template)
+        fs = resource_glob(template)
 
         return len(fs) > 0
 
     def correction(self, scene):
+        activity = get_task_activity()
+        activity.status = 'DOING'
+        activity.save()
+
         # Send scene to the ESPA service
         req = resource_get('{}/espa'.format(Config.ESPA_URL), params=scene)
         # Ensure the request has been successfully

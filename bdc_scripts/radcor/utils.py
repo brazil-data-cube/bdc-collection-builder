@@ -34,7 +34,7 @@ def dispatch(activity: dict):
         return chain(task_chain).apply_async()
     elif app == 'downloadLC8':
         task_chain = landsat_tasks.download_landsat.s(activity) | \
-                        landsat_tasks.amt_correction_landsat.s(activity) | \
+                        landsat_tasks.amt_correction_landsat.s() | \
                         landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
@@ -56,7 +56,7 @@ def get_task_activity():
     return RadcorActivity.get_by_task_id(task_id)
 
 
-def create_wkt(ullon,ullat,lrlon,lrlat):
+def create_wkt(ullon, ullat, lrlon, lrlat):
     from ogr import Geometry, wkbLinearRing, wkbPolygon
 
     # Create ring
@@ -101,10 +101,10 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
     r_dict = r.json()
 
     scenes = {}
-    ### Check if request obtained results
-    if(r_dict['meta']['returned'] > 0):
+    # Check if request obtained results
+    if r_dict['meta']['returned'] > 0:
         for i in range(len(r_dict['features'])):
-            ### This is performed due to BAD catalog, which includes box from -170 to +175 (instead of -)
+            # This is performed due to BAD catalog, which includes box from -170 to +175 (instead of -)
             if ( (r_dict['features'][i]['bbox'][0] - r_dict['features'][i]['bbox'][2]) > -3 ):
                 identifier = r_dict['features'][i]['properties']['landsat:product_id'] # CHECK L1TP L1GT
                 scenes[identifier] = {}

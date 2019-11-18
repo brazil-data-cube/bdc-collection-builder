@@ -61,6 +61,25 @@ services:
       - redis
       - postgres
 
+  rc_espa-science:
+    container_name: rc_espa-science
+    image: registry.dpi.inpe.br/rc_espa-science
+    restart: always
+    ports:
+      - 5032:5032
+    volumes:
+      - ./rc_espa-science:/app
+      - ./tmp:/tmp
+      - ./:/home/espa/work-dir:rw
+      - /data/bdc-scripts/Repository/Archive/LC8SR:/home/espa/output-data:rw
+      - /:/home/espa/input-data:ro
+      - /data/bdc-scripts/ds_data/auxiliaries:/usr/local/auxiliaries:rw
+      - ./rc_espa-science/.usgs:/home/espa/.usgs:ro
+    environment:
+      L8_AUX_DIR: /usr/local/auxiliaries/L8
+    networks:
+      - bdc_net
+
 #  Celery
   worker-download:
     container_name: bdc-scripts-worker-download

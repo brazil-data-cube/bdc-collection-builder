@@ -22,7 +22,6 @@ class LandsatTask(celery_app.Task):
         activity.save()
 
         try:
-
             cc = scene['sceneid'].split('_')
             pathrow = cc[2]
             yyyymm = cc[3][:4]+'-'+cc[3][4:6]
@@ -36,6 +35,7 @@ class LandsatTask(celery_app.Task):
             link = scene['link']
 
             file = download_landsat_images(link, productdir)
+            activity.status = 'DONE'
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
@@ -60,6 +60,7 @@ class LandsatTask(celery_app.Task):
 
         try:
             publish(scene)
+            activity.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             activity.status = 'ERROR'
@@ -86,22 +87,36 @@ class LandsatTask(celery_app.Task):
         activity.status = 'DOING'
         activity.save()
 
-        # Send scene to the ESPA service
-        req = resource_get('{}/espa'.format(Config.ESPA_URL), params=scene)
-        # Ensure the request has been successfully
-        assert req.status_code == 200
+        try:
+            # Send scene to the ESPA service
+            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=scene)
+            # Ensure the request has been successfully
+            assert req.status_code == 200
 
-        identifier = scene['sceneid']
-        cc = scene['sceneid'].split('_')
-        pathrow = cc[2]
-        date = cc[3]
-        yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-        # Product dir
-        productdir = scene.get('file')
-        
-        while not LandsatTask.espa_done(productdir, pathrow, date):
-            logging.debug('Atmospheric correction is not done yet...')
-            time.sleep(5)
+            cc = scene['sceneid'].split('_')
+            pathrow = cc[2]
+            date = cc[3]
+            yyyymm = cc[3][:4]+'-'+cc[3][4:6]
+            # Product dir
+            productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/LC8SR/{}/{}'.format(yyyymm, pathrow))
+
+            logging.info('Checking for the ESPA generated files in {}'.format(productdir))
+
+            while not LandsatTask.espa_done(productdir, pathrow, date):
+                logging.debug('Atmospheric correction is not done yet...')
+                time.sleep(5)
+
+            activity.status = 'DONE'
+
+            scene['file'] = productdir
+
+        except BaseException as e:
+            logging.error('Error at ATM correction Landsat', e)
+            activity.status = 'ERROR'
+
+            raise e
+        finally:
+            activity.save()
 
         scene['app'] = 'publishLC8'
 
@@ -126,3 +141,4 @@ def publish_landsat(scene):
 @celery_app.task(base=LandsatTask, queue='upload')
 def upload_landsat(scene):
     upload_landsat.upload(scene)
+

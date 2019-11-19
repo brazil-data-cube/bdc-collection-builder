@@ -43,7 +43,6 @@ def on_received_store_in_db(sender, request, **kwargs):
         t = Task(request.task_id)
         t.status = PENDING
         db.session.add(t)
-        db.session.commit()
 
         if request._payload:
             arguments = request._payload[0]
@@ -56,9 +55,11 @@ def on_received_store_in_db(sender, request, **kwargs):
                 if handler:
                     handler(t, *arguments)
                 else:
-                    logging.debug('No handler to attach task')
+                    logging.info('No handler to attach task')
             else:
-                logging.debug('No arguments passed. Skipping task association')
+                logging.info('No arguments passed. Skipping task association')
+
+        db.session.commit()
 
         logging.debug('Setting task {} to PENDING on database'.format(request.task_id))
 

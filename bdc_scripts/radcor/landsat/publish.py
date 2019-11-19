@@ -178,7 +178,7 @@ def publish(scene):
             product.ProcessingDate = processing_date
 
             product.save(commit=False)
-    
+
     db.session.commit()
 
     return 0

@@ -34,10 +34,11 @@ def get_session() -> RequestSession:
 
 
 user = get_credentials()['landsat']
-session = get_session()
 
 
 def download_landsat_images(link, destination):
+    session = get_session()
+
     req = session.get(link, stream=True)
     logging.warning('downloadLC8 - r {}'.format(req.headers))
     count = 0

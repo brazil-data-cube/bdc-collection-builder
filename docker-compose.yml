@@ -54,6 +54,8 @@ services:
       - bdc_net
     ports:
       - "5000:5000"
+    volumes:
+      - ./secrets.json:/app/secrets.json
     command: >
       bash -c "bdc-scripts db create && bdc-scripts db upgrade && bdc-scripts run --host 0.0.0.0"
     depends_on:
@@ -71,8 +73,8 @@ services:
       - ./rc_espa-science:/app
       - ./tmp:/tmp
       - ./:/home/espa/work-dir:rw
-      - /data/bdc-scripts/Repository/Archive/LC8SR:/home/espa/output-data:rw
-      - /:/home/espa/input-data:ro
+      - ./volumes/data/Repository/Archive/LC8SR:/home/espa/output-data:rw
+      - ./volumes/:/home/espa/input-data:ro
       - /data/bdc-scripts/ds_data/auxiliaries:/usr/local/auxiliaries:rw
       - ./rc_espa-science/.usgs:/home/espa/.usgs:ro
     environment:
@@ -87,9 +89,9 @@ services:
     ports:
       - 5031:5031
     volumes:
-      - ./:/app
+      - ./rc_sen2cor:/app
       - ./rc_sen2cor/root:/root
-      - /:/dados
+      - ./volumes/data/:/dados
       - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data/CCI4SEN2COR
     networks:
       - bdc_net
@@ -110,6 +112,7 @@ services:
       - "DATA_DIR=/data"
     volumes:
       - ./volumes/data:/data
+      - ./secrets.json:/app/secrets.json
     command: >
       celery -A bdc_scripts.celery.worker:celery worker -l INFO --concurrency 4 -Q download
     networks:
@@ -128,8 +131,11 @@ services:
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-scripts-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-scripts2019@bdc-scripts-pg:5432/bdc_scripts"
       - "DATA_DIR=/data"
+      - "ESPA_URL=http://bdc-scripts-espa-science:5032"
+      - "SEN2COR_URL=http://bdc-scripts-sen2cor:5031"
     volumes:
       - ./volumes/data:/data
+      - ./secrets.json:/app/secrets.json
     command: >
       celery -A bdc_scripts.celery.worker:celery worker -l INFO --concurrency 2 -Q atm-correction
     networks:
@@ -143,6 +149,7 @@ services:
       - bdc-scripts
     volumes:
       - ./volumes/data:/data
+      - ./secrets.json:/app/secrets.json
     environment:
       - "LC_ALL=C.UTF-8"
       - "LANG=C.UTF-8"
@@ -163,6 +170,7 @@ services:
       - bdc-scripts
     volumes:
       - ./volumes/data:/data
+      - ./secrets.json:/app/secrets.json
     environment:
       - "LC_ALL=C.UTF-8"
       - "LANG=C.UTF-8"

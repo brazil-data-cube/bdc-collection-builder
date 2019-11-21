@@ -69,10 +69,14 @@ class LandsatTask(celery_app.Task):
         finally:
             activity.save()
 
+        scene['app'] = 'uploadLC8'
+
         return scene
 
     def upload(self, scene):
-        pass
+        activity = get_task_activity()
+        activity.status = 'DONE'
+        activity.save()
 
     @staticmethod
     def espa_done(productdir, pathrow, date):
@@ -141,4 +145,3 @@ def publish_landsat(scene):
 @celery_app.task(base=LandsatTask, queue='upload')
 def upload_landsat(scene):
     upload_landsat.upload(scene)
-

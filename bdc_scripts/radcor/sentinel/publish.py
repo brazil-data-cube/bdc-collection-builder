@@ -65,7 +65,15 @@ def publish(scene: RadcorActivity):
     # /path/to/data/S2A_MSIL2A_DATE_...*.SAFE/GRANULE/L2A_*/IMG_DATA/*/*.jp2
     # In this way, we are pointing to IMG_DATA folder in order to
     # generate evi and ndvi files
-    productdir = Path(files['qlfile']).parent.parent
+
+    # Retrieve .SAFE folder name
+    safe_filename = Path(scene.file).name
+
+    # Get year month from .SAFE folder
+    year_month_part = safe_filename.split('_')[2]
+    yyyymm = '{}-{}'.format(year_month_part[:4], year_month_part[4:6])
+
+    productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/S2SR/{}/{}'.format(yyyymm, safe_filename))
 
     # Create vegetation index
     # app.logger.warning('Generate Vegetation index')
@@ -79,17 +87,9 @@ def publish(scene: RadcorActivity):
 
     # Convert original format to COG
 
-    # Retrieve .SAFE folder name
-    safe_filename = productdir.parent.parent.parent.name
-
-    # Get year month from .SAFE folder
-    year_month_part = safe_filename.split('_')[2]
-    yyyymm = '{}-{}'.format(year_month_part[:4], year_month_part[4:6])
-
-    productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/S2SR/{}/{}'.format(yyyymm, safe_filename))
-
     if not os.path.exists(productdir):
         os.makedirs(productdir)
+
     for sband in bands:
         band = BAND_MAP[sband]
         file = files[band]

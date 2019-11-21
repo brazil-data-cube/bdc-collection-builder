@@ -26,6 +26,7 @@ services:
   postgres:
     image: mdillon/postgis
     container_name: bdc-scripts-pg
+    restart: "always"
     volumes:
       - ./volumes/pg:/var/lib/postgresql/data
     environment:
@@ -100,6 +101,7 @@ services:
   worker-download:
     container_name: bdc-scripts-worker-download
     image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    restart: "always"
     depends_on:
       - mq
       - bdc-scripts
@@ -121,6 +123,7 @@ services:
   worker-atm-correction:
     container_name: bdc-scripts-worker-amt-correction
     image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    restart: "always"
     depends_on:
       - mq
       - bdc-scripts
@@ -144,6 +147,7 @@ services:
   worker-publish:
     container_name: bdc-scripts-worker-publish
     image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    restart: "always"
     depends_on:
       - mq
       - bdc-scripts
@@ -165,6 +169,7 @@ services:
   worker-upload:
     container_name: bdc-scripts-worker-upload
     image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
+    restart: "always"
     depends_on:
       - mq
       - bdc-scripts

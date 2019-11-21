@@ -52,7 +52,7 @@ setup(
         'celery[librabbitmq]==4.3.0',
         'librabbitmq==2.0.0',
         'vine==1.3.0',
-        'amqp==2.5.1',
+        'amqp==2.5.2',
     ],
     entry_points={
         'console_scripts': [

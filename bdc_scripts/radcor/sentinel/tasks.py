@@ -170,19 +170,28 @@ class SentinelTask(celery_app.Task):
         # TODO: check if file exists and apply validation
         # if os.path.exists(safeL2Afull) and not is_valid():
 
-        if not os.path.exists(safeL2Afull):
-            # Send scene to the sen2cor service
-            req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
-            # Ensure the request has been successfully
-            assert req.status_code == 200
+        try:
+            if not os.path.exists(safeL2Afull):
+                # Send scene to the sen2cor service
+                req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
+                # Ensure the request has been successfully
+                assert req.status_code == 200
 
-            # productdir = os.path.dirname(scene.get('file'))
+                # productdir = os.path.dirname(scene.get('file'))
 
-            while not SentinelTask.sen2cor_done():
-                logging.debug('Atmospheric correction is not done yet...')
-                time.sleep(5)
-        else:
-            logging.info('Skipping radcor {}'.format(safeL2Afull))
+                while not SentinelTask.sen2cor_done():
+                    logging.debug('Atmospheric correction is not done yet...')
+                    time.sleep(5)
+            else:
+                logging.info('Skipping radcor {}'.format(safeL2Afull))
+
+            activity.status = 'DONE'
+        except BaseException as e:
+            logging.error('An error occurred during task execution', e)
+            activity.status = 'ERROR'
+            raise e
+        finally:
+            activity.save()
 
         scene['app'] = 'publishS2'
 

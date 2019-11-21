@@ -39,6 +39,10 @@ def on_received_store_in_db(sender, request, **kwargs):
         kwargs Extra parameters used to dispatch task
     """
 
+    def noop(*args):
+        """No operation for TaskActivityFactory"""
+        pass
+
     with app.app_context():
         t = Task(request.task_id)
         t.status = PENDING
@@ -50,12 +54,10 @@ def on_received_store_in_db(sender, request, **kwargs):
             if len(arguments) > 0:
                 context_name = arguments[0].get('app')
 
-                handler = TaskActivityFactory.get(context_name)
+                # Retrieving task handler (creator)
+                handler = TaskActivityFactory.get(context_name) or noop
 
-                if handler:
-                    handler(t, *arguments)
-                else:
-                    logging.info('No handler to attach task')
+                handler(t, *arguments)
             else:
                 logging.info('No arguments passed. Skipping task association')
 

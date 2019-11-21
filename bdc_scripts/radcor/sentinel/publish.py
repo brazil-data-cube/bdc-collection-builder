@@ -2,6 +2,7 @@
 import fnmatch
 import logging
 import os
+from pathlib import Path
 
 # 3rd-party
 import gdal
@@ -9,6 +10,9 @@ import numpy
 from numpngw import write_png
 from osgeo.osr import SpatialReference
 from skimage.transform import resize
+
+# BDC Scripts
+from bdc_scripts.config import Config
 from bdc_scripts.core.utils import generate_cogs
 from bdc_scripts.radcor.models import RadcorActivity
 
@@ -56,12 +60,24 @@ def publish(scene: RadcorActivity):
     # Define new filenames for products
     parts = os.path.basename(files['qlfile']).split('_')
     file_basename = '_'.join(parts[:-2])
-    parts = files['qlfile'].split('/')
-    product_dir = '/'.join(parts[:-2])
+
+    # The sentinel directory consists in:
+    # /path/to/data/S2A_MSIL2A_DATE_...*.SAFE/GRANULE/L2A_*/IMG_DATA/*/*.jp2
+    # In this way, we are pointing to IMG_DATA folder in order to
+    # generate evi and ndvi files
+
+    # Retrieve .SAFE folder name
+    safe_filename = Path(scene.file).name
+
+    # Get year month from .SAFE folder
+    year_month_part = safe_filename.split('_')[2]
+    yyyymm = '{}-{}'.format(year_month_part[:4], year_month_part[4:6])
+
+    productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/S2SR/{}/{}'.format(yyyymm, safe_filename))
 
     # Create vegetation index
     # app.logger.warning('Generate Vegetation index')
-    generate_vi(file_basename, product_dir, files)
+    generate_vi(file_basename, productdir, files)
 
     bands.append('NDVI')
     bands.append('EVI')
@@ -70,10 +86,10 @@ def publish(scene: RadcorActivity):
     BAND_MAP['EVI'] = 'evi'
 
     # Convert original format to COG
-    productdir = '/'.join(parts[:4])
-    productdir += '/PUBLISHED'
+
     if not os.path.exists(productdir):
         os.makedirs(productdir)
+
     for sband in bands:
         band = BAND_MAP[sband]
         file = files[band]

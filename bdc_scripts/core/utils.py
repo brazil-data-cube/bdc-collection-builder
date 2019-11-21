@@ -53,22 +53,28 @@ def generate_cogs(input_data_set_path, file_path):
         Path to COG
     """
 
-    if resource_path.exists(file_path):
-        return file_path
+    src_ds = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
 
-    driver = gdal.GetDriverByName('GTiff')
-
-    data_set = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
-
-    if data_set is None:
+    if src_ds is None:
         raise ValueError('Could not open data set "{}"'.format(input_data_set_path))
 
-    dst_ds = driver.CreateCopy(file_path, data_set,  options=['COMPRESS=LZW', 'TILED=YES'])
+    driver = gdal.GetDriverByName('MEM')
+    
+    src_band = src_ds.GetRasterBand(1)
+    data_set = driver.Create('', src_ds.RasterXSize, src_ds.RasterYSize, 1, src_band.DataType)
+    data_set.SetGeoTransform( src_ds.GetGeoTransform() )
+    data_set.SetProjection( src_ds.GetProjection() )
 
-    gdal.SetConfigOption('COMPRESS_OVERVIEW', 'LZW')
-    dst_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32])
+    data_set_band = data_set.GetRasterBand(1)
+    
+    data_set_band.WriteArray( src_band.ReadAsArray() )
+    data_set.BuildOverviews("NEAREST", [2, 4, 8, 16, 32, 64])
 
-    del dst_ds
+    driver = gdal.GetDriverByName('GTiff')
+    dst_ds = driver.CreateCopy(file_path, data_set, options=["COPY_SRC_OVERVIEWS=YES", "TILED=YES", "COMPRESS=LZW"])
+
+    del src_ds
     del data_set
-
+    del dst_ds
+    
     return file_path

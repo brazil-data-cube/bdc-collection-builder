@@ -36,6 +36,19 @@ services:
     ports:
       - "5435:5432"
 
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: bdc-scripts-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "bdc"
+      PGADMIN_DEFAULT_PASSWORD: "Postgres2019!"
+    ports:
+      - "16543:80"
+    depends_on:
+      - postgres
+    networks:
+      - bdc_net
+      
   bdc-scripts:
     build:
       context: .

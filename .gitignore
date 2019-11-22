@@ -1,6 +1,6 @@
 #gitignore for bdc project
 #20190605 - initial version
-
+volumes/
 
 #Password files that need to be commited
 bdc_compose.yml

@@ -5,7 +5,7 @@
     <!-- can be: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL -->
       <Operation_Mode>PDGS</Operation_Mode>
       <!-- can be: TOOLBOX or PDGS. PDGS reflects changes for integration into PDGS according to SIIMPC-1119 -->
-    <Nr_Processes>8</Nr_Processes>
+    <Nr_Processes>AUTO</Nr_Processes>
     <!-- can be an unsigned integer value specifying the number or processes you intend to operate in parallel or: AUTO. If AUTO is chosen, the processor determines the number of processes automatically, using cpu_count() -->
     <Target_Directory>DEFAULT</Target_Directory>
     <!-- should be either a directory or 'DEFAULT'. If default, target will be created at root of L1C product -->

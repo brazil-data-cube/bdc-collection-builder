@@ -36,6 +36,19 @@ services:
     ports:
       - "5435:5432"
 
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: bdc-scripts-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "bdc"
+      PGADMIN_DEFAULT_PASSWORD: "Postgres2019!"
+    ports:
+      - "16543:80"
+    depends_on:
+      - postgres
+    networks:
+      - bdc_net
+
   bdc-scripts:
     build:
       context: .
@@ -57,6 +70,7 @@ services:
       - "5000:5000"
     volumes:
       - ./secrets.json:/app/secrets.json
+      - ./volumes/data:/data
     command: >
       bash -c "bdc-scripts db create && bdc-scripts db upgrade && bdc-scripts run --host 0.0.0.0"
     depends_on:
@@ -93,7 +107,7 @@ services:
       - ./rc_sen2cor:/app
       - ./rc_sen2cor/root:/root
       - ./volumes/data/:/dados
-      - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data/CCI4SEN2COR
+      - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data
     networks:
       - bdc_net
 

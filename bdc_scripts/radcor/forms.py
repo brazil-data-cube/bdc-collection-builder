@@ -9,6 +9,7 @@ class TaskSchema(Schema):
     status = fields.Str()
     task_id = fields.Str()
     date_done = fields.DateTime()
+    traceback = fields.Str()
 
 
 class RadcorActivityForm(ModelSchema):

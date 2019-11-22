@@ -1,3 +1,7 @@
+"""
+Describes the Celery Tasks definition of Sentinel products
+"""
+
 # Python Native
 import logging
 import os
@@ -17,6 +21,7 @@ from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
 from bdc_scripts.radcor.utils import get_task_activity
+
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
@@ -65,9 +70,6 @@ class SentinelTask(celery_app.Task):
 
         # Persist the activity to done
         activity = get_task_activity()
-
-        activity.status = 'DOING'
-        activity.save()
 
         # Acquire User to download
         with self.get_user() as user:
@@ -163,8 +165,6 @@ class SentinelTask(celery_app.Task):
 
     def correction(self, scene):
         activity = get_task_activity()
-        activity.status = 'DOING'
-        activity.save()
 
         safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
 
@@ -211,19 +211,73 @@ class SentinelTask(celery_app.Task):
 # task execution since it seems to be bug related to the api
 @celery_app.task(base=SentinelTask, queue='download')
 def download_sentinel(scene):
+    """
+    Represents a celery task definition for handling Sentinel Download files
+
+    This celery tasks listen only for queues 'download'.
+
+    Args:
+        scene (dict): Radcor Activity
+
+    Returns:
+        Returns processed activity
+    """
+
     return download_sentinel.download(scene)
 
 
 @celery_app.task(base=SentinelTask, queue='atm-correction')
 def atm_correction(scene):
+    """
+    Represents a celery task definition for handling Sentinel
+    Atmospheric correction - sen2cor.
+
+    This celery tasks listen only for queues 'atm-correction'.
+
+    It only calls sen2cor for L1C products. It skips for
+    sentinel L2A.
+
+    Args:
+        scene (dict): Radcor Activity with "correctionS2" app context
+
+    Returns:
+        Returns processed activity
+    """
+
     return atm_correction.correction(scene)
 
 
 @celery_app.task(base=SentinelTask, queue='publish')
 def publish_sentinel(scene):
+    """
+    Represents a celery task definition for handling Sentinel
+    Publish TIFF files generation
+
+    This celery tasks listen only for queues 'publish'.
+
+    Args:
+        scene (dict): Radcor Activity with "publishS2" app context
+
+    Returns:
+        Returns processed activity
+    """
+
     return publish_sentinel.publish(scene)
 
 
 @celery_app.task(base=SentinelTask, queue='upload')
 def upload_sentinel(scene):
+    """
+    Represents a celery task definition for handling Sentinel
+    Publish TIFF files generation
+
+    This celery tasks listen only for queues 'publish'.
+
+    Args:
+        scene (dict): Radcor Activity with "publishS2" app context
+
+    Returns:
+        Returns processed activity
+    """
+
     upload_sentinel.upload(scene)

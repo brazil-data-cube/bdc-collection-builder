@@ -7,7 +7,7 @@ This package contains definitions to work with satellite collections:
 """
 
 from bdc_scripts.celery.utils import TaskActivityFactory
-from bdc_scripts.radcor.models import RadcorActivity
+from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 
 
 def create_activity(task, activity, *args, **kwargs):
@@ -22,8 +22,7 @@ def create_activity(task, activity, *args, **kwargs):
         *args - Arguments order
         **kwargs - Extra parameters
     """
-    model = RadcorActivity(**activity)
-    model.id = None
+    model = RadcorActivityHistory()
     model.task = task
     model.save()
 

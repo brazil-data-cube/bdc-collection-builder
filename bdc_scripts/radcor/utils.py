@@ -8,7 +8,7 @@ from celery import chain, current_task
 import requests
 
 # BDC Scripts
-from bdc_scripts.radcor.models import RadcorActivity
+from bdc_scripts.radcor.models import RadcorActivityHistory
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 
 
@@ -58,10 +58,10 @@ def dispatch(activity: dict):
         raise ValueError('Not implemented. "{}"'.format(app))
 
 
-def get_task_activity():
+def get_task_activity() -> RadcorActivityHistory:
     task_id = current_task.request.id
 
-    return RadcorActivity.get_by_task_id(task_id)
+    return RadcorActivityHistory.get_by_task_id(task_id)
 
 
 def create_wkt(ullon, ullat, lrlon, lrlat):

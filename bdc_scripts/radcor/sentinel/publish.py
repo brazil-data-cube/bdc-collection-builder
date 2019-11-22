@@ -70,7 +70,7 @@ def publish(scene: RadcorActivity):
 
     # Retrieve .SAFE folder name
     scene_file_path = Path(scene.file)
-    safe_filename = scene_file_path.name
+    safe_filename = scene_file_path.name.replace('MSIL1C', 'MSIL2A')
 
     # Get year month from .SAFE folder
     year_month_part = safe_filename.split('_')[2]

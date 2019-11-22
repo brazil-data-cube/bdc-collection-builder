@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from json import loads as json_parser
 from random import randint
 
 # 3rdparty
@@ -177,7 +178,10 @@ class SentinelTask(celery_app.Task):
                 # Ensure the request has been successfully
                 assert req.status_code == 200
 
-                # productdir = os.path.dirname(scene.get('file'))
+                result = json_parser(req.content)
+
+                if result and result.get('status') == 'ERROR':
+                    raise RuntimeError('Error in sen2cor execution')
 
                 while not SentinelTask.sen2cor_done():
                     logging.debug('Atmospheric correction is not done yet...')

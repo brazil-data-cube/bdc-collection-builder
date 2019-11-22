@@ -92,7 +92,9 @@ class RadcorBusiness:
                 activity['priority'] = 1
                 activity['link'] = scene['link']
                 activity['file'] = base_dir
-                cls.start(activity)
+                if action == 'start':
+                    cls.start(activity)
+
         if 'S2' in sat or 'S2SR' in sat:
             result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
             scenes.update(result)
@@ -142,6 +144,7 @@ class RadcorBusiness:
 
                 # activity.save()
 
-                cls.start(activity)
+                if action == 'start':
+                    cls.start(activity)
 
         return scenes

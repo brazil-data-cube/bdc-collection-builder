@@ -48,7 +48,7 @@ services:
       - postgres
     networks:
       - bdc_net
-      
+
   bdc-scripts:
     build:
       context: .
@@ -70,6 +70,7 @@ services:
       - "5000:5000"
     volumes:
       - ./secrets.json:/app/secrets.json
+      - ./volumes/data:/data
     command: >
       bash -c "bdc-scripts db create && bdc-scripts db upgrade && bdc-scripts run --host 0.0.0.0"
     depends_on:

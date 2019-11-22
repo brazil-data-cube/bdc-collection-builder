@@ -107,7 +107,7 @@ services:
       - ./rc_sen2cor:/app
       - ./rc_sen2cor/root:/root
       - ./volumes/data/:/dados
-      - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data/CCI4SEN2COR
+      - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data
     networks:
       - bdc_net
 

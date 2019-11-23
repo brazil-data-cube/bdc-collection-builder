@@ -1,4 +1,4 @@
-"""empty message
+"""Add radcor activity history
 
 Revision ID: 88f1744b1d76
 Revises: 0c7320fe1ff6
@@ -23,7 +23,6 @@ def upgrade():
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('activity_id', sa.Integer(), nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),
-    sa.Column('sceneid', sa.String(length=64), nullable=False),
     sa.Column('start', sa.DateTime(), nullable=True),
     sa.Column('end', sa.DateTime(), nullable=True),
     sa.Column('elapsed', sa.Time(), nullable=True),

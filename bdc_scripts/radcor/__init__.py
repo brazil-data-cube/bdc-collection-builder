@@ -22,9 +22,17 @@ def create_activity(task, activity, *args, **kwargs):
         *args - Arguments order
         **kwargs - Extra parameters
     """
+    where = dict(
+        sceneid=activity.get('sceneid'),
+        app=activity.get('app')
+    )
+    activity_model, _ = RadcorActivity.get_or_create(defaults=activity, **where)
+
     model = RadcorActivityHistory()
+
     model.task = task
-    model.save()
+    model.activity = activity_model
+    model.save(commit=False)
 
 
 # Register the factory handler

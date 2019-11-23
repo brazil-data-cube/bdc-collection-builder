@@ -6,6 +6,7 @@ Describes the Celery Tasks definition of Sentinel products
 import logging
 import os
 import time
+from datetime import datetime
 from json import loads as json_parser
 from random import randint
 
@@ -70,6 +71,9 @@ class SentinelTask(celery_app.Task):
 
         # Persist the activity to done
         activity = get_task_activity()
+        activity.activity.status = 'DOING'
+        activity.start = datetime.utcnow()
+        activity.save()
 
         # Acquire User to download
         with self.get_user() as user:
@@ -111,14 +115,15 @@ class SentinelTask(celery_app.Task):
                     logging.info('Skipping download since the file {} already exists'.format(extracted_file_path))
 
                 logging.debug('Done download.')
-                activity.status = 'DONE'
-                activity.file = extracted_file_path
+                activity.activity.status = 'DONE'
+                activity.activity.file = extracted_file_path
             except BaseException as e:
                 logging.error('An error occurred during task execution', e)
                 activity.status = 'ERROR'
 
                 raise e
             finally:
+                activity.end = datetime.utcnow()
                 activity.save()
 
         # TODO: Add atmospheric correction (sen2cor, espa)

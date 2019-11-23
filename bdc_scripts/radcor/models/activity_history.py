@@ -11,7 +11,6 @@ class RadcorActivityHistory(BaseModel):
     activity_id = Column(ForeignKey('radcor.activities.id'), primary_key=True, nullable=False)
     task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
 
-    sceneid = Column('sceneid', String(64), nullable=False)
     start = Column('start', DateTime)
     end = Column('end', DateTime)
     elapsed = Column('elapsed', Time)

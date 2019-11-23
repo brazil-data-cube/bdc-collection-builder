@@ -54,6 +54,32 @@ class BaseModel(db.Model):
         """
         return cls._filter(**restrictions).one()
 
+    @classmethod
+    def get_or_create(cls, defaults=None, **restrictions):
+        """
+        Utility method for looking up an object with the given restrictions, creating
+        one if necessary.
+
+        Args:
+            defaults (dict) - Values to fill out model instance
+            restrictions (dict) - Query Restrictions
+
+        Returns:
+            BaseModel Retrieves model instance
+        """
+        instance = cls.query().filter_by(**restrictions).first()
+
+        if instance:
+            return instance, False
+
+        params = dict((k, v) for k, v in restrictions.items())
+        params.update(defaults or {})
+        instance = cls(**params)
+
+        db.session.add(instance)
+
+        return instance, True
+
     def save(self, commit=True):
         """Save record in database"""
 

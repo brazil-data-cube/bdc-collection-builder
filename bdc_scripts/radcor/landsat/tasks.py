@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from datetime import datetime
 
 # 3rdparty
 from glob import glob as resource_glob
@@ -17,9 +18,10 @@ from bdc_scripts.radcor.utils import get_task_activity
 
 class LandsatTask(celery_app.Task):
     def download(self, scene):
-        activity = get_task_activity()
-        activity.status = 'DOING'
-        activity.save()
+        activity_history = get_task_activity()
+        activity_history.activity.status = 'DOING'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
 
         try:
             cc = scene['sceneid'].split('_')
@@ -35,15 +37,16 @@ class LandsatTask(celery_app.Task):
             link = scene['link']
 
             file = download_landsat_images(link, productdir)
-            activity.status = 'DONE'
+            activity_history.status = 'DONE'
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity.status = 'ERROR'
+            activity_history.status = 'ERROR'
 
             raise e
         finally:
-            activity.save()
+            activity_history.end = datetime.utcnow()
+            activity_history.save()
 
         scene.update(dict(
             file=file
@@ -54,20 +57,22 @@ class LandsatTask(celery_app.Task):
         return scene
 
     def publish(self, scene):
-        activity = get_task_activity()
-        activity.status = 'DOING'
-        activity.save()
+        activity_history = get_task_activity()
+        activity_history.activity.status = 'DOING'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
 
         try:
             publish(scene)
-            activity.status = 'DONE'
+            activity_history.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity.status = 'ERROR'
+            activity_history.status = 'ERROR'
 
             raise e
         finally:
-            activity.save()
+            activity_history.end = datetime.utcnow()
+            activity_history.save()
 
         scene['app'] = 'uploadLC8'
 
@@ -87,9 +92,10 @@ class LandsatTask(celery_app.Task):
         return len(fs) > 0
 
     def correction(self, scene):
-        activity = get_task_activity()
-        activity.status = 'DOING'
-        activity.save()
+        activity_history = get_task_activity()
+        activity_history.activity.status = 'DOING'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
 
         try:
             # Send scene to the ESPA service
@@ -110,17 +116,18 @@ class LandsatTask(celery_app.Task):
                 logging.debug('Atmospheric correction is not done yet...')
                 time.sleep(5)
 
-            activity.status = 'DONE'
+            activity_history.status = 'DONE'
 
             scene['file'] = productdir
 
         except BaseException as e:
             logging.error('Error at ATM correction Landsat', e)
-            activity.status = 'ERROR'
+            activity_history.status = 'ERROR'
 
             raise e
         finally:
-            activity.save()
+            activity_history.end = datetime.utcnow()
+            activity_history.save()
 
         scene['app'] = 'publishLC8'
 
@@ -133,8 +140,8 @@ def download_landsat(scene):
 
 
 @celery_app.task(base=LandsatTask, queue='atm-correction')
-def amt_correction_landsat(scene):
-    return amt_correction_landsat.correction(scene)
+def atm_correction_landsat(scene):
+    return atm_correction_landsat.correction(scene)
 
 
 @celery_app.task(base=LandsatTask, queue='publish')

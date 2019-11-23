@@ -22,11 +22,11 @@ def dispatch(activity: dict):
     Args:
         activity (RadcorActivity) - A not done activity
     """
+    # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
     app = activity.get('app')
 
     if app == 'downloadS2':
-        # TODO: Add marshmallow-sqlalchemy to enable serialization
         task_chain = sentinel_tasks.download_sentinel.s(activity) | \
                         sentinel_tasks.atm_correction.s() | \
                         sentinel_tasks.publish_sentinel.s() | \
@@ -42,12 +42,12 @@ def dispatch(activity: dict):
         return chain(task_chain).apply_async()
     elif app == 'downloadLC8':
         task_chain = landsat_tasks.download_landsat.s(activity) | \
-                        landsat_tasks.amt_correction_landsat.s() | \
+                        landsat_tasks.atm_correction_landsat.s() | \
                         landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
-        task_chain = landsat_tasks.amt_correction_landsat.s(activity) | \
+        task_chain = landsat_tasks.atm_correction_landsat.s(activity) | \
                         landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()

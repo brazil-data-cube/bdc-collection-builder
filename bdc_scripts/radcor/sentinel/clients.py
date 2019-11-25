@@ -16,7 +16,7 @@ class AtomicUser:
 
     Example:
         >>> from bdc_scripts.celery.cache import client
-        >>> from bdc_scripts.sentinel.clients import sentinel_clients
+        >>> from bdc_scripts.radcor.sentinel.clients import sentinel_clients
         >>>
         >>> # Lock the access to the shared resource
         >>> with client.lock('my_lock'):
@@ -33,17 +33,28 @@ class AtomicUser:
     def __init__(self, username, password):
         self.username = username
         self.password = password
+        self._released = False
 
     def __repr__(self):
-        return 'AtomicUser({})'.format(self.username)
+        return 'AtomicUser({}, released={})'.format(self.username, self._released)
 
     def __enter__(self):
         return self
 
+    def __del__(self):
+        self.release()
+
+    def release(self):
+        """Release atomic user from redis"""
+        if not self._released:
+            logging.debug('Release {}'.format(self.username))
+            sentinel_clients.done(self.username)
+
+            self._released = True
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context. Release the user from redis client"""
-        logging.debug('Release {}'.format(self.username))
-        sentinel_clients.done(self.username)
+        self.release()
 
 
 class UserClients:

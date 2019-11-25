@@ -1,7 +1,7 @@
-from celery.backends.database import Task
-from sqlalchemy import Column, DateTime, Integer, String, Time, or_, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Time
 from sqlalchemy.orm import relationship
-from bdc_scripts.models.base_sql import db, BaseModel
+
+from bdc_scripts.models.base_sql import BaseModel
 
 
 class RadcorActivity(BaseModel):
@@ -21,48 +21,12 @@ class RadcorActivity(BaseModel):
     elapsed = Column('elapsed', Time)
     retcode = Column('retcode', Integer)
     message = Column('message', String(512))
-    task_id = Column(ForeignKey(Task.id), nullable=False)
 
-    task = relationship(Task, uselist=False)
-
-    @classmethod
-    def get_by_task_id(cls, task_id: str):
-        return cls.query().filter(cls.task.has(task_id=task_id)).one()
+    history = relationship('RadcorActivityHistory', back_populates='activity')
 
     @classmethod
-    def reset_status(cls, id=None):
-        """
-        Reset inconsistent activities to NOTDONE
-
-        Args:
-            id (int or None) - Activity Id. Default is None, which represents all
-
-        Returns:
-            list of RadcorActivity
-        """
-
-        # if id is not None:
-        #     where = cls.id == id
-        # else:
-        #     where = None
-
-        with db.session.begin_nested():
-            if id is not None:
-                where = cls.id == id
-            else:
-                where = or_(
-                    cls.status == 'ERROR',
-                    cls.status == 'DOING',
-                    cls.status == 'SUSPEND'
-                )
-
-            elements = cls.query().filter(where)
-
-            elements.update(dict(status='NOTDONE'))
-
-        db.session.commit()
-
-        return elements.all()
+    def get_historic_by_task(cls, task_id: str):
+        return cls.query().filter(cls.history.has(task_id=task_id)).all()
 
     @classmethod
     def is_started_or_done(cls, sceneid: str):

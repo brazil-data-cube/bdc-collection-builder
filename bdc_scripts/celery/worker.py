@@ -43,23 +43,27 @@ def on_received_store_in_db(sender, request, **kwargs):
         """No operation for TaskActivityFactory"""
         pass
 
+    # Make sure to be inside flask context in order
+    # to manipulate database engine
     with app.app_context():
         t = Task(request.task_id)
         t.status = PENDING
-        db.session.add(t)
 
-        if request._payload:
-            arguments = request._payload[0]
+        with db.session.no_autoflush:
+            db.session.add(t)
 
-            if len(arguments) > 0:
-                context_name = arguments[0].get('app')
+            if request._payload:
+                arguments = request._payload[0]
 
-                # Retrieving task handler (creator)
-                handler = TaskActivityFactory.get(context_name) or noop
+                if len(arguments) > 0:
+                    context_name = arguments[0].get('app')
 
-                handler(t, *arguments)
-            else:
-                logging.info('No arguments passed. Skipping task association')
+                    # Retrieving task handler (creator)
+                    handler = TaskActivityFactory.get(context_name) or noop
+
+                    handler(t, *arguments)
+                else:
+                    logging.info('No arguments passed. Skipping task association')
 
         db.session.commit()
 

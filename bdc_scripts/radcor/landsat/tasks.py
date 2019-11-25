@@ -37,11 +37,11 @@ class LandsatTask(celery_app.Task):
             link = scene['link']
 
             file = download_landsat_images(link, productdir)
-            activity_history.status = 'DONE'
+            activity_history.activity.status = 'DONE'
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.status = 'ERROR'
+            activity_history.activity.status = 'ERROR'
 
             raise e
         finally:
@@ -64,10 +64,10 @@ class LandsatTask(celery_app.Task):
 
         try:
             publish(scene)
-            activity_history.status = 'DONE'
+            activity_history.activity.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.status = 'ERROR'
+            activity_history.activity.status = 'ERROR'
 
             raise e
         finally:
@@ -80,7 +80,7 @@ class LandsatTask(celery_app.Task):
 
     def upload(self, scene):
         activity = get_task_activity()
-        activity.status = 'DONE'
+        activity.activity.status = 'DONE'
         activity.save()
 
     @staticmethod
@@ -116,13 +116,13 @@ class LandsatTask(celery_app.Task):
                 logging.debug('Atmospheric correction is not done yet...')
                 time.sleep(5)
 
-            activity_history.status = 'DONE'
+            activity_history.activity.status = 'DONE'
 
             scene['file'] = productdir
 
         except BaseException as e:
             logging.error('Error at ATM correction Landsat', e)
-            activity_history.status = 'ERROR'
+            activity_history.activity.status = 'ERROR'
 
             raise e
         finally:

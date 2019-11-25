@@ -144,11 +144,11 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
-            publish(activity_history)
-            activity_history.status = 'DONE'
+            publish(activity_history.activity)
+            activity_history.activity.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.status = 'ERROR'
+            activity_history.activity.status = 'ERROR'
             raise e
         finally:
             activity_history.end = datetime.utcnow()
@@ -197,10 +197,10 @@ class SentinelTask(celery_app.Task):
             else:
                 logging.info('Skipping radcor {}'.format(safeL2Afull))
 
-            activity_history.status = 'DONE'
+            activity_history.activity.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.status = 'ERROR'
+            activity_history.activity.status = 'ERROR'
             raise e
         finally:
             activity_history.end = datetime.utcnow()

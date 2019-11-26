@@ -4,6 +4,7 @@ from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest
 
 # BDC Scripts
+from bdc_scripts.celery.utils import list_pending_tasks, list_running_tasks
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.business import RadcorBusiness
@@ -63,13 +64,13 @@ class RadcorRestartController(Resource):
         return dict()
 
 
-@api.route('/espa/<int:activity_id>')
-class RadcorRestartController(Resource):
-    def get(self, activity_id):
-        activity = RadcorActivity.get(id=activity_id)
+@api.route('/stats/active')
+class RadcorActiveTasksController(Resource):
+    def get(self):
+        return list_running_tasks()
 
-        params = RadcorActivityForm().dump(activity)
 
-        req = requests.get('http://127.0.0.1:5032/espa', params=params)
-
-        return {}, 200
+@api.route('/stats/pending')
+class RadcorPendingTasksController(Resource):
+    def get(self):
+        return list_pending_tasks()

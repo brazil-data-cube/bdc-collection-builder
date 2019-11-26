@@ -28,14 +28,10 @@ class RadcorBusiness:
         # TODO: List tasks in celery and match if there are any dumb task
 
         # Skip pending or started tasks
-        if activity.task.status in ['PENDING', 'STARTED']:
-            logging.warning('Skipped activity {} - {}'.format(activity, activity.task.status))
-        else:
-            dumps = RadcorActivityForm().dump(activity)
 
-            del dumps['task']
+        dumps = RadcorActivityForm().dump(activity)
 
-            cls.start(dumps)
+        cls.start(dumps)
 
         return activity
 
@@ -92,6 +88,7 @@ class RadcorBusiness:
                 activity['priority'] = 1
                 activity['link'] = scene['link']
                 activity['file'] = base_dir
+
                 if action == 'start':
                     cls.start(activity)
 
@@ -139,10 +136,7 @@ class RadcorBusiness:
                 activity['link'] = scene['link']
                 activity['status'] = 'NOTDONE'
 
-                # logging.warning('radcor - activity new {}'.format(activity))
                 scenes[id] = scene
-
-                # activity.save()
 
                 if action == 'start':
                     cls.start(activity)

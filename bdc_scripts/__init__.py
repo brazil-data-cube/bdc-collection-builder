@@ -1,6 +1,5 @@
 import os
 from flask import Flask
-from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_migrate import Migrate
 from bdc_scripts import celery
@@ -34,10 +33,5 @@ def create_app(config_name='DevelopmentConfig'):
         # Setup blueprint
         from bdc_scripts.blueprint import bp
         app.register_blueprint(bp)
-
-        flask_bcrypt = Bcrypt()
-        flask_bcrypt.init_app(app)
-
-        CORS(app, resorces={r'/d/*': {"origins": '*'}})
 
     return app

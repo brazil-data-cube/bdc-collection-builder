@@ -1,6 +1,5 @@
 import os
 from flask import Flask
-from flask_cors import CORS
 from flask_migrate import Migrate
 from bdc_scripts import celery
 from bdc_scripts.config import get_settings

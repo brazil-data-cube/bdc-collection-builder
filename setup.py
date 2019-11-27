@@ -8,7 +8,7 @@ tests_require = []
 
 
 extras_require = {
-    "docs": [
+    'docs': [
         'bdc-readthedocs-theme @ git+git://github.com/brazil-data-cube/bdc-readthedocs-theme.git#egg=bdc-readthedocs-theme',
         'Sphinx>=2.1.2',
     ],
@@ -16,9 +16,9 @@ extras_require = {
 }
 
 g = {}
-with open(os.path.join('bdc_scripts', 'manifest.py'), 'rt') as fp:
+with open(os.path.join('bdc_scripts', 'version.py'), 'rt') as fp:
     exec(fp.read(), g)
-    version = g['version']
+    version = g['__version__']
 
 setup(
     name='bdc-scripts',
@@ -31,9 +31,7 @@ setup(
     install_requires=[
         'beautifulsoup4>=4.8.1',
         'Flask>=1.1.1',
-        'Flask-Cors>=3.0.8',
         'flask-restplus>=0.13.0',
-        'flask_bcrypt>=0.7.1',
         'Flask-Migrate>=2.5.2',
         'Flask-SQLAlchemy>=2.4.1',
         'GeoAlchemy2>=0.6.2',
@@ -62,4 +60,15 @@ setup(
     extras_require=extras_require,
     tests_require=tests_require,
     include_package_data=True,
+    classifiers=[
+        'Development Status :: 1 - Planning',
+        'Environment :: Web Environment',
+        'Intended Audience :: Education',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3 :: Only',
+        'Topic :: Scientific/Engineering :: GIS',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
 )

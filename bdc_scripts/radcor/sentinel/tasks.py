@@ -3,14 +3,18 @@ Describes the Celery Tasks definition of Sentinel products
 """
 
 # Python Native
+import glob
 import logging
 import os
+import pathlib
+import shutil
 import time
 from datetime import datetime
 from json import loads as json_parser
 from random import randint
 
 # 3rdparty
+from requests.exceptions import ConnectionError
 from requests import get as resource_get
 
 # BDC Scripts
@@ -79,47 +83,51 @@ class SentinelTask(celery_app.Task):
         with self.get_user() as user:
             logging.debug('Starting Download {}...'.format(user.username))
 
+            cc = scene['sceneid'].split('_')
+            year_month = cc[2][:4] + '-' + cc[2][4:6]
+
+            # Output product dir
+            product_dir = os.path.join(scene.get('file'), year_month)
+            link = scene['link']
+            scene_id = scene['sceneid']
+
+            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+            extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
+            
             try:
-                cc = scene['sceneid'].split('_')
-                year_month = cc[2][:4] + '-' + cc[2][4:6]
+                valid = True
 
-                # Output product dir
-                product_dir = os.path.join(scene.get('file'), year_month)
-                link = scene['link']
-                scene_id = scene['sceneid']
+                if os.path.exists(zip_file_name):
+                    logging.debug('zip file exists')
+                    valid = is_valid(zip_file_name)
 
-                zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+                if not os.path.exists(zip_file_name) or not valid:
+                    # Download from Copernicus
+                    download_sentinel_images(link, zip_file_name, user)
 
-                extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
+                    # Check if file is valid
+                    valid = is_valid(zip_file_name)
 
-                if not os.path.exists(extracted_file_path):
-                    valid = True
-
-                    if os.path.exists(zip_file_name):
-                        valid = is_valid(zip_file_name)
-
-                    if not os.path.exists(zip_file_name) or not valid:
-                        # Download from Copernicus
-                        download_sentinel_images(link, zip_file_name, user)
-
-                        # Check if file is valid
-                        valid = is_valid(zip_file_name)
-
-                    if not valid:
-                        os.remove(zip_file_name)
-                        logging.error('Invalid zip file "{}"'.format(zip_file_name))
-                        return None
-                    else:
-                        extractall(zip_file_name)
+                if not valid:
+                    os.remove(zip_file_name)
+                    logging.error('Invalid zip file "{}"'.format(zip_file_name))
+                    return None
                 else:
-                    logging.info('Skipping download since the file {} already exists'.format(extracted_file_path))
-
+                    extractall(zip_file_name)
                 logging.debug('Done download.')
                 activity_history.activity.status = 'DONE'
                 activity_history.activity.file = extracted_file_path
+
+            except ConnectionError as e:
+                logging.error('Connection error')
+                activity_history.activity.status = 'ERROR'
+                if os.path.exists(zip_file_name):
+                   os.remove(zip_file_name)
+                raise
+
             except BaseException as e:
                 logging.error('An error occurred during task execution', e)
-                activity_history.status = 'ERROR'
+                activity_history.activity.status = 'ERROR'
 
                 raise e
             finally:
@@ -130,12 +138,62 @@ class SentinelTask(celery_app.Task):
             file=extracted_file_path
         ))
 
-        # Create new activity 'publish' to continue task chain
+        # Create new activity 'correctionS2' to continue task chain
         scene['app'] = 'correctionS2'
 
         return scene
 
+    def correction(self, scene):
+        logging.debug('Starting Correction Sentinel...')
+
+        activity_history = get_task_activity()
+        activity_history.activity.status = 'DOING'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
+
+        safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
+
+        try:
+            # TODO: check if file exists and apply validation
+            # if os.path.exists(safeL2Afull) and not is_valid():
+            if os.path.exists(safeL2Afull):
+                shutil.rmtree(safeL2Afull)
+            if not os.path.exists(safeL2Afull):
+                # Send scene to the sen2cor service
+                req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
+                # Ensure the request has been successfully
+                assert req.status_code == 200
+
+                result = json_parser(req.content)
+
+                if result and result.get('status') == 'ERROR':
+                    if os.path.exists(safeL2Afull):
+                        shutil.rmtree(safeL2Afull)
+                    raise RuntimeError('Error in sen2cor execution')
+
+                while not SentinelTask.sen2cor_done():
+                    logging.debug('Atmospheric correction is not done yet...')
+                    time.sleep(5)
+            activity_history.activity.status = 'DONE'
+
+        except BaseException as e:
+            logging.error('An error occurred during task execution', e)
+            activity_history.activity.status = 'ERROR'
+            raise e
+        finally:
+            activity_history.end = datetime.utcnow()
+            activity_history.save()
+
+        scene['app'] = 'publishS2'
+
+        return scene
+
+    @staticmethod
+    def sen2cor_done():
+        return True
+
     def publish(self, scene):
+        #TODO: check if is already published before publishing
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()
@@ -154,7 +212,7 @@ class SentinelTask(celery_app.Task):
             activity_history.end = datetime.utcnow()
             activity_history.save()
 
-        # Create new activity 'publish' to continue task chain
+        # Create new activity 'uploadS2' to continue task chain
         scene['app'] = 'uploadS2'
 
         logging.debug('Done Publish Sentinel.')
@@ -167,52 +225,6 @@ class SentinelTask(celery_app.Task):
         activity_history.start = datetime.utcnow()
         activity_history.end = datetime.utcnow()
         activity_history.save()
-
-    def correction(self, scene):
-        activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
-
-        safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
-
-        # TODO: check if file exists and apply validation
-        # if os.path.exists(safeL2Afull) and not is_valid():
-
-        try:
-            if not os.path.exists(safeL2Afull):
-                # Send scene to the sen2cor service
-                req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
-                # Ensure the request has been successfully
-                assert req.status_code == 200
-
-                result = json_parser(req.content)
-
-                if result and result.get('status') == 'ERROR':
-                    raise RuntimeError('Error in sen2cor execution')
-
-                while not SentinelTask.sen2cor_done():
-                    logging.debug('Atmospheric correction is not done yet...')
-                    time.sleep(5)
-            else:
-                logging.info('Skipping radcor {}'.format(safeL2Afull))
-
-            activity_history.activity.status = 'DONE'
-        except BaseException as e:
-            logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
-            raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
-
-        scene['app'] = 'publishS2'
-
-        return scene
-
-    @staticmethod
-    def sen2cor_done():
-        return True
 
 
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection

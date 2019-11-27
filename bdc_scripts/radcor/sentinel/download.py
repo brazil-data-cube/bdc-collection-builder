@@ -13,7 +13,7 @@ def download_sentinel_images(link, file_path, user):
         user (AtomicUser) - User credential
     """
     try:
-        response = requests.get(link, auth=(user.username, user.password), stream=True)
+        response = requests.get(link, auth=(user.username, user.password), timeout = 90, stream=True)
     except requests.exceptions.ConnectionError as e:
         logging.error('Connection error during Sentinel Download')
         raise e

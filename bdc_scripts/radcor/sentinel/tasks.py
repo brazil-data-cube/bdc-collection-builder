@@ -6,7 +6,6 @@ Describes the Celery Tasks definition of Sentinel products
 import glob
 import logging
 import os
-import pathlib
 import shutil
 import time
 from datetime import datetime

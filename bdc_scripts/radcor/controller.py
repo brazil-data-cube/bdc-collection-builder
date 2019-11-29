@@ -26,7 +26,7 @@ class RadcorController(Resource):
     def post(self):
         """
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -45.90, "s": -12.74, "n": -12.6, "e": -45.80, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-15", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/
         """
 

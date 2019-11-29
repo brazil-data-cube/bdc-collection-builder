@@ -197,8 +197,8 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
                 count_results += 1
                 identifier = result['title']
                 type = identifier.split('_')[1]
-                date = identifier.split('_')[2][:8]
-                if date > '20181220' and type == 'MSIL1C':
+                ### Jump level 2 images (will download and process only L1C)
+                if type == 'MSIL2A':
                     logging.warning('openSearchS2SAFE skipping {}'.format(identifier))
                     continue
                 scenes[identifier] = {}

@@ -104,20 +104,6 @@ class RadcorBusiness:
                 # Output product dir
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/S2_MSI')
                 productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
-                # Check if an equivalent sceneid has already been downloaded
-                date = cc[2]
-                tile = cc[5]
-                files = glob.glob(productdir+'S*MSIL2A_{}*{}*.SAFE'.format(date,tile))
-                if len(files) > 0:
-                    logging.warning('radcor - {} already done'.format(sceneid))
-                    scene['status'] = 'DONE'
-                    continue
-
-                safeL2Afull = productdir+sceneid.replace('MSIL1C','MSIL2A')+'.SAFE'
-                if resource_path.exists(safeL2Afull):
-                    logging.warning('radcor - scene exists {}'.format(safeL2Afull))
-                    scene['status'] = 'DONE'
-                    continue
 
                 scene['status'] = 'NOTDONE'
 

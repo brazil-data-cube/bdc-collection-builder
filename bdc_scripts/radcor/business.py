@@ -109,9 +109,9 @@ class RadcorBusiness:
 
                 activities = RadcorActivity.is_started_or_done(sceneid=scene['sceneid'])
 
-                if len(activities) > 0:
-                    logging.warning('radcor - activity already done {}'.format(len(activities)))
-                    continue
+                # if len(activities) > 0:
+                #     logging.warning('radcor - activity already done {}'.format(len(activities)))
+                #     continue
 
                 activity = {}
                 activity['file'] = base_dir

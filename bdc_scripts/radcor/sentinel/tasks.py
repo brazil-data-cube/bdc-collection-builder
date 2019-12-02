@@ -10,7 +10,6 @@ import shutil
 import time
 from datetime import datetime
 from json import loads as json_parser
-from random import randint
 
 # 3rdparty
 from requests.exceptions import ConnectionError
@@ -109,8 +108,7 @@ class SentinelTask(celery_app.Task):
 
                 if not valid:
                     os.remove(zip_file_name)
-                    logging.error('Invalid zip file "{}"'.format(zip_file_name))
-                    return None
+                    raise IOError('Invalid zip file "{}"'.format(zip_file_name))
                 else:
                     extractall(zip_file_name)
                 logging.debug('Done download.')
@@ -121,7 +119,7 @@ class SentinelTask(celery_app.Task):
                 logging.error('Connection error')
                 activity_history.activity.status = 'ERROR'
                 if os.path.exists(zip_file_name):
-                   os.remove(zip_file_name)
+                    os.remove(zip_file_name)
                 raise
 
             except BaseException as e:

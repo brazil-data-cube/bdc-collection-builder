@@ -10,12 +10,18 @@ It allows to call own
 import click
 from flask.cli import FlaskGroup, with_appcontext
 from flask_migrate.cli import db as flask_migrate_db
-from sqlalchemy_utils.functions import create_database, database_exists, drop_database
+from sqlalchemy_utils.functions import create_database, database_exists
 from bdc_scripts import create_app
 from bdc_scripts.models import db
 
 
 def create_cli(create_app=None):
+    """
+    Wrapper creation of Flask App in order to attach into flask click
+
+    Args:
+         create_app (function) - Create app factory (Flask)
+    """
     def create_cli_app(info):
         if create_app is None:
             info.create_app = None
@@ -58,13 +64,3 @@ def create():
 
     db.session.commit()
 
-
-@flask_migrate_db.command()
-@with_appcontext
-@click.pass_context
-def recreate(ctx):
-    if database_exists(str(db.engine.url)):
-        click.secho('Droping database...', fg='red')
-        drop_database(str(db.engine.url))
-
-    ctx.forward(create)

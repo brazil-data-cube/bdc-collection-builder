@@ -105,7 +105,7 @@ services:
   #     - 5031:5031
   #   volumes:
   #     - ./rc_sen2cor:/app
-  #     - ./rc_sen2cor/root:/root
+  #     - ./rc_sen2cor/root_255:/root
   #     - ./volumes/data/:/dados
   #     - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data
   #   networks:
@@ -119,7 +119,7 @@ services:
       - 5031:5031
     volumes:
       - ./rc_sen2cor:/app
-      - ./rc_sen2cor/root:/root
+      - ./rc_sen2cor/root_280:/root
       - ./volumes/data/:/dados
       - /ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data
     networks:

@@ -12,6 +12,9 @@ from requests import get as resource_get
 # BDC Scripts
 from bdc_scripts.config import Config
 
+#TODO: Check if sen2cor is done
+def sen2cor_done():
+    return True
 
 def search_recent_sen2cor280(safeL2Afull):
     safe = safeL2Afull.replace( os.path.basename(safeL2Afull).split('_')[3], 'N9999')
@@ -20,7 +23,7 @@ def search_recent_sen2cor280(safeL2Afull):
     dirs_L2 = [os.path.join(dirname,d) for d in os.listdir(dirname) if re.match(safe_pattern, d)]
     return dirs_L2
 
-def correction_sen2cor255(self, scene):
+def correction_sen2cor255( scene ):
     safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
     # TODO: check if file exists and validate SAFE
     valid = False
@@ -39,12 +42,12 @@ def correction_sen2cor255(self, scene):
                 shutil.rmtree(safeL2Afull)
             raise RuntimeError('Error in sen2cor execution')
 
-        while not self.sen2cor_done():
+        while not sen2cor_done():
             logging.debug('Atmospheric correction is not done yet...')
             time.sleep(5)
     return safeL2Afull
 
-def correction_sen2cor280(self, scene):
+def correction_sen2cor280( scene ):
     safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if len(dirs_L2) >= 1:
@@ -71,7 +74,7 @@ def correction_sen2cor280(self, scene):
             shutil.rmtree(dirs_L2[-1])
         raise RuntimeError('Error in sen2cor execution')
 
-    while not self.sen2cor_done():
+    while not sen2cor_done():
         logging.debug('Atmospheric correction is not done yet...')
         time.sleep(5)
 

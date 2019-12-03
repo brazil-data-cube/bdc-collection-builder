@@ -152,9 +152,9 @@ class SentinelTask(celery_app.Task):
 
         try:
             if version == 'sen2cor280':
-                correction_result = correction_sen2cor280(self, scene)
+                correction_result = correction_sen2cor280( scene )
             else:
-                correction_result = correction_sen2cor255(self, scene)
+                correction_result = correction_sen2cor255( scene )
             if correction_result is not None:
                 scene['file'] = correction_result
             activity_history.activity.status = 'DONE'
@@ -170,10 +170,6 @@ class SentinelTask(celery_app.Task):
         scene['app'] = 'publishS2'
 
         return scene
-
-    @staticmethod
-    def sen2cor_done():
-        return True
 
     def publish(self, scene):
         #TODO: check if is already published before publishing

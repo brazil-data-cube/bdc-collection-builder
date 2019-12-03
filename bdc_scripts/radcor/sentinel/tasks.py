@@ -23,6 +23,7 @@ from bdc_scripts.core.utils import extractall, is_valid
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
+from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280, search_recent_sen2cor280
 from bdc_scripts.radcor.utils import get_task_activity
 
 
@@ -142,35 +143,21 @@ class SentinelTask(celery_app.Task):
 
     def correction(self, scene):
         logging.debug('Starting Correction Sentinel...')
+        version = 'sen2cor280'
 
         activity_history = get_task_activity()
         activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
-        safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
-
         try:
-            # TODO: check if file exists and apply validation
-            # if os.path.exists(safeL2Afull) and not is_valid():
-            if os.path.exists(safeL2Afull):
-                shutil.rmtree(safeL2Afull)
-            if not os.path.exists(safeL2Afull):
-                # Send scene to the sen2cor service
-                req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
-                # Ensure the request has been successfully
-                assert req.status_code == 200
-
-                result = json_parser(req.content)
-
-                if result and result.get('status') == 'ERROR':
-                    if os.path.exists(safeL2Afull):
-                        shutil.rmtree(safeL2Afull)
-                    raise RuntimeError('Error in sen2cor execution')
-
-                while not SentinelTask.sen2cor_done():
-                    logging.debug('Atmospheric correction is not done yet...')
-                    time.sleep(5)
+            safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
+            if version == 'sen2cor280':
+                correction_result = correction_sen2cor280(self, safeL2Afull, scene)
+            else:
+                correction_result = correction_sen2cor255(self, safeL2Afull, scene)
+            if correction_result is not None:
+                scene['file'] = correction_result
             activity_history.activity.status = 'DONE'
 
         except BaseException as e:

@@ -151,11 +151,10 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
-            safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
             if version == 'sen2cor280':
-                correction_result = correction_sen2cor280(self, safeL2Afull, scene)
+                correction_result = correction_sen2cor280(self, scene)
             else:
-                correction_result = correction_sen2cor255(self, safeL2Afull, scene)
+                correction_result = correction_sen2cor255(self, scene)
             if correction_result is not None:
                 scene['file'] = correction_result
             activity_history.activity.status = 'DONE'

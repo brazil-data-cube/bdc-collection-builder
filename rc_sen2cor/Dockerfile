@@ -35,8 +35,7 @@ ENV PATH $PATH:/home/bin/
 ENV PYTHONUNBUFFERED 1
 
 # Expose the Flask port
-EXPOSE 9764
+EXPOSE 5031
 
 # Run the sen2cor application
 CMD [ "python", "rc_sen2cor.py" ]
-#CMD ["/home/bin/L2A_Process"]

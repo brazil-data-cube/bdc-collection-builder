@@ -108,7 +108,6 @@ class SentinelTask(celery_app.Task):
                     valid = is_valid(zip_file_name)
 
                 if not valid:
-                    os.remove(zip_file_name)
                     raise IOError('Invalid zip file "{}"'.format(zip_file_name))
                 else:
                     extractall(zip_file_name)

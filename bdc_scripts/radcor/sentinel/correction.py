@@ -68,14 +68,12 @@ def correction_sen2cor280( scene ):
 
     result = json_parser(req.content)
 
-    dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if result and result.get('status') == 'ERROR':
-        if os.path.exists(dirs_L2[-1]):
-            shutil.rmtree(dirs_L2[-1])
         raise RuntimeError('Error in sen2cor execution')
 
     while not sen2cor_done():
         logging.debug('Atmospheric correction is not done yet...')
         time.sleep(5)
+    dirs_L2 = search_recent_sen2cor280(safeL2Afull)
 
     return dirs_L2[-1]

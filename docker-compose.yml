@@ -149,7 +149,7 @@ services:
       - bdc_net
 
   worker-atm-correction:
-    container_name: bdc-scripts-worker-amt-correction
+    container_name: bdc-scripts-worker-atm-correction
     image: registry.dpi.inpe.br/brazildatacube/bdc-scripts:0.0.1-celery
     restart: "always"
     depends_on:

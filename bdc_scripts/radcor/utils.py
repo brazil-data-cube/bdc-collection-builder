@@ -164,9 +164,13 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
     rows = min(100,limit)
     count_results = 0
 
-    # Get available sentinel user.
-    # TODO: Use distributed lock with redis
-    user = sentinel_clients.use()
+    users = sentinel_clients.users
+
+    if not users:
+        raise ValueError('No sentinel user set')
+
+    username = list(users)[0]
+    password = users[username]['password']
 
     while count_results < min(limit,totres) and totres != 0:
         rows = min(100,limit-len(scenes),totres)
@@ -174,8 +178,7 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
         query = pquery + '&rows={}&start={}'.format(rows,first)
         try:
             # Using sentinel user and release on out of scope
-            with user:
-                r = requests.get(query, auth=(user.username, user.password), verify=True)
+            r = requests.get(query, auth=(username, password), verify=True)
 
             if not r.status_code // 100 == 2:
                 logging.exception('openSearchS2SAFE API returned unexpected response {}:'.format(r.status_code))

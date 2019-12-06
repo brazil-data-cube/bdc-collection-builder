@@ -46,6 +46,7 @@ setup(
         'numpngw>=0.0.8',  # TODO: Review this dependency
         'scikit-image>=0.16.2',
         'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
+        'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
         # TODO: Temporary workaround since kombu has fixed version
         'celery[librabbitmq]==4.3.0',
         'librabbitmq==2.0.0',

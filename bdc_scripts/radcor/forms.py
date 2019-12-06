@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_scripts.models import db
+from bdc_db.models import db
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 
 
@@ -21,10 +21,6 @@ class HistoryForm(ModelSchema):
     class Meta:
         model = RadcorActivity
         sqla_session = db.session
-    # start_date = fields.DateTime()
-    # end_date = fields.DateTime()
-
-    # task = fields.Nested(TaskSchema, many=False)
 
 
 class RadcorActivityForm(ModelSchema):

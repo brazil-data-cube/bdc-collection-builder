@@ -15,6 +15,9 @@ from json import loads as json_parser
 from requests.exceptions import ConnectionError
 from requests import get as resource_get
 
+# BDC DB
+from bdc_db.models import CollectionItem
+
 # BDC Scripts
 from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
@@ -72,18 +75,30 @@ class SentinelTask(celery_app.Task):
             dict Scene with sentinel file path
         """
 
-        # Persist the activity to done
-        activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
-
         # Acquire User to download
         with self.get_user() as user:
+            # Persist the activity to done
+            activity_history = get_task_activity()
+            activity_history.activity.status = 'DOING'
+            activity_history.start = datetime.utcnow()
+            activity_history.save()
+
             logging.debug('Starting Download {}...'.format(user.username))
 
-            cc = scene['sceneid'].split('_')
-            year_month = cc[2][:4] + '-' + cc[2][4:6]
+            fragments = scene['sceneid'].split('_')
+            year_month = fragments[2][:4] + '-' + fragments[2][4:6]
+            tile_id = fragments[-2]
+
+            # S2B_MSIL1C_20170920T133209_N0205_R081_T22LGR_20170920T133212
+            composite_date = datetime.strptime(fragments[2][:8], '%Y-%m-%dT')
+
+            collection_item = CollectionItem(
+                tile_id=tile_id,
+                composite_start=composite_date,
+                composite_end=composite_date,
+                cloud_cover=scene.get('cloud'),
+                scene_type='SCENE'
+            )
 
             # Output product dir
             product_dir = os.path.join(scene.get('file'), year_month)
@@ -92,6 +107,8 @@ class SentinelTask(celery_app.Task):
 
             zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
             extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
+
+            collection_item.compressed_file = zip_file_name
             
             try:
                 valid = True
@@ -116,11 +133,11 @@ class SentinelTask(celery_app.Task):
                 activity_history.activity.file = extracted_file_path
 
             except ConnectionError as e:
-                logging.error('Connection error')
+                logging.error('Connection error', e)
                 activity_history.activity.status = 'ERROR'
                 if os.path.exists(zip_file_name):
                     os.remove(zip_file_name)
-                raise
+                raise e
 
             except BaseException as e:
                 logging.error('An error occurred during task execution', e)

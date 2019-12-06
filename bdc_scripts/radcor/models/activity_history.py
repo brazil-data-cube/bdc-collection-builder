@@ -1,14 +1,13 @@
 from celery.backends.database import Task
 from sqlalchemy import Column, DateTime, Integer, String, Time, or_, ForeignKey
 from sqlalchemy.orm import relationship
-from bdc_scripts.models.base_sql import db, BaseModel
+from bdc_db.models.base_sql import db, BaseModel
 
 
 class RadcorActivityHistory(BaseModel):
     __tablename__ = 'activity_history'
-    __table_args__ = dict(schema='radcor')
 
-    activity_id = Column(ForeignKey('radcor.activities.id'), primary_key=True, nullable=False)
+    activity_id = Column(ForeignKey('activities.id'), primary_key=True, nullable=False)
     task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
 
     start = Column('start', DateTime)

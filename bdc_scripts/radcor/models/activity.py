@@ -1,12 +1,11 @@
 from sqlalchemy import Column, DateTime, Integer, String, Time
 from sqlalchemy.orm import relationship
 
-from bdc_scripts.models.base_sql import BaseModel
+from bdc_db.models.base_sql import BaseModel
 
 
 class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
-    __table_args__ = dict(schema='radcor')
 
     id = Column(Integer, primary_key=True)
     app = Column('app', String(64), nullable=False)

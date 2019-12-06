@@ -1,9 +1,9 @@
 import os
+from bdc_db.ext import BDCDatabase
 from flask import Flask
 from flask_migrate import Migrate
-from bdc_scripts import celery
+from bdc_scripts import config, celery
 from bdc_scripts.config import get_settings
-from bdc_scripts.models import db
 
 
 def create_app(config_name='DevelopmentConfig'):
@@ -16,14 +16,12 @@ def create_app(config_name='DevelopmentConfig'):
     """
 
     app = Flask(__name__)
+    conf = config.get_settings(config_name)
+    app.config.from_object(conf)
 
     with app.app_context():
-        app.config.from_object(get_settings(config_name))
-
         # Initialize Flask SQLAlchemy
-        db.init_app(app)
-
-        Migrate(app, db)
+        BDCDatabase(app)
 
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)

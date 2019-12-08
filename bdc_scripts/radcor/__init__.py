@@ -14,7 +14,7 @@ def create_activity(task, activity, *args, **kwargs):
     """
     Creates a radcor activity once a celery task is received.
     Make sure to attach this function at TaskActivityFactory using
-    app name.
+    activity type.
 
     Args:
         task (celery.backends.database.models.Task) - Celery Task model instance
@@ -22,9 +22,10 @@ def create_activity(task, activity, *args, **kwargs):
         *args - Arguments order
         **kwargs - Extra parameters
     """
+
     where = dict(
         sceneid=activity.get('sceneid'),
-        app=activity.get('app')
+        app=activity.get('activity_type')
     )
     activity_model, _ = RadcorActivity.get_or_create(defaults=activity, **where)
 

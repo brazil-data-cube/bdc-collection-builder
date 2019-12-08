@@ -79,7 +79,6 @@ class SentinelTask(celery_app.Task):
         with self.get_user() as user:
             # Persist the activity to done
             activity_history = get_task_activity()
-            activity_history.activity.status = 'DOING'
             activity_history.start = datetime.utcnow()
             activity_history.save()
 
@@ -129,24 +128,23 @@ class SentinelTask(celery_app.Task):
                 else:
                     extractall(zip_file_name)
                 logging.debug('Done download.')
-                activity_history.activity.status = 'DONE'
                 activity_history.activity.file = extracted_file_path
 
             except ConnectionError as e:
                 logging.error('Connection error', e)
-                activity_history.activity.status = 'ERROR'
                 if os.path.exists(zip_file_name):
                     os.remove(zip_file_name)
                 raise e
 
             except BaseException as e:
                 logging.error('An error occurred during task execution', e)
-                activity_history.activity.status = 'ERROR'
 
                 raise e
             finally:
-                activity_history.end = datetime.utcnow()
                 activity_history.save()
+
+        # Persist a collection item on database
+        collection_item.save()
 
         scene.update(dict(
             file=extracted_file_path
@@ -162,7 +160,6 @@ class SentinelTask(celery_app.Task):
         version = 'sen2cor280'
 
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
@@ -173,14 +170,11 @@ class SentinelTask(celery_app.Task):
                 correction_result = correction_sen2cor255( scene )
             if correction_result is not None:
                 scene['file'] = correction_result
-            activity_history.activity.status = 'DONE'
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
             raise e
         finally:
-            activity_history.end = datetime.utcnow()
             activity_history.save()
 
         scene['app'] = 'publishS2'
@@ -192,19 +186,15 @@ class SentinelTask(celery_app.Task):
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
         try:
             publish(activity_history.activity)
-            activity_history.activity.status = 'DONE'
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
             raise e
         finally:
-            activity_history.end = datetime.utcnow()
             activity_history.save()
 
         # Create new activity 'uploadS2' to continue task chain
@@ -216,9 +206,7 @@ class SentinelTask(celery_app.Task):
 
     def upload(self, scene):
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DONE'
         activity_history.start = datetime.utcnow()
-        activity_history.end = datetime.utcnow()
         activity_history.save()
 
 

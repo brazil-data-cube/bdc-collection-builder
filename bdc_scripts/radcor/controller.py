@@ -1,9 +1,10 @@
 # 3rdparty
 from flask import request
 from flask_restplus import Namespace, Resource
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, NotFound
 
 # BDC Scripts
+from bdc_db.models.collection import Collection
 from bdc_scripts.celery.utils import list_pending_tasks, list_running_tasks
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
@@ -38,8 +39,13 @@ class RadcorController(Resource):
                 's' not in args:
             raise BadRequest('Datacube or Bounding Box must be given')
 
+        collection_id = args.get('collection')
+
+        if not Collection.query().filter(Collection.id == collection_id):
+            raise NotFound('Collection {} not found.'.format(collection_id))
+
         # Prepare radcor activity and start
-        result = RadcorBusiness.radcor(args)
+        result = RadcorBusiness.radcor(collection_id, args)
 
         # if 'LC8' in args.get('satsen') or 'LC8SR' in args.get('satsen'):
         #     result = filter(result,tags=['cloud','date','status'])

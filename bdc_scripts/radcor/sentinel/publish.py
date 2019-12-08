@@ -13,10 +13,9 @@ from osgeo.osr import CoordinateTransformation, SpatialReference
 from skimage.transform import resize
 
 # BDC Scripts
+from bdc_db.models import db, Asset, CollectionItem
 from bdc_scripts.config import Config
 from bdc_scripts.core.utils import generate_cogs
-from bdc_scripts.models.base_sql import db
-from bdc_scripts.models.catalog import CatalogProduct, CatalogScene, CatalogQlook
 from bdc_scripts.radcor.models import RadcorActivity
 
 

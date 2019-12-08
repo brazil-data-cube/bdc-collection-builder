@@ -1,5 +1,5 @@
 from celery.backends.database import Task
-from sqlalchemy import Column, DateTime, Integer, String, Time, or_, ForeignKey
+from sqlalchemy import Column, DateTime, JSON, Integer, String, Time, or_, ForeignKey
 from sqlalchemy.orm import relationship
 from bdc_db.models.base_sql import db, BaseModel
 
@@ -11,11 +11,9 @@ class RadcorActivityHistory(BaseModel):
     task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
 
     start = Column('start', DateTime)
-    end = Column('end', DateTime)
-    elapsed = Column('elapsed', Time)
-    retcode = Column('retcode', Integer)
-    message = Column('message', String(512))
+    env = Column('env', JSON)
 
+    # Relations
     activity = relationship('RadcorActivity', back_populates="history")
     task = relationship(Task, uselist=False)
 

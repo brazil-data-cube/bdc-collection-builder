@@ -36,7 +36,7 @@ class RadcorBusiness:
         return activity
 
     @classmethod
-    def radcor(cls, args: dict):
+    def radcor(cls, collection_id: str, args: dict):
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
@@ -80,14 +80,19 @@ class RadcorBusiness:
                     scene['status'] = 'DONE'
                     continue
                 scene['status'] = 'NOTDONE'
-                activity = {}
-                activity['app'] = 'downloadLC8'
-                activity['status'] = 'NOTDONE'
-                activity['sceneid'] = scene['sceneid']
-                activity['satellite'] = 'LC8'
-                activity['priority'] = 1
-                activity['link'] = scene['link']
-                activity['file'] = base_dir
+
+                activity = dict(
+                    collection_id=collection_id,
+                    activity_type='downloadLC8',
+                    tags=args.get('tags', '').split(','),
+                    sceneid=sceneid,
+                    scene_type='SCENE',
+                    args=dict(
+                        link=scene['link'],
+                        file=base_dir,
+                        satellite='LC8'
+                    )
+                )
 
                 if action == 'start':
                     cls.start(activity)
@@ -113,14 +118,18 @@ class RadcorBusiness:
                     logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
 
-                activity = {}
-                activity['file'] = base_dir
-                activity['app'] = 'downloadS2'
-                activity['sceneid'] = sceneid
-                activity['satellite'] = 'S2'
-                activity['priority'] = 1
-                activity['link'] = scene['link']
-                activity['status'] = 'NOTDONE'
+                activity = dict(
+                    collection_id=collection_id,
+                    activity_type='downloadS2',
+                    tags=args.get('tags', '').split(','),
+                    sceneid=sceneid,
+                    scene_type='SCENE',
+                    args=dict(
+                        link=scene['link'],
+                        file=base_dir,
+                        satellite='S2'
+                    )
+                )
 
                 scenes[id] = scene
 

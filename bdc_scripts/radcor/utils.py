@@ -53,8 +53,6 @@ def dispatch(activity: dict):
 
     app = activity.get('activity_type')
 
-    del activity['history']
-
     if app == 'downloadS2':
         task_chain = sentinel_tasks.download_sentinel.s(activity) | \
                         sentinel_tasks.atm_correction.s() | \

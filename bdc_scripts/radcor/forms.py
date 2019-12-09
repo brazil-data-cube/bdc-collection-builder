@@ -13,14 +13,21 @@ class TaskSchema(Schema):
 
 
 class HistoryForm(ModelSchema):
-    task_status = fields.Method('dump_status')
+    status = fields.Method('dump_status')
+    end = fields.Method('dump_end')
 
     def dump_status(self, obj):
         return obj.task.status
 
+    def dump_end(self, obj):
+        end_date = obj.task.date_done
+
+        return str(end_date or '')
+
     class Meta:
-        model = RadcorActivity
+        model = RadcorActivityHistory
         sqla_session = db.session
+        exclude = ('activity', )
 
 
 class RadcorActivityForm(ModelSchema):

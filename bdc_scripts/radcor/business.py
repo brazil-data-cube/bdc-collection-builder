@@ -122,7 +122,7 @@ class RadcorBusiness:
                 activity = dict(
                     collection_id=collection_id,
                     activity_type='downloadS2',
-                    tags=args.get('tags', '').split(','),
+                    tags=args.get('tags', []),
                     sceneid=sceneid,
                     scene_type='SCENE',
                     args=dict(

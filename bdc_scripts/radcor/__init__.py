@@ -29,6 +29,10 @@ def create_activity(task, activity, *args, **kwargs):
         activity_type=activity.get('activity_type'),
         collection_id=activity.get('collection_id')
     )
+
+    if activity.get('history'):
+        del activity['history']
+
     activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
 
     model = RadcorActivityHistory()

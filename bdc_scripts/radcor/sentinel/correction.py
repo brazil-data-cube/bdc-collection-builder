@@ -47,8 +47,9 @@ def correction_sen2cor255( scene ):
             time.sleep(5)
     return safeL2Afull
 
-def correction_sen2cor280( scene ):
-    safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
+
+def correction_sen2cor280(scene):
+    safeL2Afull = scene['args']['file'].replace('MSIL1C', 'MSIL2A')
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if len(dirs_L2) >= 1:
         for i in range(len(dirs_L2) - 1):

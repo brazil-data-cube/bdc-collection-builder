@@ -3,30 +3,25 @@ Describes the Celery Tasks definition of Sentinel products
 """
 
 # Python Native
-import glob
 import logging
 import os
-import shutil
 import time
 from datetime import datetime
-from json import loads as json_parser
 
 # 3rdparty
 from requests.exceptions import ConnectionError
-from requests import get as resource_get
 
 # BDC DB
-from bdc_db.models import Collection, CollectionItem
+from bdc_db.models import db, Collection, CollectionItem
 
 # BDC Scripts
-from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
-from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280, search_recent_sen2cor280
+from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
 from bdc_scripts.radcor.utils import get_task_activity, get_or_create_model
 
 
@@ -64,6 +59,37 @@ class SentinelTask(celery_app.Task):
 
         return user
 
+    def get_collection_item(self, activity):
+        scene_id = activity['sceneid']
+        fragments = scene_id.split('_')
+        tile_id = fragments[-2]
+        activity_args = activity.get('args', dict())
+
+        # Retrieve composite date of Collection Item
+        composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
+
+        collection = Collection.query().filter(Collection.id == activity.get('collection_id')).one()
+
+        restriction = dict(
+            id=scene_id,
+            tile_id=tile_id[1:],
+            collection_id=collection.id,
+            grs_schema_id=collection.grs_schema_id,
+            item_date=composite_date.date()
+        )
+
+        collection_params = dict(
+            composite_start=composite_date,
+            composite_end=composite_date,
+            cloud_cover=activity_args.get('cloud'),
+            scene_type='SCENE'
+        )
+        collection_params.update(restriction)
+
+        collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
+
+        return collection_item
+
     def download(self, scene):
         """
         Performs download sentinel images from copernicus
@@ -80,88 +106,90 @@ class SentinelTask(celery_app.Task):
             # Persist the activity to done
             activity_history = get_task_activity()
             activity_history.start = datetime.utcnow()
+            # Store environment variables in log execution
+            activity_history.env = os.environ
             activity_history.save()
 
-            logging.debug('Starting Download {}...'.format(user.username))
+            with db.session.no_autoflush:
+                logging.debug('Starting Download {}...'.format(user.username))
 
-            activity_args = scene.get('args', dict())
+                activity_args = scene.get('args', dict())
 
-            fragments = scene['sceneid'].split('_')
-            year_month = fragments[2][:4] + '-' + fragments[2][4:6]
-            tile_id = fragments[-2]
+                fragments = scene['sceneid'].split('_')
+                year_month = fragments[2][:4] + '-' + fragments[2][4:6]
+                tile_id = fragments[-2]
 
-            # S2B_MSIL1C_20170920T133209_N0205_R081_T22LGR_20170920T133212
-            composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
+                # Retrieve composite date of Collection Item
+                composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
 
-            collection = Collection.query().filter(Collection.id == scene.get('collection_id')).one()
+                collection = Collection.query().filter(Collection.id == scene.get('collection_id')).one()
 
-            restriction = dict(
-                id=scene['sceneid'],
-                tile_id=tile_id,
-                collection_id=collection.id,
-                grs_schema_id=collection.grs_schema_id
-            )
+                restriction = dict(
+                    id=scene['sceneid'],
+                    tile_id=tile_id[1:],
+                    collection_id=collection.id,
+                    grs_schema_id=collection.grs_schema_id,
+                    item_date=composite_date.date()
+                )
 
-            collection_params = dict(
-                composite_start=composite_date,
-                composite_end=composite_date,
-                cloud_cover=activity_args.get('cloud'),
-                scene_type='SCENE'
-            )
-            collection_params.update(restriction)
+                collection_params = dict(
+                    composite_start=composite_date,
+                    composite_end=composite_date,
+                    cloud_cover=activity_args.get('cloud'),
+                    scene_type='SCENE'
+                )
+                collection_params.update(restriction)
 
-            collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
+                collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
 
-            # Output product dir
-            product_dir = os.path.join(activity_args.get('file'), year_month)
-            link = activity_args['link']
-            scene_id = scene['sceneid']
+                # Output product dir
+                product_dir = os.path.join(activity_args.get('file'), year_month)
+                link = activity_args['link']
+                scene_id = scene['sceneid']
 
-            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
-            extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
+                zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+                extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
 
-            collection_item.compressed_file = zip_file_name
-            
-            try:
-                valid = True
+                collection_item.compressed_file = zip_file_name
 
-                if os.path.exists(zip_file_name):
-                    logging.debug('zip file exists')
-                    valid = is_valid(zip_file_name)
+                try:
+                    valid = True
 
-                if not os.path.exists(zip_file_name) or not valid:
-                    # Download from Copernicus
-                    download_sentinel_images(link, zip_file_name, user)
+                    if os.path.exists(zip_file_name):
+                        logging.debug('zip file exists')
+                        valid = is_valid(zip_file_name)
 
-                    # Check if file is valid
-                    valid = is_valid(zip_file_name)
+                    if not os.path.exists(zip_file_name) or not valid:
+                        # Download from Copernicus
+                        download_sentinel_images(link, zip_file_name, user)
 
-                if not valid:
-                    raise IOError('Invalid zip file "{}"'.format(zip_file_name))
-                else:
-                    extractall(zip_file_name)
-                logging.debug('Done download.')
-                activity_args['file'] = extracted_file_path
+                        # Check if file is valid
+                        valid = is_valid(zip_file_name)
 
-            except ConnectionError as e:
-                logging.error('Connection error', e)
-                if os.path.exists(zip_file_name):
-                    os.remove(zip_file_name)
-                raise e
+                    if not valid:
+                        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+                    else:
+                        extractall(zip_file_name)
+                    logging.debug('Done download.')
+                    activity_args['file'] = extracted_file_path
 
-            except BaseException as e:
-                logging.error('An error occurred during task execution', e)
+                except ConnectionError as e:
+                    logging.error('Connection error', e)
+                    if os.path.exists(zip_file_name):
+                        os.remove(zip_file_name)
+                    raise e
 
-                raise e
-            finally:
-                activity_history.save()
+                except BaseException as e:
+                    logging.error('An error occurred during task execution', e)
+
+                    raise e
+                finally:
+                    activity_history.save()
 
         # Persist a collection item on database
         collection_item.save()
 
-        scene.update(dict(
-            file=extracted_file_path
-        ))
+        scene['args'] = activity_args
 
         # Create new activity 'correctionS2' to continue task chain
         scene['activity_type'] = 'correctionS2'
@@ -177,29 +205,12 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
-            restriction = dict(
-                id=scene['sceneid'],
-                tile_id=tile_id,
-                collection_id=collection.id,
-                grs_schema_id=collection.grs_schema_id
-            )
-
-            collection_params = dict(
-                composite_start=composite_date,
-                composite_end=composite_date,
-                cloud_cover=activity_args.get('cloud'),
-                scene_type='SCENE'
-            )
-            collection_params.update(restriction)
-
-            collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
-
             if version == 'sen2cor280':
-                correction_result = correction_sen2cor280( scene )
+                correction_result = correction_sen2cor280(scene)
             else:
-                correction_result = correction_sen2cor255( scene )
+                correction_result = correction_sen2cor255(scene)
             if correction_result is not None:
-                scene['file'] = correction_result
+                scene['args']['file'] = correction_result
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
@@ -207,13 +218,12 @@ class SentinelTask(celery_app.Task):
         finally:
             activity_history.save()
 
-        collection_item.save()
         scene['activity_type'] = 'publishS2'
 
         return scene
 
     def publish(self, scene):
-        #TODO: check if is already published before publishing
+        # TODO: check if is already published before publishing
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()
@@ -221,7 +231,7 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
-            publish(activity_history.activity)
+            publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             raise e
@@ -229,7 +239,7 @@ class SentinelTask(celery_app.Task):
             activity_history.save()
 
         # Create new activity 'uploadS2' to continue task chain
-        scene['app'] = 'uploadS2'
+        scene['activity_type'] = 'uploadS2'
 
         logging.debug('Done Publish Sentinel.')
 

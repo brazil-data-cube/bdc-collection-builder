@@ -16,7 +16,7 @@ from requests.exceptions import ConnectionError
 from requests import get as resource_get
 
 # BDC DB
-from bdc_db.models import CollectionItem
+from bdc_db.models import Collection, CollectionItem
 
 # BDC Scripts
 from bdc_scripts.config import Config
@@ -27,7 +27,7 @@ from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
 from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280, search_recent_sen2cor280
-from bdc_scripts.radcor.utils import get_task_activity
+from bdc_scripts.radcor.utils import get_task_activity, get_or_create_model
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -69,7 +69,7 @@ class SentinelTask(celery_app.Task):
         Performs download sentinel images from copernicus
 
         Args:
-            scene (dict) - Scene
+            scene (dict) - Scene containing activity
 
         Returns:
             dict Scene with sentinel file path
@@ -84,24 +84,37 @@ class SentinelTask(celery_app.Task):
 
             logging.debug('Starting Download {}...'.format(user.username))
 
+            activity_args = scene.get('args', dict())
+
             fragments = scene['sceneid'].split('_')
             year_month = fragments[2][:4] + '-' + fragments[2][4:6]
             tile_id = fragments[-2]
 
             # S2B_MSIL1C_20170920T133209_N0205_R081_T22LGR_20170920T133212
-            composite_date = datetime.strptime(fragments[2][:8], '%Y-%m-%dT')
+            composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
 
-            collection_item = CollectionItem(
+            collection = Collection.query().filter(Collection.id == scene.get('collection_id')).one()
+
+            restriction = dict(
+                id=scene['sceneid'],
                 tile_id=tile_id,
-                composite_start=composite_date,
-                composite_end=composite_date,
-                cloud_cover=scene.get('cloud'),
-                scene_type='SCENE'
+                collection_id=collection.id,
+                grs_schema_id=collection.grs_schema_id
             )
 
+            collection_params = dict(
+                composite_start=composite_date,
+                composite_end=composite_date,
+                cloud_cover=activity_args.get('cloud'),
+                scene_type='SCENE'
+            )
+            collection_params.update(restriction)
+
+            collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
+
             # Output product dir
-            product_dir = os.path.join(scene.get('file'), year_month)
-            link = scene['link']
+            product_dir = os.path.join(activity_args.get('file'), year_month)
+            link = activity_args['link']
             scene_id = scene['sceneid']
 
             zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
@@ -128,7 +141,7 @@ class SentinelTask(celery_app.Task):
                 else:
                     extractall(zip_file_name)
                 logging.debug('Done download.')
-                activity_history.activity.file = extracted_file_path
+                activity_args['file'] = extracted_file_path
 
             except ConnectionError as e:
                 logging.error('Connection error', e)
@@ -151,7 +164,7 @@ class SentinelTask(celery_app.Task):
         ))
 
         # Create new activity 'correctionS2' to continue task chain
-        scene['app'] = 'correctionS2'
+        scene['activity_type'] = 'correctionS2'
 
         return scene
 
@@ -164,6 +177,23 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
+            restriction = dict(
+                id=scene['sceneid'],
+                tile_id=tile_id,
+                collection_id=collection.id,
+                grs_schema_id=collection.grs_schema_id
+            )
+
+            collection_params = dict(
+                composite_start=composite_date,
+                composite_end=composite_date,
+                cloud_cover=activity_args.get('cloud'),
+                scene_type='SCENE'
+            )
+            collection_params.update(restriction)
+
+            collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
+
             if version == 'sen2cor280':
                 correction_result = correction_sen2cor280( scene )
             else:
@@ -177,7 +207,8 @@ class SentinelTask(celery_app.Task):
         finally:
             activity_history.save()
 
-        scene['app'] = 'publishS2'
+        collection_item.save()
+        scene['activity_type'] = 'publishS2'
 
         return scene
 

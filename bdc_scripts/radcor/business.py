@@ -4,6 +4,7 @@ import glob
 import logging
 
 # BDC Scripts
+from bdc_db.models.base_sql import db
 from bdc_scripts.config import Config
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
@@ -23,7 +24,7 @@ class RadcorBusiness:
 
     @classmethod
     def restart(cls, id):
-        activity = RadcorActivity.get(id=id)
+        activity = db.session.query(RadcorActivity).filter(RadcorActivity.id == id).one()
 
         # TODO: List tasks in celery and match if there are any dumb task
 

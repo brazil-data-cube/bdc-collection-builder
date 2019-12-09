@@ -12,8 +12,8 @@ from skimage.transform import resize
 import numpy
 
 # BDC Scripts
-from bdc_scripts.models import db
-from bdc_scripts.models import CatalogProduct, CatalogQlook, CatalogScene
+from bdc_db.models import db
+# from bdc_scripts.models import CatalogProduct, CatalogQlook, CatalogScene
 
 
 def publish(scene):

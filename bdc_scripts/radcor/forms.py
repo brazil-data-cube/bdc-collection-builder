@@ -25,7 +25,9 @@ class HistoryForm(ModelSchema):
 
 class RadcorActivityForm(ModelSchema):
     history = fields.Nested(HistoryForm, many=True)
+    collection_id = fields.Str()
 
     class Meta:
         model = RadcorActivity
         sqla_session = db.session
+        exclude = ('collection', )

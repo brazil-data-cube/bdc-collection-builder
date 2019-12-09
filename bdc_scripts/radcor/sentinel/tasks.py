@@ -60,15 +60,14 @@ class SentinelTask(celery_app.Task):
         return user
 
     def get_collection_item(self, activity):
-        scene_id = activity['sceneid']
+        scene_id = activity.sceneid
         fragments = scene_id.split('_')
         tile_id = fragments[-2]
-        activity_args = activity.get('args', dict())
 
         # Retrieve composite date of Collection Item
         composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
 
-        collection = Collection.query().filter(Collection.id == activity.get('collection_id')).one()
+        collection = Collection.query().filter(Collection.id == activity.collection_id).one()
 
         restriction = dict(
             id=scene_id,
@@ -81,7 +80,7 @@ class SentinelTask(celery_app.Task):
         collection_params = dict(
             composite_start=composite_date,
             composite_end=composite_date,
-            cloud_cover=activity_args.get('cloud'),
+            cloud_cover=activity.args.get('cloud'),
             scene_type='SCENE'
         )
         collection_params.update(restriction)

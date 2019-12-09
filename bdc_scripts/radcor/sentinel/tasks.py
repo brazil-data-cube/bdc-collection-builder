@@ -107,7 +107,7 @@ class SentinelTask(celery_app.Task):
             activity_history = get_task_activity()
             activity_history.start = datetime.utcnow()
             # Store environment variables in log execution
-            activity_history.env = os.environ
+            activity_history.env = dict(os.environ)
             activity_history.save()
 
             with db.session.no_autoflush:
@@ -205,10 +205,17 @@ class SentinelTask(celery_app.Task):
         activity_history.save()
 
         try:
+            params = dict(
+                id=scene['id'],
+                app=scene['activity_type'],
+                sceneid=scene['sceneid'],
+                file=scene['args']['file']
+            )
+
             if version == 'sen2cor280':
-                correction_result = correction_sen2cor280(scene)
+                correction_result = correction_sen2cor280(params)
             else:
-                correction_result = correction_sen2cor255(scene)
+                correction_result = correction_sen2cor255(params)
             if correction_result is not None:
                 scene['args']['file'] = correction_result
 

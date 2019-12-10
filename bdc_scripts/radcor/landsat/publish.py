@@ -97,7 +97,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             chunk_x, chunk_y = asset_band.GetBlockSize()
 
-            band_model = next(filter(lambda b: bandmap[band] in b.name, collection_bands), None)
+            band_model = next(filter(lambda b: band in b.common_name, collection_bands), None)
 
             defaults = dict(
                 url=template,

@@ -17,7 +17,7 @@ class RadcorActivity(BaseModel):
 
     # Relations
     collection = relationship('Collection')
-    history = relationship('RadcorActivityHistory', back_populates='activity')
+    history = relationship('RadcorActivityHistory', back_populates='activity', order_by='desc(RadcorActivityHistory.start)')
 
     @classmethod
     def get_historic_by_task(cls, task_id: str):

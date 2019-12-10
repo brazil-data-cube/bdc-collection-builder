@@ -164,7 +164,6 @@ class SentinelTask(RadcorTask):
 
         try:
             params = dict(
-                id=scene['id'],
                 app=scene['activity_type'],
                 sceneid=scene['sceneid'],
                 file=scene['args']['file']

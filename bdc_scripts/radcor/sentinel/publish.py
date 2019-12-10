@@ -15,6 +15,7 @@ from skimage.transform import resize
 from bdc_db.models import db, Asset, Band, CollectionItem
 from bdc_scripts.config import Config
 from bdc_scripts.core.utils import generate_cogs
+from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
 
 
@@ -90,12 +91,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
 
     with db.session.begin_nested():
-        # Delete Assets from collection item
-        Asset.query().filter(
-            Asset.collection_item_id == CollectionItem.id,
-            Asset.tile_id == CollectionItem.tile_id
-        ).delete()
-
         # Convert original format to COG
         for sband in bands:
             band = BAND_MAP[sband]
@@ -106,10 +101,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             files[band] = generate_cogs(file, cog_file_path)
 
-            # TODO: Should persist an asset for SCL and B09 bands?
-            if sband in ['SCL', 'B09']:
-                continue
-
             asset_dataset = gdal.Open(cog_file_path)
 
             raster_band = asset_dataset.GetRasterBand(1)
@@ -118,12 +109,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
 
-            asset = Asset(
-                collection_id=scene.collection_id,
-                band_id=band_model.id,
-                grs_schema_id=scene.collection.grs_schema_id,
-                tile_id=collection_item.tile_id,
-                collection_item_id=collection_item.id,
+            defaults = dict(
                 url=cog_file_path,
                 raster_size_x=asset_dataset.RasterXSize,
                 raster_size_y=asset_dataset.RasterYSize,
@@ -131,6 +117,14 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 chunk_size_t=1,
                 chunk_size_x=chunk_x,
                 chunk_size_y=chunk_y
+            )
+
+            asset, _ = get_or_create_model(Asset, defaults=defaults,
+                collection_id=scene.collection_id,
+                band_id=band_model.id,
+                grs_schema_id=scene.collection.grs_schema_id,
+                tile_id=collection_item.tile_id,
+                collection_item_id=collection_item.id,
             )
 
             asset.save(commit=False)

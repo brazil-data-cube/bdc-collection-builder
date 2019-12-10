@@ -13,6 +13,7 @@ import numpy
 
 # BDC Scripts
 from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
 
 # Get the product files
@@ -82,12 +83,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     write_png(pngname, image, transparent=(0, 0, 0))
 
     with db.session.begin_nested():
-        # Delete Assets from collection item
-        Asset.query().filter(
-            Asset.collection_item_id == CollectionItem.id,
-            Asset.tile_id == CollectionItem.tile_id
-        ).delete()
-
         collection_item.quicklook = pngname
         collection_item.save(commit=False)
 
@@ -104,12 +99,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             band_model = next(filter(lambda b: bandmap[band] in b.name, collection_bands), None)
 
-            asset = Asset(
-                collection_id=scene.collection_id,
-                band_id=band_model.id,
-                grs_schema_id=scene.collection.grs_schema_id,
-                tile_id=collection_item.tile_id,
-                collection_item_id=collection_item.id,
+            defaults = dict(
                 url=template,
                 raster_size_x=dataset.RasterXSize,
                 raster_size_y=dataset.RasterYSize,
@@ -117,6 +107,14 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 chunk_size_t=1,
                 chunk_size_x=chunk_x,
                 chunk_size_y=chunk_y
+            )
+
+            asset, _ = get_or_create_model(Asset, defaults=defaults,
+                collection_id=scene.collection_id,
+                band_id=band_model.id,
+                grs_schema_id=scene.collection.grs_schema_id,
+                tile_id=collection_item.tile_id,
+                collection_item_id=collection_item.id,
             )
 
             asset.save(commit=False)

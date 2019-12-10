@@ -29,8 +29,8 @@ class LandsatTask(RadcorTask):
 
     def download(self, scene):
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
+        activity_history.env = dict(os.environ)
         activity_history.save()
 
         try:
@@ -56,17 +56,10 @@ class LandsatTask(RadcorTask):
                 collection_item.cloud_cover = cloud
 
             activity_args['file'] = file
-
-            activity_history.activity.status = 'DONE'
-
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
 
             raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
 
         collection_item.save()
 
@@ -79,21 +72,15 @@ class LandsatTask(RadcorTask):
 
     def publish(self, scene):
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
         try:
-            publish(scene)
-            activity_history.activity.status = 'DONE'
+            publish(self.get_collection_item(activity_history.activity), scene)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
 
             raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
 
         scene['app'] = 'uploadLC8'
 
@@ -101,7 +88,6 @@ class LandsatTask(RadcorTask):
 
     def upload(self, scene):
         activity = get_task_activity()
-        activity.activity.status = 'DONE'
         activity.save()
 
     @staticmethod
@@ -114,7 +100,6 @@ class LandsatTask(RadcorTask):
 
     def correction(self, scene):
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
@@ -151,12 +136,8 @@ class LandsatTask(RadcorTask):
 
         except BaseException as e:
             logging.error('Error at ATM correction Landsat', e)
-            activity_history.activity.status = 'ERROR'
 
             raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
 
         scene['activity_type'] = 'publishLC8'
 

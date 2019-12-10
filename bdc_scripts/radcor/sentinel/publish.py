@@ -90,6 +90,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
 
+    source = scene.sceneid.split('_')[0]
+
     with db.session.begin_nested():
         # Convert original format to COG
         for sband in bands:
@@ -110,6 +112,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
 
             defaults = dict(
+                source=source,
                 url=cog_file_path,
                 raster_size_x=asset_dataset.RasterXSize,
                 raster_size_y=asset_dataset.RasterYSize,

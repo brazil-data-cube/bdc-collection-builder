@@ -50,6 +50,11 @@ class LandsatTask(RadcorTask):
 
             collection_item.compressed_file = file
 
+            cloud = activity_args.get('cloud')
+
+            if cloud:
+                collection_item.cloud_cover = cloud
+
             activity_args['file'] = file
 
             activity_history.activity.status = 'DONE'

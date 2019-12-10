@@ -109,6 +109,10 @@ class SentinelTask(RadcorTask):
                 extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
 
                 collection_item.compressed_file = zip_file_name
+                cloud = activity_args.get('cloud')
+
+                if cloud:
+                    collection_item.cloud_cover = cloud
 
                 try:
                     valid = True

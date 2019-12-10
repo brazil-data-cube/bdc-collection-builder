@@ -91,7 +91,8 @@ class RadcorBusiness:
                     args=dict(
                         link=scene['link'],
                         file=base_dir,
-                        satellite='LC8'
+                        satellite='LC8',
+                        cloud=scene.get('cloud')
                     )
                 )
 
@@ -128,7 +129,8 @@ class RadcorBusiness:
                     args=dict(
                         link=scene['link'],
                         file=base_dir,
-                        satellite='S2'
+                        satellite='S2',
+                        cloud=scene.get('cloud')
                     )
                 )
 

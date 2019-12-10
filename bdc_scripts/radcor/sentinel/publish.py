@@ -112,8 +112,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
 
-            print(band_model, sband)
-
             asset = Asset(
                 collection_id=scene.collection_id,
                 band_id=band_model.id,

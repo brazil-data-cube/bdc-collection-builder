@@ -18,6 +18,7 @@ from bdc_db.models import db, Collection, CollectionItem
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
+from bdc_scripts.radcor.base_task import RadcorTask
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
@@ -28,7 +29,7 @@ from bdc_scripts.radcor.utils import get_task_activity, get_or_create_model
 lock = lock_handler.lock('sentinel_download_lock_4')
 
 
-class SentinelTask(celery_app.Task):
+class SentinelTask(RadcorTask):
     def get_user(self):
         """
         Tries to get an iddle user to download images.
@@ -59,35 +60,15 @@ class SentinelTask(celery_app.Task):
 
         return user
 
-    def get_collection_item(self, activity):
-        scene_id = activity.sceneid
+    def get_tile_id(self, scene_id, **kwargs):
         fragments = scene_id.split('_')
-        tile_id = fragments[-2]
+        return fragments[-2][1:]
+
+    def get_tile_date(self, scene_id, **kwargs):
+        fragments = scene_id.split('_')
 
         # Retrieve composite date of Collection Item
-        composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
-
-        collection = Collection.query().filter(Collection.id == activity.collection_id).one()
-
-        restriction = dict(
-            id=scene_id,
-            tile_id=tile_id[1:],
-            collection_id=collection.id,
-            grs_schema_id=collection.grs_schema_id,
-            item_date=composite_date.date()
-        )
-
-        collection_params = dict(
-            composite_start=composite_date,
-            composite_end=composite_date,
-            cloud_cover=activity.args.get('cloud'),
-            scene_type='SCENE'
-        )
-        collection_params.update(restriction)
-
-        collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
-
-        return collection_item
+        return datetime.strptime(fragments[2][:8], '%Y%m%d')
 
     def download(self, scene):
         """
@@ -114,32 +95,10 @@ class SentinelTask(celery_app.Task):
 
                 activity_args = scene.get('args', dict())
 
+                collection_item = self.get_collection_item(activity_history.activity)
+
                 fragments = scene['sceneid'].split('_')
                 year_month = fragments[2][:4] + '-' + fragments[2][4:6]
-                tile_id = fragments[-2]
-
-                # Retrieve composite date of Collection Item
-                composite_date = datetime.strptime(fragments[2][:8], '%Y%m%d')
-
-                collection = Collection.query().filter(Collection.id == scene.get('collection_id')).one()
-
-                restriction = dict(
-                    id=scene['sceneid'],
-                    tile_id=tile_id[1:],
-                    collection_id=collection.id,
-                    grs_schema_id=collection.grs_schema_id,
-                    item_date=composite_date.date()
-                )
-
-                collection_params = dict(
-                    composite_start=composite_date,
-                    composite_end=composite_date,
-                    cloud_cover=activity_args.get('cloud'),
-                    scene_type='SCENE'
-                )
-                collection_params.update(restriction)
-
-                collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
 
                 # Output product dir
                 product_dir = os.path.join(activity_args.get('file'), year_month)

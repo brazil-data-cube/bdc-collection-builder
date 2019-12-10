@@ -90,6 +90,12 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
 
     with db.session.begin_nested():
+        # Delete Assets from collection item
+        Asset.query().filter(
+            Asset.collection_item_id == CollectionItem.id,
+            Asset.tile_id == CollectionItem.tile_id
+        ).delete()
+
         # Convert original format to COG
         for sband in bands:
             band = BAND_MAP[sband]

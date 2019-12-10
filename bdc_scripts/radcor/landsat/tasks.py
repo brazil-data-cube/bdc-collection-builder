@@ -11,12 +11,22 @@ from requests import get as resource_get
 # BDC Scripts
 from bdc_scripts.celery import celery_app
 from bdc_scripts.config import Config
+from bdc_scripts.radcor.base_task import RadcorTask
 from bdc_scripts.radcor.landsat.download import download_landsat_images
 from bdc_scripts.radcor.landsat.publish import publish
 from bdc_scripts.radcor.utils import get_task_activity
 
 
-class LandsatTask(celery_app.Task):
+class LandsatTask(RadcorTask):
+    def get_tile_id(self, scene_id, **kwargs):
+        fragments = scene_id.split('_')
+        return fragments[2]
+
+    def get_tile_date(self, scene_id, **kwargs):
+        fragments = scene_id.split('_')
+
+        return datetime.strptime(fragments[3], '%Y%m%d')
+
     def download(self, scene):
         activity_history = get_task_activity()
         activity_history.activity.status = 'DOING'
@@ -24,19 +34,24 @@ class LandsatTask(celery_app.Task):
         activity_history.save()
 
         try:
-            cc = scene['sceneid'].split('_')
-            pathrow = cc[2]
-            yyyymm = cc[3][:4]+'-'+cc[3][4:6]
+            scene_id = scene['sceneid']
+            yyyymm = self.get_tile_date(scene_id).strftime('%Y-%m')
+            activity_args = scene.get('args', {})
+
+            collection_item = self.get_collection_item(activity_history.activity)
 
             # Output product dir
-            productdir = os.path.join(scene.get('file'), '{}/{}'.format(yyyymm, pathrow))
+            productdir = os.path.join(activity_args.get('file'), '{}/{}'.format(yyyymm, self.get_tile_id(scene_id)))
 
             if not os.path.exists(productdir):
                 os.makedirs(productdir)
 
-            link = scene['link']
+            file = download_landsat_images(activity_args['link'], productdir)
 
-            file = download_landsat_images(link, productdir)
+            collection_item.compressed_file = file
+
+            activity_args['file'] = file
+
             activity_history.activity.status = 'DONE'
 
         except BaseException as e:
@@ -48,11 +63,12 @@ class LandsatTask(celery_app.Task):
             activity_history.end = datetime.utcnow()
             activity_history.save()
 
-        scene.update(dict(
-            file=file
-        ))
+        collection_item.save()
 
-        scene['app'] = 'correctionLC8'
+        scene['args'] = activity_args
+
+        # Create new activity 'correctionS2' to continue task chain
+        scene['activity_type'] = 'correctionLC8'
 
         return scene
 
@@ -98,17 +114,26 @@ class LandsatTask(celery_app.Task):
         activity_history.save()
 
         try:
+            params = dict(
+                id=scene['id'],
+                app=scene['activity_type'],
+                sceneid=scene['sceneid'],
+                file=scene['args']['file']
+            )
+
             # Send scene to the ESPA service
-            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=scene)
+            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
             # Ensure the request has been successfully
             assert req.status_code == 200
 
-            cc = scene['sceneid'].split('_')
-            pathrow = cc[2]
-            date = cc[3]
-            yyyymm = cc[3][:4]+'-'+cc[3][4:6]
+            scene_id = scene['sceneid']
+            pathrow = self.get_tile_id(scene_id)
+            tile_date = self.get_tile_date(scene_id)
+            yyyymm = tile_date.strftime('%Y-%m')
+            date = tile_date.strftime('%Y-%m-d')
+
             # Product dir
-            productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/LC8SR/{}/{}'.format(yyyymm, pathrow))
+            productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(scene['collection_id'], yyyymm, pathrow))
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
 
@@ -118,7 +143,7 @@ class LandsatTask(celery_app.Task):
 
             activity_history.activity.status = 'DONE'
 
-            scene['file'] = productdir
+            scene['args']['file'] = productdir
 
         except BaseException as e:
             logging.error('Error at ATM correction Landsat', e)
@@ -129,7 +154,7 @@ class LandsatTask(celery_app.Task):
             activity_history.end = datetime.utcnow()
             activity_history.save()
 
-        scene['app'] = 'publishLC8'
+        scene['activity_type'] = 'publishLC8'
 
         return scene
 

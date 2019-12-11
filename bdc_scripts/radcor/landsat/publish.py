@@ -96,7 +96,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
 
-            if band_model:
+            if not band_model:
                 logging.warning('Band {} of collection {} not found in database. Skipping...'.format(
                     band, collection_item.collection_id))
                 continue

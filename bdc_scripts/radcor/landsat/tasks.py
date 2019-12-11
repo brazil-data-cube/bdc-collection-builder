@@ -111,9 +111,9 @@ class LandsatTask(RadcorTask):
             )
 
             # Send scene to the ESPA service
-            # req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
+            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
             # Ensure the request has been successfully
-            # assert req.status_code == 200
+            assert req.status_code == 200
 
             scene_id = scene['sceneid']
             pathrow = self.get_tile_id(scene_id)

@@ -1,12 +1,10 @@
 # Python Native
-import datetime
 import glob
-import os
+import logging
 
 # 3rdparty
 from gdal import GA_ReadOnly, Open as GDALOpen
 from numpngw import write_png
-from ogr import osr
 from skimage import exposure
 from skimage.transform import resize
 import numpy
@@ -15,6 +13,7 @@ import numpy
 from bdc_db.models import db, Asset, Band, CollectionItem
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
+
 
 # Get the product files
 bandmap= {
@@ -68,7 +67,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
         del dataset
 
-        # raster = scipy.misc.imresize(raster,(numlin,numcol))
         raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
         nodata = raster == -9999
         # Evaluate minimum and maximum values
@@ -76,7 +74,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         p1, p99 = numpy.percentile(a[a>0], (1, 99))
         # Convert minimum and maximum values to 1,255 - 0 is nodata
         raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1, 255)).astype(numpy.uint8)
-        # app.logger.warning('publishLC8 - band {} p1 {} p99 {}'.format(band,p1,p99))
         image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
         nb += 1
 
@@ -97,7 +94,12 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             chunk_x, chunk_y = asset_band.GetBlockSize()
 
-            band_model = next(filter(lambda b: band in b.common_name, collection_bands), None)
+            band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
+
+            if band_model:
+                logging.warning('Band {} of collection {} not found in database. Skipping...'.format(
+                    band, collection_item.collection_id))
+                continue
 
             defaults = dict(
                 url=template,

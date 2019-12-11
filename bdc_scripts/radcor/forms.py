@@ -31,10 +31,14 @@ class HistoryForm(ModelSchema):
 
 
 class RadcorActivityForm(ModelSchema):
-    history = fields.Nested(HistoryForm, many=True)
+    # history = fields.Nested(HistoryForm, many=True)
+    last_execution = fields.Method('dump_last_execution')
     collection_id = fields.Str()
 
     class Meta:
         model = RadcorActivity
         sqla_session = db.session
-        exclude = ('collection', )
+        exclude = ('collection', 'history')
+
+    def dump_last_execution(self, obj):
+        return HistoryForm().dump(obj.history[0]) if len(obj.history) > 0 else None

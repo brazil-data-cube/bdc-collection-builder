@@ -44,9 +44,9 @@ class RadcorTask(celery_app.Task):
             composite_start=composite_date,
             composite_end=composite_date,
             cloud_cover=activity.args.get('cloud'),
-            scene_type='SCENE'
+            scene_type='SCENE',
+            **restriction
         )
-        collection_params.update(restriction)
 
         collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
 

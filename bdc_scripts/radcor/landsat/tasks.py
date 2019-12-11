@@ -76,7 +76,7 @@ class LandsatTask(RadcorTask):
         activity_history.save()
 
         try:
-            publish(self.get_collection_item(activity_history.activity), scene)
+            publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
 
@@ -111,26 +111,23 @@ class LandsatTask(RadcorTask):
             )
 
             # Send scene to the ESPA service
-            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
+            # req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
             # Ensure the request has been successfully
-            assert req.status_code == 200
+            # assert req.status_code == 200
 
             scene_id = scene['sceneid']
             pathrow = self.get_tile_id(scene_id)
             tile_date = self.get_tile_date(scene_id)
             yyyymm = tile_date.strftime('%Y-%m')
-            date = tile_date.strftime('%Y-%m-d')
+            date = tile_date.strftime('%Y%m%d')
 
             # Product dir
             productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(scene['collection_id'], yyyymm, pathrow))
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
 
-            while not LandsatTask.espa_done(productdir, pathrow, date):
-                logging.debug('Atmospheric correction is not done yet...')
-                time.sleep(5)
-
-            activity_history.activity.status = 'DONE'
+            if not LandsatTask.espa_done(productdir, pathrow, date):
+                raise RuntimeError('Error in atmospheric correction')
 
             scene['args']['file'] = productdir
 

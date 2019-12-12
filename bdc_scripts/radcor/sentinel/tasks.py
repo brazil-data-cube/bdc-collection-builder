@@ -10,6 +10,7 @@ import shutil
 import time
 from datetime import datetime
 from json import loads as json_parser
+from zipfile import ZipFile
 
 # 3rdparty
 from requests.exceptions import ConnectionError
@@ -91,8 +92,6 @@ class SentinelTask(celery_app.Task):
             scene_id = scene['sceneid']
 
             zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
-            extracted_file_path = os.path.join(product_dir, '{}.SAFE'.format(scene_id))
-            
             try:
                 valid = True
 
@@ -111,6 +110,10 @@ class SentinelTask(celery_app.Task):
                     raise IOError('Invalid zip file "{}"'.format(zip_file_name))
                 else:
                     extractall(zip_file_name)
+                ### Get extracted zip folder name
+                with ZipFile(zip_file_name) as zipObj:
+                    listOfiles = zipObj.namelist()
+                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))
                 logging.debug('Done download.')
                 activity_history.activity.status = 'DONE'
                 activity_history.activity.file = extracted_file_path

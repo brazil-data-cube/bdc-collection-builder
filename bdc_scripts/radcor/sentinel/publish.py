@@ -52,7 +52,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     for jp2file in sorted(jp2files):
         filename = os.path.basename(jp2file)
         parts = filename.split('_')
-        band = parts[-2]
+        band = parts[-2] if collection_item.collection_id == 'S2SR' else parts[-1].replace(b'.jp2', b'')
 
         if band not in bands and band in SENTINEL_BANDS:
             bands.append(band)
@@ -215,7 +215,7 @@ def filter_jp2_files(directory, pattern):
 
 def get_jp2_files(scene: RadcorActivity):
     # Find all jp2 files in L2A SAFE
-    sentinel_folder_data = scene.args.get('file', '').replace('MSIL1C', 'MSIL2A')
+    sentinel_folder_data = scene.args.get('file', '')
     template = "T*.jp2"
     jp2files = [os.path.join(dirpath, f)
                 for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))

@@ -4,11 +4,11 @@ import json
 import logging
 
 # 3rdparty
-from celery import chain, current_task
+from celery import chain, current_task, group
 import requests
 
 # BDC Scripts
-from bdc_db.models import db
+from bdc_db.models import db, Collection
 from bdc_scripts.radcor.models import RadcorActivityHistory
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 
@@ -54,10 +54,27 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
+        # We are assuming that collection is not TOA or DN
+        source_collection = Collection.query().filter(Collection.id == 'S2_TOA').first()
+
+        raw_data_chain = None
+
+        if source_collection:
+            source_activity = dict(**activity)
+            source_activity['collection_id'] = source_collection.id
+
+            raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
+
+        atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
+            sentinel_tasks.upload_sentinel.s()
+
         task_chain = sentinel_tasks.download_sentinel.s(activity) | \
-                        sentinel_tasks.atm_correction.s() | \
-                        sentinel_tasks.publish_sentinel.s() | \
-                        sentinel_tasks.upload_sentinel.s()
+            group([
+                # Publish raw data
+                raw_data_chain,
+                # ATM Correction
+                atm_chain
+            ])
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \

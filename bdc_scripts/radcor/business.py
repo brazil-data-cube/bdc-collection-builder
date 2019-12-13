@@ -3,11 +3,14 @@ from os import path as resource_path
 import glob
 import logging
 
+# 3rdparty
+from sqlalchemy import or_
+
 # BDC Scripts
 from bdc_db.models.base_sql import db
 from bdc_scripts.config import Config
 from bdc_scripts.radcor.forms import RadcorActivityForm
-from bdc_scripts.radcor.models import RadcorActivity
+from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes
 
 # Consts
@@ -23,18 +26,26 @@ class RadcorBusiness:
         return dispatch(activity)
 
     @classmethod
-    def restart(cls, id):
-        activity = db.session.query(RadcorActivity).filter(RadcorActivity.id == id).one()
+    def restart(cls, ids=None, status=None, activity_type=None):
+        restrictions = []
 
-        # TODO: List tasks in celery and match if there are any dumb task
+        if ids:
+            restrictions.append(or_(RadcorActivity.id == id for id in ids))
 
-        # Skip pending or started tasks
+        if status:
+            restrictions.append(RadcorActivityHistory.task.has(status=status))
 
-        dumps = RadcorActivityForm().dump(activity)
+        if activity_type:
+            restrictions.append(RadcorActivity.activity_type == activity_type)
 
-        cls.start(dumps)
+        activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
-        return activity
+        for activity in activities:
+            dumps = RadcorActivityForm().dump(activity)
+
+            cls.start(dumps)
+
+        return activities
 
     @classmethod
     def radcor(cls, collection_id: str, args: dict):

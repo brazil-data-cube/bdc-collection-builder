@@ -12,13 +12,14 @@ from datetime import datetime
 from requests.exceptions import ConnectionError
 
 # BDC DB
-from bdc_db.models import db, Collection, CollectionItem
+from bdc_db.models import db
 
 # BDC Scripts
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
 from bdc_scripts.radcor.base_task import RadcorTask
+from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
@@ -88,7 +89,10 @@ class SentinelTask(RadcorTask):
             activity_history.start = datetime.utcnow()
             # Store environment variables in log execution
             activity_history.env = dict(os.environ)
+
+            activity_history.activity.collection_id = 'S2_TOA'
             activity_history.save()
+            scene['collection_id'] = 'S2_TOA'
 
             with db.session.no_autoflush:
                 logging.debug('Starting Download {}...'.format(user.username))
@@ -145,12 +149,11 @@ class SentinelTask(RadcorTask):
                     logging.error('An error occurred during task execution', e)
 
                     raise e
-                finally:
-                    activity_history.save()
 
         # Persist a collection item on database
         collection_item.save()
 
+        activity_args.pop('link')
         scene['args'] = activity_args
 
         # Create new activity 'correctionS2' to continue task chain
@@ -162,8 +165,13 @@ class SentinelTask(RadcorTask):
         logging.debug('Starting Correction Sentinel...')
         version = 'sen2cor280'
 
+        # Set Collection to the Sentinel Surface Reflectance
+        scene['collection_id'] = 'S2SR'
+
         activity_history = get_task_activity()
+        activity_history.activity.activity_type = 'correctionS2'
         activity_history.start = datetime.utcnow()
+        activity_history.activity.collection_id = scene['collection_id']
         activity_history.save()
 
         try:
@@ -191,12 +199,23 @@ class SentinelTask(RadcorTask):
         return scene
 
     def publish(self, scene):
-        # TODO: check if is already published before publishing
+        """
+
+        Args
+            scene: Activity
+            source_data_activity: Activity related with level 1 data set (Top Of Atmosphere)
+        """
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()
+        activity_history.activity.activity_type = 'publishS2'
         activity_history.start = datetime.utcnow()
         activity_history.save()
+
+        collection = self.get_collection(activity_history.activity)
+
+        if collection.id == 'S2_TOA':
+            raise RuntimeError('Could not publish {}'.format(collection.id))
 
         try:
             publish(self.get_collection_item(activity_history.activity), activity_history.activity)

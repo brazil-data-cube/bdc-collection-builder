@@ -113,7 +113,7 @@ class SentinelTask(celery_app.Task):
                 ### Get extracted zip folder name
                 with ZipFile(zip_file_name) as zipObj:
                     listOfiles = zipObj.namelist()
-                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))
+                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
                 logging.debug('Done download.')
                 activity_history.activity.status = 'DONE'
                 activity_history.activity.file = extracted_file_path

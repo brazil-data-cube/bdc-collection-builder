@@ -191,20 +191,12 @@ class SentinelTask(RadcorTask):
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             raise e
-        finally:
-            activity_history.save()
 
         scene['activity_type'] = 'publishS2'
 
         return scene
 
     def publish(self, scene):
-        """
-
-        Args
-            scene: Activity
-            source_data_activity: Activity related with level 1 data set (Top Of Atmosphere)
-        """
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()
@@ -214,16 +206,11 @@ class SentinelTask(RadcorTask):
 
         collection = self.get_collection(activity_history.activity)
 
-        if collection.id == 'S2_TOA':
-            raise RuntimeError('Could not publish {}'.format(collection.id))
-
         try:
             publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             raise e
-        finally:
-            activity_history.save()
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'

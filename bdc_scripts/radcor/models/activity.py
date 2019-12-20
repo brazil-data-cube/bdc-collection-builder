@@ -1,28 +1,23 @@
-from sqlalchemy import Column, DateTime, Integer, String, Time
+from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, JSON, String, Time
 from sqlalchemy.orm import relationship
 
-from bdc_scripts.models.base_sql import BaseModel
+from bdc_db.models.base_sql import BaseModel
 
 
 class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
-    __table_args__ = dict(schema='radcor')
 
     id = Column(Integer, primary_key=True)
-    app = Column('app', String(64), nullable=False)
+    collection_id = Column(ForeignKey('collections.id'), nullable=False)
+    activity_type = Column('activity_type', String(64), nullable=False)
+    args = Column('args', JSON)
+    tags = Column('tags', ARRAY(String))
+    scene_type = Column('scene_type', String)
     sceneid = Column('sceneid', String(64), nullable=False)
-    satellite = Column('satellite', String(8))
-    priority = Column('priority', Integer)
-    status = Column('status', String(16))
-    link = Column('link', String(256))
-    file = Column('file', String(128))
-    start = Column('start', DateTime)
-    end = Column('end', DateTime)
-    elapsed = Column('elapsed', Time)
-    retcode = Column('retcode', Integer)
-    message = Column('message', String(512))
 
-    history = relationship('RadcorActivityHistory', back_populates='activity')
+    # Relations
+    collection = relationship('Collection')
+    history = relationship('RadcorActivityHistory', back_populates='activity', order_by='desc(RadcorActivityHistory.start)')
 
     @classmethod
     def get_historic_by_task(cls, task_id: str):

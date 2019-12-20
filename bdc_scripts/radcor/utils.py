@@ -4,12 +4,39 @@ import json
 import logging
 
 # 3rdparty
-from celery import chain, current_task
+from celery import chain, current_task, group
 import requests
 
 # BDC Scripts
+from bdc_db.models import db, Collection
 from bdc_scripts.radcor.models import RadcorActivityHistory
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
+
+
+def get_or_create_model(model_class, defaults=None, **restrictions):
+    """
+    Utility method for looking up an object with the given restrictions, creating
+    one if necessary.
+    Args:
+        model_class (BaseModel) - Base Model of Brazil Data Cube DB
+        defaults (dict) - Values to fill out model instance
+        restrictions (dict) - Query Restrictions
+    Returns:
+        BaseModel Retrieves model instance
+    """
+
+    instance = model_class.query().filter_by(**restrictions).first()
+
+    if instance:
+        return instance, False
+
+    params = dict((k, v) for k, v in restrictions.items())
+    params.update(defaults or {})
+    instance = model_class(**params)
+
+    db.session.add(instance)
+
+    return instance, True
 
 
 def dispatch(activity: dict):
@@ -24,13 +51,28 @@ def dispatch(activity: dict):
     """
     # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
-    app = activity.get('app')
+    app = activity.get('activity_type')
 
     if app == 'downloadS2':
+        # We are assuming that collection either TOA or DN
+        collection_sr = Collection.query().filter(Collection.id == 'S2SR').first()
+
+        if collection_sr is None:
+            raise RuntimeError('The collection "S2SR" not found')
+
+        # Raw chain represents TOA publish chain
+        raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
+
+        atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
+            sentinel_tasks.upload_sentinel.s()
+
         task_chain = sentinel_tasks.download_sentinel.s(activity) | \
-                        sentinel_tasks.atm_correction.s() | \
-                        sentinel_tasks.publish_sentinel.s() | \
-                        sentinel_tasks.upload_sentinel.s()
+            group([
+                # Publish raw data
+                raw_data_chain,
+                # ATM Correction
+                atm_chain
+            ])
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \

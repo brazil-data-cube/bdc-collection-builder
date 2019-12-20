@@ -15,10 +15,10 @@ from celery.backends.database import Task
 from celery.states import PENDING
 
 # BDC Scripts
+from bdc_db.models import db
 from bdc_scripts import create_app
 from bdc_scripts.celery import create_celery_app
 from bdc_scripts.celery.utils import TaskActivityFactory
-from bdc_scripts.models import db
 
 
 app = create_app()
@@ -56,7 +56,7 @@ def on_received_store_in_db(sender, request, **kwargs):
                 arguments = request._payload[0]
 
                 if len(arguments) > 0:
-                    context_name = arguments[0].get('app')
+                    context_name = arguments[0].get('activity_type')
 
                     # Retrieving task handler (creator)
                     handler = TaskActivityFactory.get(context_name) or noop

@@ -11,8 +11,8 @@ import click
 from flask.cli import FlaskGroup, with_appcontext
 from flask_migrate.cli import db as flask_migrate_db
 from sqlalchemy_utils.functions import create_database, database_exists
+from bdc_db.models import db
 from bdc_scripts import create_app
-from bdc_scripts.models import db
 
 
 def create_cli(create_app=None):

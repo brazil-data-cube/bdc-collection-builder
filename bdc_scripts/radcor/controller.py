@@ -1,9 +1,10 @@
 # 3rdparty
 from flask import request
 from flask_restplus import Namespace, Resource
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, NotFound
 
 # BDC Scripts
+from bdc_db.models.collection import Collection
 from bdc_scripts.celery.utils import list_pending_tasks, list_running_tasks
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity
@@ -19,14 +20,14 @@ class RadcorController(Resource):
     def get(self):
         """Retrieves all radcor activities from database"""
 
-        activities = RadcorActivity.filter()
+        activities = RadcorActivity.query().all()
 
         return RadcorActivityForm().dump(activities, many=True)
 
     def post(self):
         """
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/
         """
 
@@ -41,11 +42,6 @@ class RadcorController(Resource):
         # Prepare radcor activity and start
         result = RadcorBusiness.radcor(args)
 
-        # if 'LC8' in args.get('satsen') or 'LC8SR' in args.get('satsen'):
-        #     result = filter(result,tags=['cloud','date','status'])
-        # else:
-        #     result = filter(result)
-
         tile = '{}-{}-{}'.format(args['tileid'], args['start'], args['end'])
 
         scenes = {
@@ -59,7 +55,15 @@ class RadcorController(Resource):
 @api.route('/restart')
 class RadcorRestartController(Resource):
     def get(self):
-        RadcorBusiness.restart(id=request.args.get('id'))
+        args = request.args.to_dict()
+
+        if 'id' in args:
+            args['ids'] = args['id']
+
+        if 'ids' in args:
+            args['ids'] = args['ids'].split(',')
+
+        RadcorBusiness.restart(**args)
 
         return dict()
 

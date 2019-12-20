@@ -8,13 +8,14 @@ This package contains definitions to work with satellite collections:
 
 from bdc_scripts.celery.utils import TaskActivityFactory
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
+from bdc_scripts.radcor.utils import get_or_create_model
 
 
 def create_activity(task, activity, *args, **kwargs):
     """
     Creates a radcor activity once a celery task is received.
     Make sure to attach this function at TaskActivityFactory using
-    app name.
+    activity type.
 
     Args:
         task (celery.backends.database.models.Task) - Celery Task model instance
@@ -22,11 +23,18 @@ def create_activity(task, activity, *args, **kwargs):
         *args - Arguments order
         **kwargs - Extra parameters
     """
+
     where = dict(
         sceneid=activity.get('sceneid'),
-        app=activity.get('app')
+        activity_type=activity.get('activity_type'),
+        collection_id=activity.get('collection_id')
     )
-    activity_model, _ = RadcorActivity.get_or_create(defaults=activity, **where)
+
+    activity.pop('history', None)
+    activity.pop('id', None)
+    activity.pop('last_execution', None)
+
+    activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
 
     model = RadcorActivityHistory()
 

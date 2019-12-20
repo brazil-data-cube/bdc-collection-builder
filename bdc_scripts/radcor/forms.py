@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_scripts.models import db
+from bdc_db.models import db
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 
 
@@ -13,23 +13,32 @@ class TaskSchema(Schema):
 
 
 class HistoryForm(ModelSchema):
-    task_status = fields.Method('dump_status')
+    status = fields.Method('dump_status')
+    end = fields.Method('dump_end')
 
     def dump_status(self, obj):
         return obj.task.status
 
-    class Meta:
-        model = RadcorActivity
-        sqla_session = db.session
-    # start_date = fields.DateTime()
-    # end_date = fields.DateTime()
+    def dump_end(self, obj):
+        end_date = obj.task.date_done
 
-    # task = fields.Nested(TaskSchema, many=False)
+        return str(end_date or '')
+
+    class Meta:
+        model = RadcorActivityHistory
+        sqla_session = db.session
+        exclude = ('activity', )
 
 
 class RadcorActivityForm(ModelSchema):
-    history = fields.Nested(HistoryForm, many=True)
+    # history = fields.Nested(HistoryForm, many=True)
+    last_execution = fields.Method('dump_last_execution')
+    collection_id = fields.Str()
 
     class Meta:
         model = RadcorActivity
         sqla_session = db.session
+        exclude = ('collection', 'history')
+
+    def dump_last_execution(self, obj):
+        return HistoryForm().dump(obj.history[0]) if len(obj.history) > 0 else None

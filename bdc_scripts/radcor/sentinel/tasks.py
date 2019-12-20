@@ -3,35 +3,35 @@ Describes the Celery Tasks definition of Sentinel products
 """
 
 # Python Native
-import glob
 import logging
 import os
-import shutil
 import time
 from datetime import datetime
-from json import loads as json_parser
 from zipfile import ZipFile
 
 # 3rdparty
 from requests.exceptions import ConnectionError
-from requests import get as resource_get
+
+# BDC DB
+from bdc_db.models import db
 
 # BDC Scripts
-from bdc_scripts.config import Config
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
 from bdc_scripts.core.utils import extractall, is_valid
+from bdc_scripts.radcor.base_task import RadcorTask
+from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
-from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280, search_recent_sen2cor280
-from bdc_scripts.radcor.utils import get_task_activity
+from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
+from bdc_scripts.radcor.utils import get_task_activity, get_or_create_model
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
 
-class SentinelTask(celery_app.Task):
+class SentinelTask(RadcorTask):
     def get_user(self):
         """
         Tries to get an iddle user to download images.
@@ -62,84 +62,108 @@ class SentinelTask(celery_app.Task):
 
         return user
 
+    def get_tile_id(self, scene_id, **kwargs):
+        fragments = scene_id.split('_')
+        return fragments[-2][1:]
+
+    def get_tile_date(self, scene_id, **kwargs):
+        fragments = scene_id.split('_')
+
+        # Retrieve composite date of Collection Item
+        return datetime.strptime(fragments[2][:8], '%Y%m%d')
+
     def download(self, scene):
         """
         Performs download sentinel images from copernicus
 
         Args:
-            scene (dict) - Scene
+            scene (dict) - Scene containing activity
 
         Returns:
             dict Scene with sentinel file path
         """
 
-        # Persist the activity to done
-        activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
-
         # Acquire User to download
         with self.get_user() as user:
-            logging.debug('Starting Download {}...'.format(user.username))
+            # Persist the activity to done
+            activity_history = get_task_activity()
+            activity_history.start = datetime.utcnow()
+            # Store environment variables in log execution
+            activity_history.env = dict(os.environ)
 
-            cc = scene['sceneid'].split('_')
-            year_month = cc[2][:4] + '-' + cc[2][4:6]
+            activity_history.activity.collection_id = 'S2_TOA'
+            activity_history.save()
+            scene['collection_id'] = 'S2_TOA'
 
-            # Output product dir
-            product_dir = os.path.join(scene.get('file'), year_month)
-            link = scene['link']
-            scene_id = scene['sceneid']
+            with db.session.no_autoflush:
+                logging.debug('Starting Download {}...'.format(user.username))
 
-            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
-            try:
-                valid = True
+                activity_args = scene.get('args', dict())
 
-                if os.path.exists(zip_file_name):
-                    logging.debug('zip file exists')
-                    valid = is_valid(zip_file_name)
+                collection_item = self.get_collection_item(activity_history.activity)
 
-                if not os.path.exists(zip_file_name) or not valid:
-                    # Download from Copernicus
-                    download_sentinel_images(link, zip_file_name, user)
+                fragments = scene['sceneid'].split('_')
+                year_month = fragments[2][:4] + '-' + fragments[2][4:6]
 
-                    # Check if file is valid
-                    valid = is_valid(zip_file_name)
+                # Output product dir
+                product_dir = os.path.join(activity_args.get('file'), year_month)
+                link = activity_args['link']
+                scene_id = scene['sceneid']
 
-                if not valid:
-                    raise IOError('Invalid zip file "{}"'.format(zip_file_name))
-                else:
-                    extractall(zip_file_name)
-                ### Get extracted zip folder name
-                with ZipFile(zip_file_name) as zipObj:
-                    listOfiles = zipObj.namelist()
-                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
-                logging.debug('Done download.')
-                activity_history.activity.status = 'DONE'
-                activity_history.activity.file = extracted_file_path
+                zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
 
-            except ConnectionError as e:
-                logging.error('Connection error')
-                activity_history.activity.status = 'ERROR'
-                if os.path.exists(zip_file_name):
-                    os.remove(zip_file_name)
-                raise
+                collection_item.compressed_file = zip_file_name
+                cloud = activity_args.get('cloud')
 
-            except BaseException as e:
-                logging.error('An error occurred during task execution', e)
-                activity_history.activity.status = 'ERROR'
+                if cloud:
+                    collection_item.cloud_cover = cloud
 
-                raise e
-            finally:
-                activity_history.end = datetime.utcnow()
-                activity_history.save()
+                try:
+                    valid = True
 
-        scene.update(dict(
-            file=extracted_file_path
-        ))
+                    if os.path.exists(zip_file_name):
+                        logging.debug('zip file exists')
+                        valid = is_valid(zip_file_name)
+
+                    if not os.path.exists(zip_file_name) or not valid:
+                        # Download from Copernicus
+                        download_sentinel_images(link, zip_file_name, user)
+
+                        # Check if file is valid
+                        valid = is_valid(zip_file_name)
+
+                    if not valid:
+                        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+                    else:
+                        extractall(zip_file_name)
+
+                    ### Get extracted zip folder name
+                    with ZipFile(zip_file_name) as zipObj:
+                        listOfiles = zipObj.namelist()
+                        extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
+
+                    logging.debug('Done download.')
+                    activity_args['file'] = extracted_file_path
+
+                except ConnectionError as e:
+                    logging.error('Connection error', e)
+                    if os.path.exists(zip_file_name):
+                        os.remove(zip_file_name)
+                    raise e
+
+                except BaseException as e:
+                    logging.error('An error occurred during task execution', e)
+
+                    raise e
+
+        # Persist a collection item on database
+        collection_item.save()
+
+        activity_args.pop('link')
+        scene['args'] = activity_args
 
         # Create new activity 'correctionS2' to continue task chain
-        scene['app'] = 'correctionS2'
+        scene['activity_type'] = 'correctionS2'
 
         return scene
 
@@ -147,54 +171,57 @@ class SentinelTask(celery_app.Task):
         logging.debug('Starting Correction Sentinel...')
         version = 'sen2cor280'
 
+        # Set Collection to the Sentinel Surface Reflectance
+        scene['collection_id'] = 'S2SR'
+
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
+        activity_history.activity.activity_type = 'correctionS2'
         activity_history.start = datetime.utcnow()
+        activity_history.activity.collection_id = scene['collection_id']
         activity_history.save()
 
         try:
+            params = dict(
+                app=scene['activity_type'],
+                sceneid=scene['sceneid'],
+                file=scene['args']['file']
+            )
+
             if version == 'sen2cor280':
-                correction_result = correction_sen2cor280( scene )
+                correction_result = correction_sen2cor280(params)
             else:
-                correction_result = correction_sen2cor255( scene )
+                correction_result = correction_sen2cor255(params)
             if correction_result is not None:
-                scene['file'] = correction_result
-            activity_history.activity.status = 'DONE'
+                scene['args']['file'] = correction_result
 
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
             raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
 
-        scene['app'] = 'publishS2'
+        scene['activity_type'] = 'publishS2'
 
         return scene
 
     def publish(self, scene):
-        #TODO: check if is already published before publishing
-        logging.debug('Starting Publish Sentinel...')
-
+        # TODO: check if is already published before publishing
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DOING'
+        activity_history.activity.activity_type = 'publishS2'
         activity_history.start = datetime.utcnow()
         activity_history.save()
+        logging.info('Starting publish Sentinel {} - Activity {}'.format(
+            scene.get('collection_id'),
+            activity_history.activity.id
+        ))
 
         try:
-            publish(activity_history.activity)
-            activity_history.activity.status = 'DONE'
+            publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
-            activity_history.activity.status = 'ERROR'
             raise e
-        finally:
-            activity_history.end = datetime.utcnow()
-            activity_history.save()
 
         # Create new activity 'uploadS2' to continue task chain
-        scene['app'] = 'uploadS2'
+        scene['activity_type'] = 'uploadS2'
+        # scene['file']
 
         logging.debug('Done Publish Sentinel.')
 
@@ -202,9 +229,7 @@ class SentinelTask(celery_app.Task):
 
     def upload(self, scene):
         activity_history = get_task_activity()
-        activity_history.activity.status = 'DONE'
         activity_history.start = datetime.utcnow()
-        activity_history.end = datetime.utcnow()
         activity_history.save()
 
 

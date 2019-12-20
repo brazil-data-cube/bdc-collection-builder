@@ -2,7 +2,7 @@ import logging
 from celery import Celery
 from flask import Flask
 from bdc_scripts.config import Config
-from bdc_scripts.models import db
+from bdc_db.models import db
 
 
 CELERY_TASKS = [

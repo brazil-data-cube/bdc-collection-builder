@@ -3,10 +3,14 @@ from os import path as resource_path
 import glob
 import logging
 
+# 3rdparty
+from sqlalchemy import or_
+
 # BDC Scripts
+from bdc_db.models.base_sql import db
 from bdc_scripts.config import Config
 from bdc_scripts.radcor.forms import RadcorActivityForm
-from bdc_scripts.radcor.models import RadcorActivity
+from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes
 
 # Consts
@@ -22,18 +26,26 @@ class RadcorBusiness:
         return dispatch(activity)
 
     @classmethod
-    def restart(cls, id):
-        activity = RadcorActivity.get(id=id)
+    def restart(cls, ids=None, status=None, activity_type=None):
+        restrictions = []
 
-        # TODO: List tasks in celery and match if there are any dumb task
+        if ids:
+            restrictions.append(or_(RadcorActivity.id == id for id in ids))
 
-        # Skip pending or started tasks
+        if status:
+            restrictions.append(RadcorActivityHistory.task.has(status=status))
 
-        dumps = RadcorActivityForm().dump(activity)
+        if activity_type:
+            restrictions.append(RadcorActivity.activity_type == activity_type)
 
-        cls.start(dumps)
+        activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
-        return activity
+        for activity in activities:
+            dumps = RadcorActivityForm().dump(activity)
+
+            cls.start(dumps)
+
+        return activities
 
     @classmethod
     def radcor(cls, args: dict):
@@ -80,14 +92,20 @@ class RadcorBusiness:
                     scene['status'] = 'DONE'
                     continue
                 scene['status'] = 'NOTDONE'
-                activity = {}
-                activity['app'] = 'downloadLC8'
-                activity['status'] = 'NOTDONE'
-                activity['sceneid'] = scene['sceneid']
-                activity['satellite'] = 'LC8'
-                activity['priority'] = 1
-                activity['link'] = scene['link']
-                activity['file'] = base_dir
+
+                activity = dict(
+                    collection_id='LC8_DN',
+                    activity_type='downloadLC8',
+                    tags=args.get('tags', '').split(','),
+                    sceneid=sceneid,
+                    scene_type='SCENE',
+                    args=dict(
+                        link=scene['link'],
+                        file=base_dir,
+                        satellite='LC8',
+                        cloud=scene.get('cloud')
+                    )
+                )
 
                 if action == 'start':
                     cls.start(activity)
@@ -113,14 +131,19 @@ class RadcorBusiness:
                     logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
 
-                activity = {}
-                activity['file'] = base_dir
-                activity['app'] = 'downloadS2'
-                activity['sceneid'] = sceneid
-                activity['satellite'] = 'S2'
-                activity['priority'] = 1
-                activity['link'] = scene['link']
-                activity['status'] = 'NOTDONE'
+                activity = dict(
+                    collection_id='S2_TOA',
+                    activity_type='downloadS2',
+                    tags=args.get('tags', []),
+                    sceneid=sceneid,
+                    scene_type='SCENE',
+                    args=dict(
+                        link=scene['link'],
+                        file=base_dir,
+                        satellite='S2',
+                        cloud=scene.get('cloud')
+                    )
+                )
 
                 scenes[id] = scene
 

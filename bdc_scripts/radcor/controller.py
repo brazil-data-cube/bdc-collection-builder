@@ -27,7 +27,7 @@ class RadcorController(Resource):
     def post(self):
         """
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"collection": "S2SR", "w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/
         """
 
@@ -39,18 +39,8 @@ class RadcorController(Resource):
                 's' not in args:
             raise BadRequest('Datacube or Bounding Box must be given')
 
-        collection_id = args.get('collection')
-
-        if not Collection.query().filter(Collection.id == collection_id):
-            raise NotFound('Collection {} not found.'.format(collection_id))
-
         # Prepare radcor activity and start
-        result = RadcorBusiness.radcor(collection_id, args)
-
-        # if 'LC8' in args.get('satsen') or 'LC8SR' in args.get('satsen'):
-        #     result = filter(result,tags=['cloud','date','status'])
-        # else:
-        #     result = filter(result)
+        result = RadcorBusiness.radcor(args)
 
         tile = '{}-{}-{}'.format(args['tileid'], args['start'], args['end'])
 

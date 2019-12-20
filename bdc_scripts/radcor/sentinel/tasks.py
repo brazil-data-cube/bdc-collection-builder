@@ -204,15 +204,15 @@ class SentinelTask(RadcorTask):
         return scene
 
     def publish(self, scene):
-        #TODO: check if is already published before publishing
-        logging.debug('Starting Publish Sentinel...')
-
+        # TODO: check if is already published before publishing
         activity_history = get_task_activity()
         activity_history.activity.activity_type = 'publishS2'
         activity_history.start = datetime.utcnow()
         activity_history.save()
-
-        collection = self.get_collection(activity_history.activity)
+        logging.info('Starting publish Sentinel {} - Activity {}'.format(
+            scene.get('collection_id'),
+            activity_history.activity.id
+        ))
 
         try:
             publish(self.get_collection_item(activity_history.activity), activity_history.activity)
@@ -222,6 +222,7 @@ class SentinelTask(RadcorTask):
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
+        # scene['file']
 
         logging.debug('Done Publish Sentinel.')
 

@@ -48,7 +48,7 @@ class RadcorBusiness:
         return activities
 
     @classmethod
-    def radcor(cls, collection_id: str, args: dict):
+    def radcor(cls, args: dict):
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
@@ -94,7 +94,7 @@ class RadcorBusiness:
                 scene['status'] = 'NOTDONE'
 
                 activity = dict(
-                    collection_id=collection_id,
+                    collection_id='LC8_DN',
                     activity_type='downloadLC8',
                     tags=args.get('tags', '').split(','),
                     sceneid=sceneid,
@@ -132,7 +132,7 @@ class RadcorBusiness:
                     continue
 
                 activity = dict(
-                    collection_id=collection_id,
+                    collection_id='S2_TOA',
                     activity_type='downloadS2',
                     tags=args.get('tags', []),
                     sceneid=sceneid,

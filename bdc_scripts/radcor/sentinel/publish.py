@@ -122,7 +122,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 chunk_size_y=chunk_y
             )
 
-            asset, _ = get_or_create_model(Asset, defaults=defaults,
+            asset, _ = get_or_create_model(
+                Asset,
+                defaults=defaults,
                 collection_id=scene.collection_id,
                 band_id=band_model.id,
                 grs_schema_id=scene.collection.grs_schema_id,

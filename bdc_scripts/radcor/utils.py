@@ -54,16 +54,14 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
-        # We are assuming that collection is not TOA or DN
-        source_collection = Collection.query().filter(Collection.id == 'S2_TOA').first()
+        # We are assuming that collection either TOA or DN
+        collection_sr = Collection.query().filter(Collection.id == 'S2SR').first()
 
-        raw_data_chain = None
+        if collection_sr is None:
+            raise RuntimeError('The collection "S2SR" not found')
 
-        if source_collection:
-            source_activity = dict(**activity)
-            source_activity['collection_id'] = source_collection.id
-
-            raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
+        # Raw chain represents TOA publish chain
+        raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
 
         atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
             sentinel_tasks.upload_sentinel.s()

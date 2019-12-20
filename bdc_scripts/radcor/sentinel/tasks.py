@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from zipfile import ZipFile
 
 # 3rdparty
 from requests.exceptions import ConnectionError
@@ -136,6 +137,12 @@ class SentinelTask(RadcorTask):
                         raise IOError('Invalid zip file "{}"'.format(zip_file_name))
                     else:
                         extractall(zip_file_name)
+
+                    ### Get extracted zip folder name
+                    with ZipFile(zip_file_name) as zipObj:
+                        listOfiles = zipObj.namelist()
+                        extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
+
                     logging.debug('Done download.')
                     activity_args['file'] = extracted_file_path
 
@@ -197,6 +204,7 @@ class SentinelTask(RadcorTask):
         return scene
 
     def publish(self, scene):
+        #TODO: check if is already published before publishing
         logging.debug('Starting Publish Sentinel...')
 
         activity_history = get_task_activity()

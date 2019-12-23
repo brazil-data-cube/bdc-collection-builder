@@ -23,6 +23,7 @@ class DataCubeParser(Schema):
 
 class DataCubeProcessParser(Schema):
     datacube = fields.String(required=True, allow_none=False)
+    collections = fields.List(fields.String, required=True, allow_none=False)
     tiles = fields.List(fields.String, required=True, allow_none=False)
-    start_date = fields.DateTime()
-    end_date = fields.DateTime()
+    start_date = fields.Date()
+    end_date = fields.Date()

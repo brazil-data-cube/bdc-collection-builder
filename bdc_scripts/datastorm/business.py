@@ -2,6 +2,7 @@
 from datetime import date as Date, datetime, timedelta
 from typing import List, Optional
 # 3rdparty
+from celery import chord, group
 from dateutil.relativedelta import relativedelta
 from geoalchemy2 import func
 from sqlalchemy import or_
@@ -10,6 +11,7 @@ from werkzeug.exceptions import BadRequest, NotAcceptable, NotFound
 from bdc_db.models.base_sql import BaseModel
 from bdc_db.models import Asset, Band, Collection, CollectionItem, db, Tile
 from .forms import CollectionForm
+from .tasks import warp, merge, blend
 
 
 class CubeBusiness:
@@ -104,12 +106,14 @@ class CubeBusiness:
 
             offset = relativedelta(months=int(t_composite_schema.temporal_composite_t))
 
-            current_date = start_date + offset
+            current_date = start_date
             current_date.replace(day=1)
+
+            next_month_first = current_date + offset
 
             if end_date < current_date:
                 print('Set end date to the end of month')
-                end_date = current_date + relativedelta(days=1)
+                end_date = current_date + offset
 
             while current_date < end_date:
                 current_date_str = current_date.strftime('%Y-%m-%d')
@@ -119,7 +123,7 @@ class CubeBusiness:
                 for item_date, scenes in warp_merge.items():
                     scene_date = datetime.strptime(item_date, '%Y-%m-%d').date()
 
-                    if scene_date <= current_date:
+                    if scene_date >= current_date:
                         requestedperiods[current_date_str][item_date] = scenes
 
                 current_date += offset
@@ -196,6 +200,23 @@ class CubeBusiness:
             stac = CubeBusiness.search_stac(cube, collection_name, tiles, start_date, end_date)
 
             res = CubeBusiness._prepare_blend_dates(cube, stac, start_date, end_date)
+
+            blend_tasks = []
+
+            for blend_date, merges in res.items():
+                blend_at_start = datetime.strptime(blend_date, '%Y-%m-%d').date().replace(day=1)
+
+                for scene, assets in merges.items():
+                    warp_tasks = []
+
+                    for asset in assets:
+                        warp_tasks.append(warp.s(cube.id, asset))
+                    
+                    blend_tasks.append(chord(chord(warp_tasks, merge.s(), blend.s()))
+
+            tasks = group(blend_tasks)
+
+            tasks.apply_async()
 
             return res
 

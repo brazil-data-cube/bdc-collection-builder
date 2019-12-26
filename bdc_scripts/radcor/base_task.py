@@ -33,7 +33,7 @@ class RadcorTask(celery_app.Task):
         composite_date = self.get_tile_date(scene_id)
 
         restriction = dict(
-            id='{}-{}'.format(collection.id, scene_id),
+            id=scene_id,
             tile_id=self.get_tile_id(scene_id),
             collection_id=collection.id,
             grs_schema_id=collection.grs_schema_id,

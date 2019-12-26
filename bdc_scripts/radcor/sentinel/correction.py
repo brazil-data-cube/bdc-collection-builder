@@ -22,7 +22,7 @@ def search_recent_sen2cor280(safeL2Afull):
     safe = safeL2Afull.replace( os.path.basename(safeL2Afull).split('_')[3], 'N9999')
     safe_pattern = '_'.join( os.path.basename(safe).split('_')[0:-1])
     dirname = os.path.dirname(safeL2Afull)
-    dirs_L2 = [os.path.join(dirname,d) for d in os.listdir(dirname) if re.match(safe_pattern, d)]
+    dirs_L2 = [os.path.join(dirname,d) for d in os.listdir(dirname) if (re.match(safe_pattern, d) and os.path.isdir(d))]
     return dirs_L2
 
 
@@ -57,7 +57,7 @@ def correction_sen2cor280(scene):
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if len(dirs_L2) >= 1:
         for i in range(len(dirs_L2) - 1):
-            shutil.rmtree( dirs_L2[i] )
+            shutil.rmtree(dirs_L2[i])
         #TODO: Validate SAFE os.path.join(dirname, dirs_L2[0])
         valid = False
         if valid == True:
@@ -65,7 +65,7 @@ def correction_sen2cor280(scene):
             # scene['file'] = dirs_L2[0]
             return dirs_L2[-1]
         else:
-            shutil.rmtree( dirs_L2[-1] )
+            shutil.rmtree(dirs_L2[-1])
 
     # Send scene to the sen2cor service
     req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)

@@ -116,7 +116,7 @@ class CubeBusiness:
                 end_date = current_date + offset
 
             while current_date < end_date:
-                current_date_str = current_date.strftime('%Y-%m-%d')
+                current_date_str = current_date.strftime('%Y-%m')
 
                 requestedperiods.setdefault(current_date_str, dict())
 
@@ -168,18 +168,44 @@ class CubeBusiness:
                 feature_date_str = feature_date.strftime('%Y-%m-%d')
 
                 result.setdefault(feature_date_str, dict())
-                result[feature_date_str].setdefault(feature['id'], list())
 
-                for band in feature['assets']:
-                    if band != 'thumbnail':
+                ## Comment/Uncomment these lines in order to retrieve data grouped by band/scene
+                for band in collection_bands:
+                    if feature['assets'].get(band):
+                        result[feature_date_str].setdefault(band, dict())
+
                         asset_definition = dict(
                             url=feature['assets'][band]['href'],
                             band=collection_bands[band]
                         )
 
-                        result[feature_date_str][feature['id']].append(asset_definition)
+                        result[feature_date_str][band][feature['id']] = asset_definition
+                ## end comment
+
+                ## Uncomment these lines in order to retrieve data grouped by scene/band
+                # result[feature_date_str].setdefault(feature['id'], dict())
+
+                # for band in collection_bands:
+                #     if feature['assets'].get(band):
+                #         asset_definition = dict(
+                #             url=feature['assets'][band]['href'],
+                #             band=collection_bands[band]
+                #         )
+
+                #         result[feature_date_str][feature['id']][band] = asset_definition
 
         return result
+
+    @staticmethod
+    def create_activity(collection: str, scene: str, activity_type: str, scene_type: str, **parameters):
+        return dict(
+            collection_id=collection,
+            activity_type=activity_type,
+            tags=parameters.get('tags', []),
+            sceneid=scene,
+            scene_type=scene_type,
+            args=parameters
+        )
 
     @classmethod
     def process(cls,
@@ -204,15 +230,45 @@ class CubeBusiness:
             blend_tasks = []
 
             for blend_date, merges in res.items():
-                blend_at_start = datetime.strptime(blend_date, '%Y-%m-%d').date().replace(day=1)
+                merge_tasks = []
 
-                for scene, assets in merges.items():
-                    warp_tasks = []
+                for merge_date, bands in merges.items():
+                    for band_name, scenes in bands.items():
+                        warp_tasks = []
 
-                    for asset in assets:
-                        warp_tasks.append(warp.s(cube.id, asset))
-                    
-                    blend_tasks.append(chord(chord(warp_tasks, merge.s(), blend.s()))
+                        for scene, asset in scenes.items():
+                            args = dict(datacube=cube.id, asset=asset)
+                            activity = CubeBusiness.create_activity(cube.id, scene, 'WARP', 'WARPED', **args)
+                            warp_tasks.append(warp.s(activity))
+
+                        task = chord(warp_tasks, body=merge.s())
+                        merge_tasks.append(task)
+
+                task = chord(merge_tasks)(blend.s())
+                blend_tasks.append(task)
+
+            tasks = group(blend_tasks)
+            tasks.apply_async()
+
+            # for blend_date, merges in res.items():
+            #     blend_at_start = datetime.strptime(blend_date, '%Y-%m-%d').date().replace(day=1)
+
+            #     merge_tasks = []
+
+            #     for scene, assets in merges.items():
+            #         warp_tasks = []
+
+            #         for asset in assets.values():
+            #             args = dict(datacube=cube.id, asset=asset)
+            #             activity = CubeBusiness.create_activity(cube.id, scene, 'WARP', 'WARPED', **args)
+            #             warp_tasks.append(warp.s(cube.id, asset))
+
+            #         merge_task = chord(warp_tasks)(merge.s())
+
+            #         merge_tasks.append(merge_task)
+
+            #     blend_task = chord(merge_tasks)(blend.s())
+            #     blend_tasks.append(blend_task)
 
             tasks = group(blend_tasks)
 

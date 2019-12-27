@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, JSON, String, Time
+from sqlalchemy import ARRAY, Column, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import relationship
 
 from bdc_db.models.base_sql import BaseModel

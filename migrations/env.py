@@ -31,6 +31,7 @@ config.set_main_option(
 from celery.backends.database import models, session
 from bdc_db.models import *
 from bdc_scripts.radcor.models import *
+from bdc_scripts.datastorm.models import *
 
 target_metadata = [current_app.extensions['migrate'].db.metadata, session.ResultModelBase.metadata]
 
@@ -43,6 +44,7 @@ target_metadata = [current_app.extensions['migrate'].db.metadata, session.Result
 exclude_tables = [
     'spatial_ref_sys'
 ]
+
 
 def include_object(object, name, type_, reflected, compare_to):
     """Ignores the tables in 'exclude_tables'"""

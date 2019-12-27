@@ -111,6 +111,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
 
+            if band_model is None:
+                logging.warning('Band {} not registered on database. Skipping'.format(sband))
+
             defaults = dict(
                 source=source,
                 url=cog_file_path,

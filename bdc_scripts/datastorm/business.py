@@ -1,17 +1,16 @@
 # Python
-from datetime import date as Date, datetime, timedelta
+from datetime import date as Date, datetime
 from typing import List, Optional
 # 3rdparty
-from celery import chord, group
+from celery import chain, chord, group
 from dateutil.relativedelta import relativedelta
 from geoalchemy2 import func
-from sqlalchemy import or_
-from werkzeug.exceptions import BadRequest, NotAcceptable, NotFound
+from werkzeug.exceptions import NotAcceptable, NotFound
 
 from bdc_db.models.base_sql import BaseModel
-from bdc_db.models import Asset, Band, Collection, CollectionItem, db, Tile
+from bdc_db.models import Band, Collection, db, Tile
 from .forms import CollectionForm
-from .tasks import warp, merge, blend
+from .tasks import warp, merge, blend, publish
 
 
 class CubeBusiness:
@@ -92,7 +91,7 @@ class CubeBusiness:
         # start_date = datetime.strptime('%Y-%m-%d', start_date).date()
 
         if end_date is None:
-            end_date = Date()
+            end_date = datetime.now().date()
 
         if t_composite_schema.temporal_schema is None:
             periodkey = startdate + '_' + startdate + '_' + end_date
@@ -118,13 +117,14 @@ class CubeBusiness:
             while current_date < end_date:
                 current_date_str = current_date.strftime('%Y-%m')
 
-                requestedperiods.setdefault(current_date_str, dict())
+                for band, temporal in warp_merge.items():
+                    requestedperiods.setdefault(band, dict())
+                    requestedperiods[band].setdefault(current_date_str, dict())
 
-                for item_date, scenes in warp_merge.items():
-                    scene_date = datetime.strptime(item_date, '%Y-%m-%d').date()
-
-                    if scene_date >= current_date:
-                        requestedperiods[current_date_str][item_date] = scenes
+                    for item_date in temporal:
+                        scene_date = datetime.strptime(item_date, '%Y-%m-%d').date()
+                        if scene_date >= current_date:
+                            requestedperiods[band][current_date_str] = temporal
 
                 current_date += offset
 
@@ -133,7 +133,7 @@ class CubeBusiness:
         return
 
     @classmethod
-    def search_stac(cls, cube: Collection, collection_name: str, tiles: List[str], start_date: str, end_date: str):
+    def search_stac(cls, collection_name: str, tiles: List[str], start_date: str, end_date: str):
         from stac import STAC
 
         stac_cli = STAC('http://brazildatacube.dpi.inpe.br/bdc-stac/0.7.0/')
@@ -146,7 +146,6 @@ class CubeBusiness:
         bbox_result = db.session.query(
             func.ST_AsText(func.ST_BoundingDiagonal(func.ST_Force2D(Tile.geom_wgs84)))
         ).filter(
-            # Tile.grs_schema_id == cube.grs_schema_id,
             Tile.id.in_(tiles)
         ).all()
 
@@ -161,44 +160,33 @@ class CubeBusiness:
             filter_opts['bbox'] = bbox
             items = stac_cli.collection_items(collection_name, filter=filter_opts)
 
+            for band in collection_bands:
+                for feature in items['features']:
+                    if not feature['assets'].get(band):
+                        continue
 
-            for feature in items['features']:
-                feature_date_time_str = feature['properties']['datetime']
-                feature_date = datetime.strptime(feature_date_time_str, '%Y-%m-%dT%H:%M:%S').date()
-                feature_date_str = feature_date.strftime('%Y-%m-%d')
+                    result.setdefault(band, dict())
+                    feature_date_time_str = feature['properties']['datetime']
+                    feature_date = datetime.strptime(feature_date_time_str, '%Y-%m-%dT%H:%M:%S').date()
+                    feature_date_str = feature_date.strftime('%Y-%m-%d')
 
-                result.setdefault(feature_date_str, dict())
+                    result[band].setdefault(feature_date_str, dict())
 
-                ## Comment/Uncomment these lines in order to retrieve data grouped by band/scene
-                for band in collection_bands:
                     if feature['assets'].get(band):
-                        result[feature_date_str].setdefault(band, dict())
 
                         asset_definition = dict(
                             url=feature['assets'][band]['href'],
                             band=collection_bands[band]
                         )
 
-                        result[feature_date_str][band][feature['id']] = asset_definition
-                ## end comment
-
-                ## Uncomment these lines in order to retrieve data grouped by scene/band
-                # result[feature_date_str].setdefault(feature['id'], dict())
-
-                # for band in collection_bands:
-                #     if feature['assets'].get(band):
-                #         asset_definition = dict(
-                #             url=feature['assets'][band]['href'],
-                #             band=collection_bands[band]
-                #         )
-
-                #         result[feature_date_str][feature['id']][band] = asset_definition
+                        result[band][feature_date_str][feature['id']] = asset_definition
 
         return result
 
     @staticmethod
-    def create_activity(collection: str, scene: str, activity_type: str, scene_type: str, **parameters):
+    def create_activity(collection: str, scene: str, activity_type: str, scene_type: str, band: str, **parameters):
         return dict(
+            band=band,
             collection_id=collection,
             activity_type=activity_type,
             tags=parameters.get('tags', []),
@@ -223,56 +211,33 @@ class CubeBusiness:
             raise NotAcceptable('{} is not a datacube'.format(datacube))
 
         for collection_name in collections:
-            stac = CubeBusiness.search_stac(cube, collection_name, tiles, start_date, end_date)
+            stac = CubeBusiness.search_stac(collection_name, tiles, start_date, end_date)
 
             res = CubeBusiness._prepare_blend_dates(cube, stac, start_date, end_date)
 
             blend_tasks = []
 
-            for blend_date, merges in res.items():
+            for band, blend_object in res.items():
                 merge_tasks = []
 
-                for merge_date, bands in merges.items():
-                    for band_name, scenes in bands.items():
+                for merge_date, scenes in blend_object.items():
+
+                    for item_date, assets in scenes.items():
                         warp_tasks = []
 
-                        for scene, asset in scenes.items():
+                        for scene_id, asset in assets.items():
+
                             args = dict(datacube=cube.id, asset=asset)
-                            activity = CubeBusiness.create_activity(cube.id, scene, 'WARP', 'WARPED', **args)
+                            activity = CubeBusiness.create_activity(cube.id, scene_id, 'WARP', 'WARPED', band, **args)
                             warp_tasks.append(warp.s(activity))
 
-                        task = chord(warp_tasks, body=merge.s())
+                        task = chain(group(warp_tasks), merge.s())
                         merge_tasks.append(task)
-
-                task = chord(merge_tasks)(blend.s())
+                task = chain(group(merge_tasks), blend.s())
                 blend_tasks.append(task)
 
-            tasks = group(blend_tasks)
-            tasks.apply_async()
-
-            # for blend_date, merges in res.items():
-            #     blend_at_start = datetime.strptime(blend_date, '%Y-%m-%d').date().replace(day=1)
-
-            #     merge_tasks = []
-
-            #     for scene, assets in merges.items():
-            #         warp_tasks = []
-
-            #         for asset in assets.values():
-            #             args = dict(datacube=cube.id, asset=asset)
-            #             activity = CubeBusiness.create_activity(cube.id, scene, 'WARP', 'WARPED', **args)
-            #             warp_tasks.append(warp.s(cube.id, asset))
-
-            #         merge_task = chord(warp_tasks)(merge.s())
-
-            #         merge_tasks.append(merge_task)
-
-            #     blend_task = chord(merge_tasks)(blend.s())
-            #     blend_tasks.append(blend_task)
-
-            tasks = group(blend_tasks)
-
-            tasks.apply_async()
+            tasks = chain(group(blend_tasks), publish.s())
+            tasks.apply_async(disable_sync_subtasks=False, propagate=True)
 
             return res
 

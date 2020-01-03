@@ -173,7 +173,7 @@ class CubeBusiness:
                     result[band].setdefault(feature_date_str, dict())
 
                     if feature['assets'].get(band):
-
+                        collection_bands[band]['common_name'] = band
                         asset_definition = dict(
                             url=feature['assets'][band]['href'],
                             band=collection_bands[band]
@@ -195,6 +195,19 @@ class CubeBusiness:
             args=parameters
         )
 
+    @staticmethod
+    def get_warped_datacube(datacube: str,
+                            tiles: Optional[List[str]]=None,
+                            start_date: Optional[str]=None,
+                            end_date: Optional[str]=None):
+        for fn in ['MEDIAN', 'STACK']:
+            datacube = datacube.replace(fn, 'WARPED')
+
+        try:
+            return CubeBusiness.search_stac(datacube, tiles, start_date, end_date)
+        except:
+            return None
+
     @classmethod
     def process(cls,
                 datacube: str,
@@ -210,10 +223,24 @@ class CubeBusiness:
         if not cube.is_cube:
             raise NotAcceptable('{} is not a datacube'.format(datacube))
 
+        # # Search for WARPED datacube
+        # warped_datacube = CubeBusiness.get_warped_datacube(cube, tiles, start_date, end_date)
+
+        bands = []
+
         for collection_name in collections:
             stac = CubeBusiness.search_stac(collection_name, tiles, start_date, end_date)
 
+            # Make sure to use same bands along collections
+            if not bands:
+                bands = stac.keys()
+
             res = CubeBusiness._prepare_blend_dates(cube, stac, start_date, end_date)
+
+            if warped_datacube:
+                # TODO: Check which dates to skip "merge/warp" in order to do
+                # only the temporal composition function
+                pass
 
             blend_tasks = []
 
@@ -240,32 +267,3 @@ class CubeBusiness:
             tasks.apply_async(disable_sync_subtasks=False, propagate=True)
 
             return res
-
-        # # Query Criterion based in arguments
-        # criterion = [
-        #     CollectionItem.collection_id == collection for collection in collections
-        # ]
-
-        # if tiles:
-        #     criterion.append(or_(CollectionItem.tile_id == tile for tile in tiles))
-
-        # if start_date:
-        #     criterion.append(CollectionItem.item_date >= start_date)
-
-        # if end_date:
-        #     criterion.append(CollectionItem.item_date <= end_date)
-
-        # items = CollectionItem.query().filter(
-        #     *criterion
-        # ).order_by(CollectionItem.item_date.asc())
-
-        # warp_merge = dict()
-
-        # for collection_item in items:
-        #     item_date_str = collection_item.item_date.strftime('%Y-%m-%d')
-
-        #     warp_merge.setdefault(item_date_str, dict())
-
-        #     assets = Asset.query().filter(Asset.collection_item_id == collection_item.id).all()
-
-        #     warp_merge[item_date_str][collection_item.id] = assets

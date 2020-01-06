@@ -1,5 +1,7 @@
-from bdc_scripts.celery import celery_app
+from datetime import datetime
 import logging
+from bdc_scripts.celery import celery_app
+from .utils import warp as warp_processing
 
 
 @celery_app.task()
@@ -8,6 +10,10 @@ def warp(activity):
 
     datacube = args.get('datacube')
     asset = args.get('asset')
+
+    scene_date = datetime.strptime(asset['datetime'], '%Y-%m-%dT%H:%M:%S').date()
+
+    warp_processing(asset['url'], asset['scene_id'], asset['tile'], asset['band'], datacube, scene_date, asset['feature_tile'])
 
     logging.warning('Execute Warp of {} - Asset {}'.format(datacube, asset.get('url')))
 

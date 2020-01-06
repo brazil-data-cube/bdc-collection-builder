@@ -144,6 +144,7 @@ class CubeBusiness:
         )
 
         bbox_result = db.session.query(
+            Tile.id,
             func.ST_AsText(func.ST_BoundingDiagonal(func.ST_Force2D(Tile.geom_wgs84)))
         ).filter(
             Tile.id.in_(tiles)
@@ -155,7 +156,8 @@ class CubeBusiness:
         collection_bands = stac_collection['properties']['bdc:bands']
 
         for res in bbox_result:
-            bbox = res[0][res[0].find('(') + 1:res[0].find(')')]
+            bbox_grs_schema = res[0]
+            bbox = res[1][res[1].find('(') + 1:res[0].find(')')]
             bbox = bbox.replace(' ', ',')
             filter_opts['bbox'] = bbox
             items = stac_cli.collection_items(collection_name, filter=filter_opts)
@@ -176,7 +178,11 @@ class CubeBusiness:
                         collection_bands[band]['common_name'] = band
                         asset_definition = dict(
                             url=feature['assets'][band]['href'],
-                            band=collection_bands[band]
+                            band=collection_bands[band],
+                            scene_id=feature['id'],
+                            tile=bbox_grs_schema,
+                            feature_tile=feature['properties']['bdc:tile'],
+                            datetime=feature['properties']['datetime']
                         )
 
                         result[band][feature_date_str][feature['id']] = asset_definition
@@ -224,7 +230,7 @@ class CubeBusiness:
             raise NotAcceptable('{} is not a datacube'.format(datacube))
 
         # # Search for WARPED datacube
-        # warped_datacube = CubeBusiness.get_warped_datacube(cube, tiles, start_date, end_date)
+        warped_datacube = CubeBusiness.get_warped_datacube(datacube, tiles, start_date, end_date)
 
         bands = []
 
@@ -253,7 +259,6 @@ class CubeBusiness:
                         warp_tasks = []
 
                         for scene_id, asset in assets.items():
-
                             args = dict(datacube=cube.id, asset=asset)
                             activity = CubeBusiness.create_activity(cube.id, scene_id, 'WARP', 'WARPED', band, **args)
                             warp_tasks.append(warp.s(activity))
@@ -264,6 +269,6 @@ class CubeBusiness:
                 blend_tasks.append(task)
 
             tasks = chain(group(blend_tasks), publish.s())
-            tasks.apply_async(disable_sync_subtasks=False, propagate=True)
+            tasks.apply_async()
 
             return res

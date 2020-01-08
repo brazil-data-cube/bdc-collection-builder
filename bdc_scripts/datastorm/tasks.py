@@ -1,7 +1,7 @@
 from datetime import datetime
 import logging
 from bdc_scripts.celery import celery_app
-from .utils import warp as warp_processing
+from .utils import warp as warp_processing, merge as merge_processing
 
 
 @celery_app.task()
@@ -18,6 +18,13 @@ def warp(activity):
     logging.warning('Execute Warp of {} - Asset {}'.format(datacube, asset.get('url')))
 
     return asset
+
+
+@celery_app.task()
+def warp_merge(datacube, tile_id, period, warps, cols, rows, **kwargs):
+    logging.warning('Executing merge')
+
+    merge_processing(datacube, tile_id, warps, int(cols), int(rows), period, **kwargs)
 
 
 @celery_app.task()

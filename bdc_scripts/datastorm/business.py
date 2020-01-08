@@ -272,3 +272,16 @@ class CubeBusiness:
             tasks.apply_async()
 
             return res
+
+
+    @classmethod
+    def maestro(cls, datacube, collections, tiles, start_date, end_date):
+        from .maestro import Maestro
+
+        maestro = Maestro(datacube, collections, tiles, start_date, end_date)
+
+        maestro.orchestrate()
+
+        maestro.dispatch_celery()
+
+        return dict(ok=True)

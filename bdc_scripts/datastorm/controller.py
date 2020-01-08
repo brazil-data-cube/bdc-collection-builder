@@ -39,6 +39,7 @@ class CubeProcessController(Resource):
 
         data = form.load(args)
 
-        proc = CubeBusiness.process(data['datacube'], data['collections'], data['tiles'], data['start_date'], data['end_date'])
+        # proc = CubeBusiness.process(data['datacube'], data['collections'], data['tiles'], data['start_date'], data['end_date'])
+        proc = CubeBusiness.maestro(data['datacube'], data['collections'], data['tiles'], data['start_date'], data['end_date'])
 
         return proc

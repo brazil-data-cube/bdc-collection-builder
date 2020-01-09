@@ -24,36 +24,6 @@ def days_in_month(date):
     return td
 
 
-def decode_path_row(tileid):
-    parts = tileid.split(';')
-    dpathrow = []
-    for part in parts:
-        pieces = part.split(',')
-        if len(pieces) == 1: return [tileid]
-        if len(pieces) != 2:
-            return []
-        paths = pieces[0].split(':')
-        rows  = pieces[1].split(':')
-        if len(paths) > 1:
-            p1 = int(paths[0])
-            p2 = int(paths[1]) + 1
-        else:
-            p1 = int(paths[0])
-            p2 = p1 + 1
-        if len(rows) > 1:
-            r1 = int(rows[0])
-            r2 = int(rows[1]) + 1
-        else:
-            r1 = int(rows[0])
-            r2 = r1 + 1
-        for p in range(p1,p2):
-            for r in range(r1,r2):
-                if (p,r) not in dpathrow:
-                    tileid = '{0:03d}{1:03d}'.format(p,r)
-                    dpathrow.append(tileid)
-    return dpathrow
-
-
 def decode_periods(temporalschema,startdate,enddate,timestep):
     print('decode_periods - {} {} {} {}'.format(temporalschema,startdate,enddate,timestep))
     requestedperiods = {}
@@ -232,9 +202,9 @@ class Maestro:
                 for periodkey in requestedperiod:
                     _ , startdate, enddate = periodkey.split('_')
 
-                    if dstart is not None and startdate < dstart:
+                    if dstart is not None and datetime.datetime.strptime(startdate, '%Y-%m-%d').date() < dstart:
                         continue
-                    if dend is not None and enddate > dend:
+                    if dend is not None and dend < datetime.datetime.strptime(enddate, '%Y-%m-%d').date():
                         continue
 
                     self.mosaics[tile.id]['periods'][periodkey] = {}
@@ -303,6 +273,9 @@ class Maestro:
         bands = self.datacube_bands
         warped_datacube = self.warped_datacube.id
 
+        # Quality
+        # bands = filter(lambda b: b.common_name == 'quality', bands)
+
         for tileid in self.mosaics:
             blends = []
 
@@ -324,7 +297,10 @@ class Maestro:
                                 date=merge_date,
                                 dataset=collection,
                                 xmin=tile.min_x,
-                                ymax=tile.max_y
+                                ymax=tile.max_y,
+                                datacube=self.datacube.id,
+                                resx=band.resolution_x,
+                                resy=band.resolution_y,
                             )
                             task = warp_merge.s(warped_datacube, tileid, period, assets, cols, rows, **kwargs)
                             merges_tasks.append(task)
@@ -332,7 +308,8 @@ class Maestro:
                 task = chain(group(merges_tasks), blend.s())
                 blends.append(task)
 
-            task = chain(group(blends), publish.s())
+            # task = chain(group(blends), publish.s())
+            task = group(blends)
             task.apply_async()
 
     def search_images(self, bbox: str, start: str, end: str):

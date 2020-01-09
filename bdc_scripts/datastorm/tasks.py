@@ -1,7 +1,8 @@
+from celery import chain
 from datetime import datetime
 import logging
 from bdc_scripts.celery import celery_app
-from .utils import warp as warp_processing, merge as merge_processing
+from .utils import warp as warp_processing, merge as merge_processing, blend as blend_processing
 
 
 @celery_app.task()
@@ -21,10 +22,10 @@ def warp(activity):
 
 
 @celery_app.task()
-def warp_merge(datacube, tile_id, period, warps, cols, rows, **kwargs):
+def warp_merge(warped_datacube, tile_id, period, warps, cols, rows, **kwargs):
     logging.warning('Executing merge')
 
-    merge_processing(datacube, tile_id, warps, int(cols), int(rows), period, **kwargs)
+    return merge_processing(warped_datacube, tile_id, warps, int(cols), int(rows), period, **kwargs)
 
 
 @celery_app.task()
@@ -33,7 +34,38 @@ def merge(warps, *args, **kwargs):
 
 
 @celery_app.task()
-def blend(merges, *args, **kwargs):
+def blend(merges):
+    activities = {}
+
+    for _merge in merges:
+        if _merge['band'] in activities:
+            continue
+
+        activity = dict(scenes=dict())
+        activity['datacube'] = merges[0]['datacube']
+        activity['band'] = _merge['band']
+        activity['scenes'].setdefault(_merge['date'], dict(**_merge))
+        activity['period'] = _merge['period']
+        activity['tile_id'] = _merge['tile_id']
+
+        activity['scenes'][_merge['date']]['ARDfiles'] = {
+            "quality": _merge['file'].replace(_merge['band'], 'quality'),
+            _merge['band']: _merge['file']
+        }
+
+        activities[_merge['band']] = activity
+
+    logging.warning('Scheduling blend....')
+
+    for activity in activities.values():
+        task = chain(_blend.s(activity))
+        task.apply_async()
+
+
+@celery_app.task()
+def _blend(activity):
+    blend_processing(activity)
+
     logging.warning('Executing blend')
 
 

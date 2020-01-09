@@ -1,143 +1,32 @@
 # Python Native
-from datetime import date, timedelta
+from datetime import datetime
 import os
 import time
 # 3rdparty
-from geoalchemy2 import func
-from osgeo import osr
 from rasterio import Affine, MemoryFile
 from rasterio.warp import reproject, Resampling
-import gdal
 import numpy
 import rasterio
 # BDC Scripts
-from bdc_db.models import Band, Collection, db, Tile
 from bdc_scripts.config import Config
 
 
-PROJ4 = {
-    "aea_250k": "+proj=aea +lat_1=10 +lat_2=-40 +lat_0=0 +lon_0=-50 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs",
-    "aea_500k": "+proj=aea +lat_1=10 +lat_2=-40 +lat_0=0 +lon_0=-50 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-}
-
-
-args = dict(
-    links=[],
-    resx=10,
-    resy=10,
-    cols=15727,
-    rows=11523,
-    band='blue',
-    nodata=0,
-    srs='+proj'
-)
-
-
-def warp(link: str, tile_id: str, band_meta: dict, datacube: str, scene_date: date, mgrs: str):
-    # Get the input and warped files name
-    filename = '/vsicurl/' + link
-
-    datacube_warped = datacube
-
-    for fn in ['MEDIAN', 'STACK']:
-        datacube_warped = datacube_warped.replace(fn, 'WARPED')
-
-    warped = os.path.join(Config.DATA_DIR, 'Repository/collections/archive/warped/{}/{}_{}_{}_{}.tif'.format(datacube_warped, tile_id, mgrs, scene_date.strftime('%Y-%m-%d'), band_meta['common_name']))
-
-    cube = Collection.query().filter(Collection.id == datacube).first()
-    cube_warped = Collection.query().filter(Collection.id == datacube_warped).first()
-    raster_schema = cube.raster_size_schemas
-    band = Band.query().filter(Band.collection_id == datacube, Band.common_name == band_meta['common_name']).first()
-
-    query_geom_origin = db.session.query(
-        Tile.grs_schema_id,
-        func.ST_Transform(
-            func.ST_SetSRID(Tile.geom_wgs84, 4326),
-            '+proj=aea +lat_1=10 +lat_2=-40 +lat_0=0 +lon_0=-50 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'
-        ).label('geom_origin')
-        # Tile.geom_wgs84.label('geom_origin')
-    ).filter(Tile.id == tile_id).subquery()
-
-    tile = db.session.query(
-        query_geom_origin.c.grs_schema_id,
-        func.ST_XMin(query_geom_origin.c.geom_origin),
-        func.ST_YMax(query_geom_origin.c.geom_origin)
-    ).first()
-
-    scenesrs = osr.SpatialReference()
-    scenesrs.ImportFromProj4(PROJ4[tile[0]])
-
-    # If warped file not exists, re-project the input scene
-    if not os.path.exists(warped):
-        src_ds = gdal.Open(filename)
-
-        if src_ds is None:
-            raise IOError('Dataset not found "{}".'.format(filename))
-
-        warped_dir = os.path.dirname(warped)
-        os.makedirs(warped_dir, exist_ok=True)
-
-        src_ds.GetRasterBand(1).SetNoDataValue(0)
-
-        # Now, we create an in-memory raster
-        mem_drv = gdal.GetDriverByName('MEM')
-        tmp_ds = mem_drv.Create('', int(raster_schema.raster_size_x), int(raster_schema.raster_size_y), 1, gdal.GDT_UInt16)
-
-        # Set the geotransform
-        tmp_ds.SetGeoTransform([tile[1], int(band.resolution_x), 0, tile[2], 0, -int(band.resolution_y)])
-        tmp_ds.SetProjection(scenesrs.ExportToWkt())
-        tmp_ds.GetRasterBand(1).SetNoDataValue(0)
-
-        # Perform the projection/resampling
-        if band.common_name == 'quality':
-            resampling = gdal.GRA_NearestNeighbour
-        else:
-            resampling = gdal.GRA_Bilinear
-        error_threshold = 0.125
-        try:
-            res = gdal.ReprojectImage(src_ds, tmp_ds, 'PROJCS["WGS 84 / UTM zone 23S",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32723"]]', tmp_ds.GetProjection(), resampling)
-        except BaseException as e:
-            raise RuntimeError('Could not reproject image - {}'.format(e))
-
-        # Create the final warped raster
-        driver = gdal.GetDriverByName('GTiff')
-        dst_ds = driver.CreateCopy(warped, tmp_ds, options=['COMPRESS=LZW', 'TILED=YES'])
-        dst_ds = None
-        tmp_ds = None
-
-    # if band is quality lets evaluate the mask stats for the scene
-    if band.common_name == 'quality':
-        maskfile = warped.replace('quality.tif','mask.tif')
-        dataset = scene['dataset']
-        mask = getMask(warped,dataset)
-
-        if mask is None:
-            raise FileNotFoundError('No mask {}'.format(maskfile))
-
-        cloudratio, clearratio, efficacy = getMaskStats(mask)
-        # nscene = {}
-        # nscene['cloudratio'] = cloudratio
-        # nscene['clearratio'] = clearratio
-        # nscene['efficacy'] = efficacy
-        if efficacy <= 0.1:
-            return 0,'Efficacy {} is too low for {}'.format(efficacy,filename)
-
-    return 0,'Normal execution'
-
-
-def merge(datacube, tile_id, assets, cols, rows, period, **kwargs):
+def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
     nodata = kwargs.get('nodata', None)
     xmin = kwargs.get('xmin')
     ymax = kwargs.get('ymax')
     dataset = kwargs.get('dataset')
     band = assets[0]['band']
     merge_date = kwargs.get('date')
+    resx, resy = kwargs.get('resx'), kwargs.get('resy')
+
+    formatted_date = datetime.strptime(merge_date, '%Y-%m-%d').strftime('%Y%m%d')
 
     srs = kwargs.get('srs', '+proj=aea +lat_1=10 +lat_2=-40 +lat_0=0 +lon_0=-50 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
-    merged_file = os.path.join(Config.DATA_DIR, 'Repository/collections/cubes/{}/{}/{}/{}_{}.tif'.format(datacube, tile_id, period, band, merge_date))
+    merge_name = '{}-{}-{}_M_{}_{}'.format(dataset, tile_id, formatted_date, len(assets), band)
 
-    resx, resy = assets[0]['resolution_x'], assets[0]['resolution_y']
+    merged_file = os.path.join(Config.DATA_DIR, 'Repository/collections/cubes/{}/{}/{}/{}.tif'.format(warped_datacube, tile_id, period, merge_name))
 
     transform = Affine(resx, 0, xmin, 0, -resy, ymax)
 
@@ -156,7 +45,6 @@ def merge(datacube, tile_id, assets, cols, rows, period, **kwargs):
     template = None
     for asset in assets:
         count += 1
-        step_start = time.time()
         with rasterio.Env(CPL_CURL_VERBOSE=False):
             with rasterio.open(asset['link']) as src:
                 kwargs = src.meta.copy()
@@ -189,11 +77,9 @@ def merge(datacube, tile_id, assets, cols, rows, period, **kwargs):
                             dst_nodata=nodata,
                             resampling=resampling)
                         rasterMerge = rasterMerge + raster*rasterMask
-                        rasterMask[raster!=nodata] = 0
+                        rasterMask[raster != nodata] = 0
                         if template is None:
                             template = dst.profile
-                elapsedtime = time.time() - step_start
-                ela = str(timedelta(seconds=elapsedtime))
 
     # Evaluate cloud cover and efficacy if band is quality
     efficacy = 0
@@ -208,17 +94,141 @@ def merge(datacube, tile_id, assets, cols, rows, period, **kwargs):
     with rasterio.open(merged_file, 'w', **template) as merge_dataset:
         merge_dataset.write_band(1, rasterMerge)
 
-    # Update entry in DynamoDB
-    # activity['efficacy'] = '{}'.format(int(efficacy))
-    # activity['cloudratio'] = '{}'.format(int(cloudratio))
+    return dict(
+        band=band,
+        file=merged_file,
+        efficacy=efficacy,
+        cloudratio=cloudratio,
+        dataset=dataset,
+        resolution=resx,
+        period=period,
+        date='{}{}'.format(merge_date, dataset),
+        datacube=kwargs.get('datacube'),
+        tile_id=tile_id
+    )
 
-    # self.S3client.put_object(Bucket=self.bucket_name, Key=key,Body=(bytes(json.dumps(activity).encode('UTF-8'))))
-    # elapsedtime = time.time() - program_start
-    # ela = str(timedelta(seconds=elapsedtime))
 
+def blend(activity):
+    # Assume that it contains a band and quality band
 
-def blend(scene):
-    pass
+    numscenes = len(activity['scenes'])
+
+    band = activity['band']
+
+    # Get basic information (profile) of input files
+    keys = list(activity['scenes'].keys())
+
+    filename = activity['scenes'][keys[0]]['ARDfiles'][band]
+
+    with rasterio.open(filename) as src:
+        profile = src.profile
+        tilelist = list(src.block_windows())
+
+    # Order scenes based in efficacy/resolution
+    mask_tuples = []
+
+    for key in activity['scenes']:
+        scene = activity['scenes'][key]
+        efficacy = int(scene['efficacy'])
+        resolution = int(scene['resolution'])
+        mask_tuples.append((100. * efficacy / resolution, key))
+
+    # Open all input files and save the datasets in two lists, one for masks and other for the current band.
+    # The list will be ordered by efficacy/resolution
+    masklist = []
+    bandlist = []
+    for m in sorted(mask_tuples, reverse=True):
+        key = m[1]
+        efficacy = m[0]
+        scene = activity['scenes'][key]
+
+        filename = scene['ARDfiles']['quality']
+        try:
+            masklist.append(rasterio.open(filename))
+        except BaseException as e:
+            raise IOError('FileError while opening {} - {}'.format(filename, e))
+
+        filename = scene['ARDfiles'][band]
+
+        try:
+            bandlist.append(rasterio.open(filename))
+        except BaseException as e:
+            raise IOError('FileError while opening {} - {}'.format(filename, e))
+
+    # Build the raster to store the output images.
+    width = profile['width']
+    height = profile['height']
+
+    # STACK will be generated in memory
+    stackRaster = numpy.zeros((height, width), dtype=profile['dtype'])
+
+    datacube = activity.get('datacube')
+    period = activity.get('period')
+    tile_id = activity.get('tile_id')
+    output_name = '{}-{}-{}-{}.tif'.format(datacube, tile_id, period, band)
+
+    # MEDIAN will be generated in local disk
+    medianfile = os.path.join(Config.DATA_DIR, 'Repository/collections/cubes/{}/{}/{}/{}'.format(
+        datacube, tile_id, period, output_name))
+
+    os.makedirs(os.path.dirname(medianfile), exist_ok=True)
+
+    mediandataset = rasterio.open(medianfile, 'w', **profile)
+    count = 0
+    for vh, window in tilelist:
+        step_start = time.time()
+
+        # Build the stack to store all images as a masked array. At this stage the array will contain the masked data
+        stackMA = numpy.ma.zeros((numscenes, window.height, window.width), dtype=numpy.uint16)
+
+        # notdonemask will keep track of pixels that have not been filled in each step
+        notdonemask = numpy.ones(shape=(window.height, window.width), dtype=numpy.bool_)
+
+        # For all pair (quality,band) scenes
+        for order in range(numscenes):
+            ssrc = bandlist[order]
+            msrc = masklist[order]
+            raster = ssrc.read(1,window=window)
+            mask = msrc.read(1,window=window)
+            mask[mask != 1] = 0
+            bmask = mask.astype(numpy.bool_)
+
+            # Use the mask to mark the fill (0) and cloudy (2) pixels
+            stackMA[order] = numpy.ma.masked_where(numpy.invert(bmask), raster)
+
+            # Evaluate the STACK image
+            # Pixels that have been already been filled by previous rasters will be masked in the current raster
+            todomask = notdonemask * bmask
+            notdonemask = notdonemask * numpy.invert(bmask)
+            stackRaster[window.row_off:window.row_off + window.height, window.col_off:window.col_off + window.width] += (raster * todomask).astype(profile['dtype'])
+
+        medianRaster = numpy.ma.median(stackMA,axis=0).data
+        mediandataset.write(medianRaster.astype(profile['dtype']), window=window, indexes=1)
+        count += 1
+
+    # Close all input dataset
+    for order in range(numscenes):
+        bandlist[order].close()
+        masklist[order].close()
+
+    # Evaluate cloudcover
+    cloudcover = 100. * ((height * width - numpy.count_nonzero(stackRaster)) / (height * width))
+    cloudratio = '{}'.format(int(cloudcover))
+
+    # Close and upload the MEDIAN dataset
+    mediandataset.close()
+    mediandataset = None
+    # key = activity['MEDIANfile']
+
+    # Create and upload the STACK dataset
+    # with MemoryFile() as memfile:
+    #     with memfile.open(**profile) as dataset:
+    #         dataset.write_band(1,stackRaster)
+    #         if self.verbose > 2: print ('blend - STACK profile',dataset.profile)
+
+    #     key = activity['STACKfile']
+    #     if self.verbose > 1: print('blend - key STACKfile',key)
+    #     self.S3client.upload_fileobj(memfile, Bucket=self.bucket_name, Key=key, ExtraArgs={'ACL': 'public-read'})
 
 
 def publish(scene):

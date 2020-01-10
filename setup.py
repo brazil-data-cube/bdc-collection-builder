@@ -39,6 +39,7 @@ setup(
         # Utils for database creation
         'SQLAlchemy-Utils>=0.34.2',
         'SQLAlchemy[postgresql]>=1.3.10',
+        'rasterio>=1.1.2',
         'redis>=3.3.11',
         'requests>=2.22.0',
         'GDAL>=2.3.3',
@@ -49,10 +50,7 @@ setup(
         'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
         'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
         # TODO: Temporary workaround since kombu has fixed version
-        'celery[librabbitmq]==4.3.0',
-        'librabbitmq==2.0.0',
-        'vine==1.3.0',
-        'amqp==2.5.2',
+        'celery[librabbitmq]>=4.3.0',
     ],
     entry_points={
         'console_scripts': [

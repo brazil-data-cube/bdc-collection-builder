@@ -66,8 +66,8 @@ def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
                     'nodata': nodata
                 })
 
-                with MemoryFile() as memfile:
-                    with memfile.open(**kwargs) as dst:
+                with MemoryFile() as mem_file:
+                    with mem_file.open(**kwargs) as dst:
                         reproject(
                             source=rasterio.band(src, 1),
                             destination=raster,
@@ -106,7 +106,8 @@ def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
         period=period,
         date='{}{}'.format(merge_date, dataset),
         datacube=kwargs.get('datacube'),
-        tile_id=tile_id
+        tile_id=tile_id,
+        warped_datacube=warped_datacube
     )
 
 
@@ -167,7 +168,7 @@ def blend(activity):
     period = activity.get('period')
     tile_id = activity.get('tile_id')
     output_name = '{}-{}-{}-{}.tif'.format(datacube, tile_id, period, band)
-
+    #
     # MEDIAN will be generated in local disk
     medianfile = os.path.join(Config.DATA_DIR, 'Repository/collections/cubes/{}/{}/{}/{}'.format(
         datacube, tile_id, period, output_name))
@@ -212,9 +213,8 @@ def blend(activity):
 
     # Evaluate cloudcover
     cloudcover = 100. * ((height * width - numpy.count_nonzero(stackRaster)) / (height * width))
-    cloudratio = '{}'.format(int(cloudcover))
-
-    # Close and upload the MEDIAN dataset
+    #
+    # # Close and upload the MEDIAN dataset
     mediandataset.close()
     mediandataset = None
     # key = activity['MEDIANfile']
@@ -229,53 +229,47 @@ def blend(activity):
     #     if self.verbose > 1: print('blend - key STACKfile',key)
     #     self.S3client.upload_fileobj(memfile, Bucket=self.bucket_name, Key=key, ExtraArgs={'ACL': 'public-read'})
 
-    return dict()
+    activity['efficacy'] = 0
+    activity['cloudratio'] = 100
+    activity['blends'] = {"MEDIAN": medianfile}
+
+    return activity
 
 
-def publish(datacube, tile_id, period, band, **kwargs):
-    # dst_crs = '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'
-    # src_crs = activity['srs']
-    datacube = activity.get('datacube')
-
-    # xs = [float(kwargs['xmin']),float(kwargs['xmax']),float(kwargs['xmax']),float(kwargs['xmin'])]
-    # ys = [float(kwargs['ymax']),float(kwargs['ymax']),float(kwargs['ymin']),float(kwargs['ymin'])]
-    # out = rasterio.warp.transform(src_crs, dst_crs, xs, ys, zs=None)
-
-    cube = Collection.query().filter(Collection.id == datacube).first()
-
-    # Generate quicklooks for cube scenes
-    qlbands = cube.bands_quicklook.split(',')
-
-    for type in ['MEDIAN']:# ,'STACK']:
-        quicklook_name = '{}-{}-{}-{}_{}'.format(datacube, tile_id, period, band, type)
-        quicklook_filepath = os.path.join(
+def publish_datacube(bands, datacube, tile_id, period, scenes):
+    for composite_function in ['MEDIAN']:  # ,'STACK']:
+        quick_look_name = '{}-{}-{}_{}'.format(datacube, tile_id, period, composite_function)
+        quick_look_file = os.path.join(
             Config.DATA_DIR,
-            'Repository/collections/cubes/{}/{}/{}/{}.png'.format(
-                datacube, tile_id, period, quicklook_name
+            'Repository/collections/cubes/{}/{}/{}/{}'.format(
+                datacube, tile_id, period, quick_look_name
             )
         )
 
-        qlfiles = []
-        for band in qlbands:
-            qlfiles.append(self.prefix+activity['blended'][band][type+'file'])
+        ql_files = []
+        for band in bands:
+            ql_files.append(scenes[band][composite_function])
 
-        pngname = generate_quicklook(quicklook_filepath, qlfiles)
-
-    # Generate quicklooks for all ARD scenes (merges)
-    for datedataset in activity['scenes']:
-        scene = activity['scenes'][datedataset]
-
-        general_scene_id = '{0}_{1}_{2}_{3}'.format(scene['dataset'],activity['datacube'],activity['tileid'],scene['date'])
-        qlfiles = []
-        for band in qlbands:
-            filename = os.path.join(self.prefix+activity['dirname'],scene['ARDfiles'][band])
-            qlfiles.append(filename)
-        pngname = generate_quicklook(general_scene_id, qlfiles)
-
-    return True
+        generate_quick_look(quick_look_file, ql_files)
 
 
-def generate_quicklook(file_path, qlfiles):
+def publish_merge(bands, datacube, dataset, tile_id, period, date, scenes):
+    quick_look_name = '{}-{}-{}'.format(dataset, tile_id, date)
+    quick_look_file = os.path.join(
+        Config.DATA_DIR,
+        'Repository/collections/cubes/{}/{}/{}/{}'.format(
+            datacube, tile_id, period, quick_look_name
+        )
+    )
+
+    ql_files = []
+    for band in bands:
+        ql_files.append(scenes['ARDfiles'][band])
+
+    generate_quick_look(quick_look_file, ql_files)
+
+
+def generate_quick_look(file_path, qlfiles):
     with rasterio.open(qlfiles[0]) as src:
         profile = src.profile
 
@@ -293,8 +287,8 @@ def generate_quicklook(file_path, qlfiles):
             nodata = raster <= 0
             if raster.min() != 0 or raster.max() != 0:
                 raster = raster.astype(numpy.float32)/10000.*255.
-                raster[raster>255] = 255
-            image[:,:,nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
+                raster[raster > 255] = 255
+            image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
             nb += 1
 
     write_png(pngname, image, transparent=(0, 0, 0))

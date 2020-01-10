@@ -1,11 +1,14 @@
 # Python Native
-from datetime import datetime
+from os import path as resource_path
 import logging
 # 3rdparty
 from celery import chain, group
 # BDC Scripts
+from bdc_db.models import Collection
 from bdc_scripts.celery import celery_app
-from .utils import merge as merge_processing, blend as blend_processing
+from .utils import merge as merge_processing, \
+                   blend as blend_processing, \
+                   publish_datacube, publish_merge
 
 
 @celery_app.task()
@@ -22,14 +25,16 @@ def merge(warps, *args, **kwargs):
 
 @celery_app.task()
 def blend(merges):
-    activities = {}
+    activities = dict()
 
     for _merge in merges:
-        if _merge['band'] in activities:
+        if _merge['band'] in activities and _merge['date'] in activities[_merge['band']]['scenes']:
             continue
 
-        activity = dict(scenes=dict())
+        activity = activities.get(_merge['band'], dict(scenes=dict()))
+
         activity['datacube'] = merges[0]['datacube']
+        activity['warped_datacube'] = merges[0]['warped_datacube']
         activity['band'] = _merge['band']
         activity['scenes'].setdefault(_merge['date'], dict(**_merge))
         activity['period'] = _merge['period']
@@ -50,7 +55,7 @@ def blend(merges):
         blends.append(_blend.s(activity))
 
     task = chain(group(blends), publish.s())
-    task.apply()
+    task.apply_async()
 
 
 @celery_app.task()
@@ -63,3 +68,45 @@ def _blend(activity):
 @celery_app.task()
 def publish(blends):
     logging.warning('Executing publish')
+
+    cube = Collection.query().filter(Collection.id == blends[0]['datacube']).first()
+    warped_datacube = blends[0]['warped_datacube']
+    tile_id = blends[0]['tile_id']
+    period = blends[0]['period']
+
+    # Retrieve which bands to generate quick look
+    quick_look_bands = cube.bands_quicklook.split(',')
+
+    merges = dict()
+    blend_files = dict()
+
+    for blend_result in blends:
+        blend_files[blend_result['band']] = blend_result['blends']
+
+        for merge_date, definition in blend_result['scenes'].items():
+            merges.setdefault(merge_date, dict(dataset=definition['dataset'], ARDfiles=dict()))
+            merges[merge_date]['ARDfiles'].update(definition['ARDfiles'])
+
+    # Generate quick looks for cube scenes
+    publish_datacube(quick_look_bands, cube.id, tile_id, period, blend_files)
+
+    # Generate quick looks of irregular cube
+    # In order to do that, we must schedule new celery tasks and execute in parallel
+    tasks = []
+
+    for merge_date, definition in merges.items():
+        date = merge_date.replace(definition['dataset'], '')
+        tasks.append(_publish_merge.s(quick_look_bands, warped_datacube, definition['dataset'], tile_id, period, date, definition))
+
+    promise = chain(group(tasks), upload.s())
+    promise.apply_async()
+
+
+@celery_app.task()
+def _publish_merge(bands, datacube, dateset, tile_id, period, merge_date, scenes):
+    return publish_merge(bands, datacube, dateset, tile_id, period, merge_date, scenes)
+
+
+@celery_app.task()
+def upload(*args, **kwargs):
+    pass

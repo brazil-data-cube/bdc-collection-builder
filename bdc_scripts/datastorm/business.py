@@ -10,7 +10,7 @@ from werkzeug.exceptions import NotAcceptable, NotFound
 from bdc_db.models.base_sql import BaseModel
 from bdc_db.models import Band, Collection, db, Tile
 from .forms import CollectionForm
-from .tasks import warp, merge, blend, publish
+from .tasks import merge, blend, publish
 
 
 class CubeBusiness:

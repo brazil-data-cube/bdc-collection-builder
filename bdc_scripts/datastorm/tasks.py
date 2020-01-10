@@ -1,24 +1,11 @@
-from celery import chain
+# Python Native
 from datetime import datetime
 import logging
+# 3rdparty
+from celery import chain, group
+# BDC Scripts
 from bdc_scripts.celery import celery_app
-from .utils import warp as warp_processing, merge as merge_processing, blend as blend_processing
-
-
-@celery_app.task()
-def warp(activity):
-    args = activity.get('args', {})
-
-    datacube = args.get('datacube')
-    asset = args.get('asset')
-
-    scene_date = datetime.strptime(asset['datetime'], '%Y-%m-%dT%H:%M:%S').date()
-
-    warp_processing(asset['url'], asset['scene_id'], asset['tile'], asset['band'], datacube, scene_date, asset['feature_tile'])
-
-    logging.warning('Execute Warp of {} - Asset {}'.format(datacube, asset.get('url')))
-
-    return asset
+from .utils import merge as merge_processing, blend as blend_processing
 
 
 @celery_app.task()
@@ -57,18 +44,22 @@ def blend(merges):
 
     logging.warning('Scheduling blend....')
 
+    blends = []
+
     for activity in activities.values():
-        task = chain(_blend.s(activity))
-        task.apply_async()
+        blends.append(_blend.s(activity))
+
+    task = chain(group(blends), publish.s())
+    task.apply()
 
 
 @celery_app.task()
 def _blend(activity):
-    blend_processing(activity)
-
     logging.warning('Executing blend')
+
+    return blend_processing(activity)
 
 
 @celery_app.task()
-def publish(blends, *args, **kwargs):
+def publish(blends):
     logging.warning('Executing publish')

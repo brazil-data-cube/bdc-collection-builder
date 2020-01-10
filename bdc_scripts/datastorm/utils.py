@@ -3,11 +3,13 @@ from datetime import datetime
 import os
 import time
 # 3rdparty
+from numpngw import write_png
 from rasterio import Affine, MemoryFile
 from rasterio.warp import reproject, Resampling
 import numpy
 import rasterio
 # BDC Scripts
+from bdc_db.models import Collection
 from bdc_scripts.config import Config
 
 
@@ -110,7 +112,6 @@ def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
 
 def blend(activity):
     # Assume that it contains a band and quality band
-
     numscenes = len(activity['scenes'])
 
     band = activity['band']
@@ -175,9 +176,7 @@ def blend(activity):
 
     mediandataset = rasterio.open(medianfile, 'w', **profile)
     count = 0
-    for vh, window in tilelist:
-        step_start = time.time()
-
+    for _, window in tilelist:
         # Build the stack to store all images as a masked array. At this stage the array will contain the masked data
         stackMA = numpy.ma.zeros((numscenes, window.height, window.width), dtype=numpy.uint16)
 
@@ -230,9 +229,76 @@ def blend(activity):
     #     if self.verbose > 1: print('blend - key STACKfile',key)
     #     self.S3client.upload_fileobj(memfile, Bucket=self.bucket_name, Key=key, ExtraArgs={'ACL': 'public-read'})
 
+    return dict()
 
-def publish(scene):
-    pass
+
+def publish(datacube, tile_id, period, band, **kwargs):
+    # dst_crs = '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'
+    # src_crs = activity['srs']
+    datacube = activity.get('datacube')
+
+    # xs = [float(kwargs['xmin']),float(kwargs['xmax']),float(kwargs['xmax']),float(kwargs['xmin'])]
+    # ys = [float(kwargs['ymax']),float(kwargs['ymax']),float(kwargs['ymin']),float(kwargs['ymin'])]
+    # out = rasterio.warp.transform(src_crs, dst_crs, xs, ys, zs=None)
+
+    cube = Collection.query().filter(Collection.id == datacube).first()
+
+    # Generate quicklooks for cube scenes
+    qlbands = cube.bands_quicklook.split(',')
+
+    for type in ['MEDIAN']:# ,'STACK']:
+        quicklook_name = '{}-{}-{}-{}_{}'.format(datacube, tile_id, period, band, type)
+        quicklook_filepath = os.path.join(
+            Config.DATA_DIR,
+            'Repository/collections/cubes/{}/{}/{}/{}.png'.format(
+                datacube, tile_id, period, quicklook_name
+            )
+        )
+
+        qlfiles = []
+        for band in qlbands:
+            qlfiles.append(self.prefix+activity['blended'][band][type+'file'])
+
+        pngname = generate_quicklook(quicklook_filepath, qlfiles)
+
+    # Generate quicklooks for all ARD scenes (merges)
+    for datedataset in activity['scenes']:
+        scene = activity['scenes'][datedataset]
+
+        general_scene_id = '{0}_{1}_{2}_{3}'.format(scene['dataset'],activity['datacube'],activity['tileid'],scene['date'])
+        qlfiles = []
+        for band in qlbands:
+            filename = os.path.join(self.prefix+activity['dirname'],scene['ARDfiles'][band])
+            qlfiles.append(filename)
+        pngname = generate_quicklook(general_scene_id, qlfiles)
+
+    return True
+
+
+def generate_quicklook(file_path, qlfiles):
+    with rasterio.open(qlfiles[0]) as src:
+        profile = src.profile
+
+    numlin = 768
+    numcol = int(float(profile['width'])/float(profile['height'])*numlin)
+    image = numpy.ones((numlin,numcol,len(qlfiles),), dtype=numpy.uint8)
+    pngname = '{}.png'.format(file_path)
+
+    nb = 0
+    for file in qlfiles:
+        with rasterio.open(file) as src:
+            raster = src.read(1, out_shape=(numlin, numcol))
+
+            # Rescale to 0-255 values
+            nodata = raster <= 0
+            if raster.min() != 0 or raster.max() != 0:
+                raster = raster.astype(numpy.float32)/10000.*255.
+                raster[raster>255] = 255
+            image[:,:,nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
+            nb += 1
+
+    write_png(pngname, image, transparent=(0, 0, 0))
+    return pngname
 
 
 def getMask(raster, dataset):

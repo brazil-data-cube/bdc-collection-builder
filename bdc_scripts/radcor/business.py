@@ -110,7 +110,7 @@ class RadcorBusiness:
                 if action == 'start':
                     cls.start(activity)
 
-        if 'S2' in sat or 'S2SR' in sat:
+        if 'S2' in sat or 'S2SR_SEN28' in sat:
             result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
             scenes.update(result)
             for id in result:

@@ -14,6 +14,7 @@ from bdc_scripts.config import Config
 
 
 def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
+    datacube = kwargs['datacube']
     nodata = kwargs.get('nodata', None)
     xmin = kwargs.get('xmin')
     ymax = kwargs.get('ymax')
@@ -105,7 +106,7 @@ def merge(warped_datacube, tile_id, assets, cols, rows, period, **kwargs):
         resolution=resx,
         period=period,
         date='{}{}'.format(merge_date, dataset),
-        datacube=kwargs.get('datacube'),
+        datacube=datacube,
         tile_id=tile_id,
         warped_datacube=warped_datacube
     )
@@ -346,7 +347,7 @@ def getMask(raster, dataset):
         lut = numpy.array([0,1,1,2,2],dtype=numpy.uint8)
         rastercm = numpy.take(lut,raster+1).astype(numpy.uint8)
 
-    elif dataset == 'S2SR':
+    elif dataset == 'S2SR_SEN28':
         # S2 sen2cor - The generated classification map is specified as follows:
         # Label Classification
         #  0		NO_DATA

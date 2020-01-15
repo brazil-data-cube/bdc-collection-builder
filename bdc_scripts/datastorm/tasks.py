@@ -13,7 +13,7 @@ from .utils import merge as merge_processing, \
 
 @celery_app.task()
 def warp_merge(warped_datacube, tile_id, period, warps, cols, rows, **kwargs):
-    logging.warning('Executing merge')
+    logging.warning('Executing merge {}'.format(kwargs.get('datacube')), kwargs)
 
     return merge_processing(warped_datacube, tile_id, warps, int(cols), int(rows), period, **kwargs)
 
@@ -33,7 +33,7 @@ def blend(merges):
 
         activity = activities.get(_merge['band'], dict(scenes=dict()))
 
-        activity['datacube'] = merges[0]['datacube']
+        activity['datacube'] = _merge['datacube']
         activity['warped_datacube'] = merges[0]['warped_datacube']
         activity['band'] = _merge['band']
         activity['scenes'].setdefault(_merge['date'], dict(**_merge))
@@ -60,7 +60,7 @@ def blend(merges):
 
 @celery_app.task()
 def _blend(activity):
-    logging.warning('Executing blend')
+    logging.warning('Executing blend - {} - {}'.format(activity.get('datacube'), activity.get('band')))
 
     return blend_processing(activity)
 

@@ -7,6 +7,7 @@ from stac import STAC
 import numpy
 # BDC Scripts
 from bdc_db.models import Collection, Tile, Band, db
+from bdc_scripts.config import Config
 
 
 def days_in_month(date):
@@ -137,19 +138,7 @@ def decode_periods(temporalschema,startdate,enddate,timestep):
     return requestedperiods
 
 
-def search_stac(collection: str):
-    return dict(
-        extent=dict(
-            spatial=[-67.1244739337792, -66.5838, 167.661, -3.52957589337603],
-            temporal=[
-                "2016-09-01",
-                "2019-08-31"
-            ]
-        )
-    )
-
-
-stac_cli = STAC('http://brazildatacube.dpi.inpe.br/bdc-stac/0.7.0/')
+stac_cli = STAC(Config.STAC_URL)
 
 
 class Maestro:
@@ -168,12 +157,22 @@ class Maestro:
         )
 
     def orchestrate(self):
-        self.datacube = Collection.query().filter(Collection.id == self.params['datacube']).first()
+        self.datacube = Collection.query().filter(Collection.id == self.params['datacube']).one()
 
         temporal_schema = self.datacube.temporal_composition_schema.temporal_schema
         temporal_step = self.datacube.temporal_composition_schema.temporal_composite_t
         datacube_stac = stac_cli.collection(self.datacube.id)
-        cube_start_date, cube_end_date = datacube_stac['extent']['temporal']
+
+        cube_start_date, cube_end_date = datacube_stac['extent'].get('temporal', [None, None])
+
+        dstart = self.params['start_date']
+        dend = self.params['end_date']
+
+        if cube_start_date is None:
+            cube_start_date = dstart.strftime('%Y-%m-%d')
+
+        if cube_end_date is None or datetime.datetime.strptime(cube_end_date, '%Y-%m-%d').date() < dend:
+            cube_end_date = dend.strftime('%Y-%m-%d')
 
         periodlist = decode_periods(temporal_schema, cube_start_date, cube_end_date, int(temporal_step))
 
@@ -185,9 +184,6 @@ class Maestro:
         self.tiles = Tile.query().filter(*where).all()
 
         self.bands = Band.query().filter(Band.collection_id == self.datacube.id).all()
-
-        dstart = self.params['start_date'] if 'start_date' in self.params else None
-        dend = self.params['end_date'] if 'end_date' in self.params else None
 
         number_cols = self.datacube.raster_size_schemas.raster_size_x
         number_rows = self.datacube.raster_size_schemas.raster_size_y
@@ -202,9 +198,9 @@ class Maestro:
                 for periodkey in requestedperiod:
                     _ , startdate, enddate = periodkey.split('_')
 
-                    if dstart is not None and datetime.datetime.strptime(startdate, '%Y-%m-%d').date() < dstart:
+                    if dstart is not None and startdate < dstart.strftime('%Y-%m-%d'):
                         continue
-                    if dend is not None and dend < datetime.datetime.strptime(enddate, '%Y-%m-%d').date():
+                    if dend is not None and enddate > dend.strftime('%Y-%m-%d'):
                         continue
 
                     self.mosaics[tile.id]['periods'][periodkey] = {}
@@ -270,8 +266,15 @@ class Maestro:
         from bdc_scripts.datastorm.tasks import blend, warp_merge, publish
         self.prepare_merge()
 
+        datacube = self.datacube.id
+
+        if datacube is None:
+            datacube = self.params['datacube']
+
         bands = self.datacube_bands
         warped_datacube = self.warped_datacube.id
+
+        print('{} - Bands - '.format(datacube, bands))
 
         # Quality
         # bands = filter(lambda b: b.common_name == 'quality', bands)
@@ -293,16 +296,16 @@ class Maestro:
 
                     for collection, merges in collections.items():
                         for merge_date, assets in merges.items():
-                            kwargs = dict(
+                            properties = dict(
                                 date=merge_date,
                                 dataset=collection,
                                 xmin=tile.min_x,
                                 ymax=tile.max_y,
-                                datacube=self.datacube.id,
+                                datacube=datacube,
                                 resx=band.resolution_x,
                                 resy=band.resolution_y,
                             )
-                            task = warp_merge.s(warped_datacube, tileid, period, assets, cols, rows, **kwargs)
+                            task = warp_merge.s(warped_datacube, tileid, period, assets, cols, rows, **properties)
                             merges_tasks.append(task)
 
                 task = chain(group(merges_tasks), blend.s())
@@ -311,6 +314,8 @@ class Maestro:
             # task = chain(group(blends), publish.s())
             task = group(blends)
             task.apply_async()
+
+        return self.mosaics
 
     def search_images(self, bbox: str, start: str, end: str):
         scenes = {}

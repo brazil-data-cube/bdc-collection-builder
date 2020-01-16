@@ -55,10 +55,10 @@ def dispatch(activity: dict):
 
     if app == 'downloadS2':
         # We are assuming that collection either TOA or DN
-        collection_sr = Collection.query().filter(Collection.id == 'S2SR').first()
+        collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
 
         if collection_sr is None:
-            raise RuntimeError('The collection "S2SR" not found')
+            raise RuntimeError('The collection "S2SR_SEN28" not found')
 
         # Raw chain represents TOA publish chain
         raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()

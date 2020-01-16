@@ -1,6 +1,6 @@
 from sqlalchemy import ARRAY, Column, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import relationship
-
+from bdc_db.models import Collection
 from bdc_db.models.base_sql import BaseModel
 
 
@@ -8,7 +8,7 @@ class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
 
     id = Column(Integer, primary_key=True)
-    collection_id = Column(ForeignKey('collections.id'), nullable=False)
+    collection_id = Column(ForeignKey(Collection.id), nullable=False)
     activity_type = Column('activity_type', String(64), nullable=False)
     args = Column('args', JSON)
     tags = Column('tags', ARRAY(String))

@@ -12,8 +12,9 @@ from numpngw import write_png
 from skimage.transform import resize
 
 # BDC Scripts
-from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_scripts.config import Config
+from bdc_scripts.db import add_instance, commit
 from bdc_scripts.core.utils import generate_cogs
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
@@ -93,6 +94,17 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     source = scene.sceneid.split('_')[0]
 
     with db.session.begin_nested():
+        restriction = dict(
+            grs_schema_id=collection_item.grs_schema_id,
+            tile_id=collection_item.tile_id,
+            collection_id=collection_item.collection_id
+        )
+
+        collection_tile, _ = get_or_create_model(CollectionTile, defaults=restriction, **restriction)
+
+        # Add into scope of local and remote database
+        add_instance(collection_tile)
+
         # Convert original format to COG
         for sband in bands:
             band = BAND_MAP[sband]
@@ -113,6 +125,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             if band_model is None:
                 logging.warning('Band {} not registered on database. Skipping'.format(sband))
+                continue
 
             defaults = dict(
                 source=source,
@@ -135,7 +148,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 collection_item_id=collection_item.id,
             )
 
-            asset.save(commit=False)
+            # Add into scope of local and remote database
+            add_instance(asset)
 
             del asset_dataset
 
@@ -145,9 +159,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             create_qlook_file(pngname, files['qlfile'])
             collection_item.quicklook = pngname
 
-        collection_item.save(commit=False)
+        add_instance(collection_item)
 
-    db.session.commit()
+    commit()
 
 
 def create_qlook_file(pngname, qlfile):

@@ -172,7 +172,7 @@ class SentinelTask(RadcorTask):
         version = 'sen2cor280'
 
         # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = 'S2SR'
+        scene['collection_id'] = 'S2SR_SEN28'
 
         activity_history = get_task_activity()
         activity_history.activity.activity_type = 'correctionS2'
@@ -221,7 +221,6 @@ class SentinelTask(RadcorTask):
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
-        # scene['file']
 
         logging.debug('Done Publish Sentinel.')
 

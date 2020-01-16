@@ -14,7 +14,7 @@ from skimage.transform import resize
 # BDC Scripts
 from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_scripts.config import Config
-from bdc_scripts.db import add_instance, commit
+from bdc_scripts.db import add_instance, commit, db_aws
 from bdc_scripts.core.utils import generate_cogs
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
@@ -93,75 +93,78 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     source = scene.sceneid.split('_')[0]
 
-    with db.session.begin_nested():
-        restriction = dict(
-            grs_schema_id=collection_item.grs_schema_id,
-            tile_id=collection_item.tile_id,
-            collection_id=collection_item.collection_id
-        )
-
-        collection_tile, _ = get_or_create_model(CollectionTile, defaults=restriction, **restriction)
-
-        # Add into scope of local and remote database
-        add_instance(collection_tile)
-
-        # Convert original format to COG
-        for sband in bands:
-            band = BAND_MAP[sband]
-            file = files[band]
-
-            # Set destination of COG file
-            cog_file_path = os.path.join(productdir, '{}_{}.tif'.format(file_basename, sband))
-
-            files[band] = generate_cogs(file, cog_file_path)
-
-            asset_dataset = gdal.Open(cog_file_path)
-
-            raster_band = asset_dataset.GetRasterBand(1)
-
-            chunk_x, chunk_y = raster_band.GetBlockSize()
-
-            band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
-
-            if band_model is None:
-                logging.warning('Band {} not registered on database. Skipping'.format(sband))
-                continue
-
-            defaults = dict(
-                source=source,
-                url=cog_file_path,
-                raster_size_x=asset_dataset.RasterXSize,
-                raster_size_y=asset_dataset.RasterYSize,
-                raster_size_t=1,
-                chunk_size_t=1,
-                chunk_size_x=chunk_x,
-                chunk_size_y=chunk_y
-            )
-
-            asset, _ = get_or_create_model(
-                Asset,
-                defaults=defaults,
-                collection_id=scene.collection_id,
-                band_id=band_model.id,
-                grs_schema_id=scene.collection.grs_schema_id,
+    for instance in ['local', 'aws']:
+        engine_instance = {
+            'local': db,
+            'aws': db_aws
+        }
+        engine = engine_instance[instance]
+        
+        with engine.session.begin_nested():
+            restriction = dict(
+                grs_schema_id=collection_item.grs_schema_id,
                 tile_id=collection_item.tile_id,
-                collection_item_id=collection_item.id,
+                collection_id=collection_item.collection_id
             )
+            _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
 
-            # Add into scope of local and remote database
-            add_instance(asset)
+            # Convert original format to COG
+            for sband in bands:
+                band = BAND_MAP[sband]
+                file = files[band]
 
-            del asset_dataset
+                # Set destination of COG file
+                cog_file_path = os.path.join(productdir, '{}_{}.tif'.format(file_basename, sband))
 
-        # Create Qlook file
-        pngname = os.path.join(productdir, file_basename + '.png')
-        if not os.path.exists(pngname):
-            create_qlook_file(pngname, files['qlfile'])
-            collection_item.quicklook = pngname
+                files[band] = generate_cogs(file, cog_file_path)
 
-        add_instance(collection_item)
+                asset_dataset = gdal.Open(cog_file_path)
 
-    commit()
+                raster_band = asset_dataset.GetRasterBand(1)
+
+                chunk_x, chunk_y = raster_band.GetBlockSize()
+
+                band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
+
+                if band_model is None:
+                    logging.warning('Band {} not registered on database. Skipping'.format(sband))
+                    continue
+
+                defaults = dict(
+                    source=source,
+                    url=cog_file_path,
+                    raster_size_x=asset_dataset.RasterXSize,
+                    raster_size_y=asset_dataset.RasterYSize,
+                    raster_size_t=1,
+                    chunk_size_t=1,
+                    chunk_size_x=chunk_x,
+                    chunk_size_y=chunk_y
+                )
+                _, _ = get_or_create_model(
+                    Asset,
+                    defaults=defaults,
+                    engine=engine,
+                    collection_id=scene.collection_id,
+                    band_id=band_model.id,
+                    grs_schema_id=scene.collection.grs_schema_id,
+                    tile_id=collection_item.tile_id,
+                    collection_item_id=collection_item.id,
+                )
+                del asset_dataset
+
+            # Create Qlook file
+            pngname = os.path.join(productdir, file_basename + '.png')
+            if not os.path.exists(pngname):
+                create_qlook_file(pngname, files['qlfile'])
+
+            c_item = engine.session.query(CollectionItem).filter(
+                CollectionItem.id == collection_item.id
+            ).first()
+            if c_item:
+                c_item.quicklook = pngname
+                add_instance(engine, c_item)
+
+        commit(engine)
 
 
 def create_qlook_file(pngname, qlfile):

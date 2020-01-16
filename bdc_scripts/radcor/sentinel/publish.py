@@ -52,7 +52,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     for jp2file in sorted(jp2files):
         filename = os.path.basename(jp2file)
         parts = filename.split('_')
-        band = parts[-2] if collection_item.collection_id == 'S2SR' else parts[-1].replace('.jp2', '')
+        band = parts[-2] if collection_item.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
 
         if band not in bands and band in SENTINEL_BANDS:
             bands.append(band)
@@ -110,6 +110,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             chunk_x, chunk_y = raster_band.GetBlockSize()
 
             band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
+
+            if band_model is None:
+                logging.warning('Band {} not registered on database. Skipping'.format(sband))
 
             defaults = dict(
                 source=source,

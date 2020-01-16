@@ -14,6 +14,7 @@ from celery.signals import task_received, worker_shutdown
 from celery.backends.database import Task
 from celery.states import PENDING
 
+
 # BDC Scripts
 from bdc_db.models import db
 from bdc_scripts import create_app
@@ -56,6 +57,11 @@ def on_received_store_in_db(sender, request, **kwargs):
                 arguments = request._payload[0]
 
                 if len(arguments) > 0:
+                    if not isinstance(arguments[0], dict):
+                        # logging.warning('No factory handler supported for this task parameters')
+                        db.session.rollback()
+                        return
+
                     context_name = arguments[0].get('activity_type')
 
                     # Retrieving task handler (creator)

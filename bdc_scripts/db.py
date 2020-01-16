@@ -23,17 +23,12 @@ class DatabaseWrapper(object):
 db_aws = DatabaseWrapper()
 
 
-def add_instance(*instances):
+def add_instance(engine, *instances):
     for instance in instances:
-        db.session.add(instance)
-        db_aws.session.add(instance)
+        engine.session.add(instance)
 
+def commit(engine):
+    engine.session.commit()
 
-def commit():
-    db.session.commit()
-    db_aws.session.commit()
-
-
-def rollback():
-    db.session.rollback()
-    db_aws.session.rollback()
+def rollback(engine):
+    engine.session.rollback()

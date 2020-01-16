@@ -13,7 +13,7 @@ from bdc_scripts.radcor.models import RadcorActivityHistory
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 
 
-def get_or_create_model(model_class, defaults=None, **restrictions):
+def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
     """
     Utility method for looking up an object with the given restrictions, creating
     one if necessary.
@@ -25,7 +25,10 @@ def get_or_create_model(model_class, defaults=None, **restrictions):
         BaseModel Retrieves model instance
     """
 
-    instance = model_class.query().filter_by(**restrictions).first()
+    if not engine:
+        engine = db
+
+    instance = engine.session.query(model_class).filter_by(**restrictions).first()
 
     if instance:
         return instance, False
@@ -34,7 +37,7 @@ def get_or_create_model(model_class, defaults=None, **restrictions):
     params.update(defaults or {})
     instance = model_class(**params)
 
-    db.session.add(instance)
+    engine.session.add(instance)
 
     return instance, True
 

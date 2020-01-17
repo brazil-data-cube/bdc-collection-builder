@@ -23,7 +23,7 @@ def download_sentinel_images(link, file_path, user):
 
     size = int(response.headers['Content-Length'].strip())
 
-    logging.info('Downloading image {}, user {}, size {} MB'.format(link, user, int(size / 1024 / 1024)))
+    logging.info('Downloading image {} in {}, user {}, size {} MB'.format(link, file_path, user, int(size / 1024 / 1024)))
 
     dirname = os.path.dirname(file_path)
 

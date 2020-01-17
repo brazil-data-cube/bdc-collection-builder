@@ -18,14 +18,14 @@ from bdc_db.models import db
 # BDC Scripts
 from bdc_scripts.celery import celery_app
 from bdc_scripts.celery.cache import lock_handler
-from bdc_scripts.core.utils import extractall, is_valid
+from bdc_scripts.core.utils import extractall, is_valid, upload_file
+from bdc_scripts.config import Config
 from bdc_scripts.radcor.base_task import RadcorTask
-from bdc_scripts.radcor.models import RadcorActivity
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
 from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
-from bdc_scripts.radcor.utils import get_task_activity, get_or_create_model
+from bdc_scripts.radcor.utils import get_task_activity
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -172,7 +172,7 @@ class SentinelTask(RadcorTask):
         version = 'sen2cor280'
 
         # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = 'S2SR'
+        scene['collection_id'] = 'S2SR_SEN28'
 
         activity_history = get_task_activity()
         activity_history.activity.activity_type = 'correctionS2'
@@ -207,6 +207,7 @@ class SentinelTask(RadcorTask):
         activity_history = get_task_activity()
         activity_history.activity.activity_type = 'publishS2'
         activity_history.start = datetime.utcnow()
+        activity_history.activity.args = scene.get('args')
         activity_history.save()
         logging.info('Starting publish Sentinel {} - Activity {}'.format(
             scene.get('collection_id'),
@@ -214,14 +215,14 @@ class SentinelTask(RadcorTask):
         ))
 
         try:
-            publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
-        # scene['file']
+        scene['args']['assets'] = assets
 
         logging.debug('Done Publish Sentinel.')
 
@@ -229,8 +230,15 @@ class SentinelTask(RadcorTask):
 
     def upload(self, scene):
         activity_history = get_task_activity()
+        activity_history.activity.args = scene['args']
         activity_history.start = datetime.utcnow()
         activity_history.save()
+
+        assets = scene['args']['assets']
+
+        for entry in assets.values():
+            file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
+            upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
 
 
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection

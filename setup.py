@@ -30,6 +30,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         'beautifulsoup4>=4.8.1',
+        'boto3>=1.11',
+        'docutils>=0.10,<0.15'
         'Flask>=1.1.1',
         'flask-restplus>=0.13.0',
         'Flask-Migrate>=2.5.2',

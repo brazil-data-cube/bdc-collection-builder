@@ -23,6 +23,9 @@ def create_app(config_name='DevelopmentConfig'):
         # Initialize Flask SQLAlchemy
         BDCDatabase(app)
 
+        from bdc_scripts.db import db_aws
+        db_aws.initialize()
+
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)
         celery.celery_app = celery_app

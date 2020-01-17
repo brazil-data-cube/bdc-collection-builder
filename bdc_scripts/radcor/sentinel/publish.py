@@ -12,9 +12,11 @@ from numpngw import write_png
 from skimage.transform import resize
 
 # BDC Scripts
-from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_scripts.config import Config
+from bdc_scripts.db import add_instance, commit, db_aws
 from bdc_scripts.core.utils import generate_cogs
+from bdc_scripts.radcor.forms import CollectionItemForm
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
 
@@ -52,7 +54,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     for jp2file in sorted(jp2files):
         filename = os.path.basename(jp2file)
         parts = filename.split('_')
-        band = parts[-2] if collection_item.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
+        band = parts[-2] if scene.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
 
         if band not in bands and band in SENTINEL_BANDS:
             bands.append(band)
@@ -66,20 +68,21 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     # Retrieve .SAFE folder name
     scene_file_path = Path(scene.args.get('file'))
-    safe_filename = scene_file_path.name.replace('MSIL1C', 'MSIL2A')
+    safe_filename = scene_file_path.name  # .replace('MSIL1C', 'MSIL2A')
 
     # Get year month from .SAFE folder
     year_month_part = safe_filename.split('_')[2]
     yyyymm = '{}-{}'.format(year_month_part[:4], year_month_part[4:6])
 
-    productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
-        scene.collection_id, yyyymm, safe_filename))
+    product_uri = '/Repository/Archive/{}/{}/{}'.format(
+        scene.collection_id, yyyymm, safe_filename)
+
+    productdir = os.path.join(Config.DATA_DIR, product_uri[1:])
 
     if not os.path.exists(productdir):
         os.makedirs(productdir)
 
     # Create vegetation index
-    # app.logger.warning('Generate Vegetation index')
     generate_vi(file_basename, productdir, files)
 
     bands.append('NDVI')
@@ -88,66 +91,112 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     BAND_MAP['NDVI'] = 'ndvi'
     BAND_MAP['EVI'] = 'evi'
 
-    collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
+    collection_bands = Band.query().filter(Band.collection_id == scene.collection_id).all()
+
+    for sband in bands:
+        band = BAND_MAP[sband]
+        file = files[band]
+
+        # Set destination of COG file
+        cog_file_name = '{}_{}.tif'.format(file_basename, sband)
+        cog_file_path = os.path.join(productdir, cog_file_name)
+
+        files[band] = generate_cogs(file, cog_file_path)
 
     source = scene.sceneid.split('_')[0]
 
-    with db.session.begin_nested():
-        # Convert original format to COG
-        for sband in bands:
-            band = BAND_MAP[sband]
-            file = files[band]
+    assets_to_upload = {}
 
-            # Set destination of COG file
-            cog_file_path = os.path.join(productdir, '{}_{}.tif'.format(file_basename, sband))
+    for instance in ['local', 'aws']:
+        engine_instance = {
+            'local': db,
+            'aws': db_aws
+        }
+        engine = engine_instance[instance]
 
-            files[band] = generate_cogs(file, cog_file_path)
+        if instance == 'aws':
+            asset_url = product_uri.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
+        else:
+            asset_url = product_uri
 
-            asset_dataset = gdal.Open(cog_file_path)
+        with engine.session.begin_nested():
+            # Add collection item to the session if not present
+            if collection_item not in engine.session:
+                item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
 
-            raster_band = asset_dataset.GetRasterBand(1)
+                if not item:
+                    cloned_properties = CollectionItemForm().dump(collection_item)
+                    cloned_item = CollectionItem(**cloned_properties)
+                    engine.session.add(cloned_item)
 
-            chunk_x, chunk_y = raster_band.GetBlockSize()
-
-            band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
-
-            if band_model is None:
-                logging.warning('Band {} not registered on database. Skipping'.format(sband))
-
-            defaults = dict(
-                source=source,
-                url=cog_file_path,
-                raster_size_x=asset_dataset.RasterXSize,
-                raster_size_y=asset_dataset.RasterYSize,
-                raster_size_t=1,
-                chunk_size_t=1,
-                chunk_size_x=chunk_x,
-                chunk_size_y=chunk_y
-            )
-
-            asset, _ = get_or_create_model(
-                Asset,
-                defaults=defaults,
-                collection_id=scene.collection_id,
-                band_id=band_model.id,
-                grs_schema_id=scene.collection.grs_schema_id,
+            restriction = dict(
+                grs_schema_id=collection_item.grs_schema_id,
                 tile_id=collection_item.tile_id,
-                collection_item_id=collection_item.id,
+                collection_id=collection_item.collection_id
             )
+            _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
 
-            asset.save(commit=False)
+            # Convert original format to COG
+            for sband in bands:
+                # Set destination of COG file
+                cog_file_name = '{}_{}.tif'.format(file_basename, sband)
+                cog_file_path = os.path.join(productdir, cog_file_name)
 
-            del asset_dataset
+                asset_dataset = gdal.Open(cog_file_path)
 
-        # Create Qlook file
-        pngname = os.path.join(productdir, file_basename + '.png')
-        if not os.path.exists(pngname):
-            create_qlook_file(pngname, files['qlfile'])
-            collection_item.quicklook = pngname
+                raster_band = asset_dataset.GetRasterBand(1)
 
-        collection_item.save(commit=False)
+                chunk_x, chunk_y = raster_band.GetBlockSize()
 
-    db.session.commit()
+                band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
+
+                if band_model is None:
+                    logging.warning('Band {} not registered on database. Skipping'.format(sband))
+                    continue
+
+                defaults = dict(
+                    source=source,
+                    url='{}/{}'.format(asset_url, cog_file_name),
+                    raster_size_x=asset_dataset.RasterXSize,
+                    raster_size_y=asset_dataset.RasterYSize,
+                    raster_size_t=1,
+                    chunk_size_t=1,
+                    chunk_size_x=chunk_x,
+                    chunk_size_y=chunk_y
+                )
+                asset, _ = get_or_create_model(
+                    Asset,
+                    defaults=defaults,
+                    engine=engine,
+                    collection_id=scene.collection_id,
+                    band_id=band_model.id,
+                    grs_schema_id=scene.collection.grs_schema_id,
+                    tile_id=collection_item.tile_id,
+                    collection_item_id=collection_item.id,
+                )
+
+                assets_to_upload[sband] = (dict(file=cog_file_path, asset=asset.url))
+
+                del asset_dataset
+
+            # Create Qlook file
+            pngname = os.path.join(productdir, file_basename + '.png')
+            if not os.path.exists(pngname):
+                create_qlook_file(pngname, files['qlfile'])
+
+            normalized_quicklook_path = os.path.normpath('{}/{}'.format(asset_url, os.path.basename(pngname)))
+            assets_to_upload['quicklook'] = dict(asset=normalized_quicklook_path, file=pngname)
+
+            c_item = engine.session.query(CollectionItem).filter(
+                CollectionItem.id == collection_item.id
+            ).first()
+            if c_item:
+                c_item.quicklook = normalized_quicklook_path
+                add_instance(engine, c_item)
+
+        commit(engine)
+
+    return assets_to_upload
 
 
 def create_qlook_file(pngname, qlfile):

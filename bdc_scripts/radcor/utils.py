@@ -13,7 +13,7 @@ from bdc_scripts.radcor.models import RadcorActivityHistory
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 
 
-def get_or_create_model(model_class, defaults=None, **restrictions):
+def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
     """
     Utility method for looking up an object with the given restrictions, creating
     one if necessary.
@@ -25,7 +25,10 @@ def get_or_create_model(model_class, defaults=None, **restrictions):
         BaseModel Retrieves model instance
     """
 
-    instance = model_class.query().filter_by(**restrictions).first()
+    if not engine:
+        engine = db
+
+    instance = engine.session.query(model_class).filter_by(**restrictions).first()
 
     if instance:
         return instance, False
@@ -34,7 +37,7 @@ def get_or_create_model(model_class, defaults=None, **restrictions):
     params.update(defaults or {})
     instance = model_class(**params)
 
-    db.session.add(instance)
+    engine.session.add(instance)
 
     return instance, True
 
@@ -55,10 +58,10 @@ def dispatch(activity: dict):
 
     if app == 'downloadS2':
         # We are assuming that collection either TOA or DN
-        collection_sr = Collection.query().filter(Collection.id == 'S2SR').first()
+        collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
 
         if collection_sr is None:
-            raise RuntimeError('The collection "S2SR" not found')
+            raise RuntimeError('The collection "S2SR_SEN28" not found')
 
         # Raw chain represents TOA publish chain
         raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
@@ -96,8 +99,8 @@ def dispatch(activity: dict):
     elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
-    else:
-        raise ValueError('Not implemented. "{}"'.format(app))
+    elif app == 'uploadS2':
+        return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
 
 def get_task_activity() -> RadcorActivityHistory:

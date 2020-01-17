@@ -10,7 +10,8 @@ from skimage.transform import resize
 import numpy
 
 # BDC Scripts
-from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_db.models import Asset, Band, CollectionItem, CollectionTile, db
+from bdc_scripts.db import add_instance, commit
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
 
@@ -81,7 +82,17 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     with db.session.begin_nested():
         collection_item.quicklook = pngname
-        collection_item.save(commit=False)
+
+        restriction = dict(
+            grs_schema_id=collection_item.grs_schema_id,
+            tile_id=collection_item.tile_id,
+            collection_id=collection_item.collection_id
+        )
+
+        collection_tile, _ = get_or_create_model(CollectionTile, defaults=restriction, **restriction)
+
+        # Add into scope of local and remote database
+        add_instance(collection_item, collection_tile)
 
         collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
 
@@ -122,8 +133,10 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 collection_item_id=collection_item.id,
             )
 
-            asset.save(commit=False)
+            # Add into scope of local and remote database
+            add_instance(asset)
 
-    db.session.commit()
+    # Persist database
+    commit()
 
     return 0

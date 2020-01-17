@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_db.models import db
+from bdc_db.models import db, CollectionItem
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 
 
@@ -10,6 +10,17 @@ class TaskSchema(Schema):
     task_id = fields.Str()
     date_done = fields.DateTime()
     traceback = fields.Str()
+
+
+class CollectionItemForm(ModelSchema):
+    collection_id = fields.String()
+    grs_schema_id = fields.String()
+    tile_id = fields.String()
+
+    class Meta:
+        model = CollectionItem
+        sqla_session = db.session
+        exclude = ('grs_schema', 'cube_collection', 'tile')
 
 
 class HistoryForm(ModelSchema):

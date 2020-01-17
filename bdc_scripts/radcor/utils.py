@@ -99,8 +99,8 @@ def dispatch(activity: dict):
     elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
-    else:
-        raise ValueError('Not implemented. "{}"'.format(app))
+    elif app == 'uploadS2':
+        return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
 
 def get_task_activity() -> RadcorActivityHistory:

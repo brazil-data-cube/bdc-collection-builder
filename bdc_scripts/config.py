@@ -20,6 +20,7 @@ class Config:
         'SQLALCHEMY_DATABASE_URI_AWS',
         'postgresql://postgres:postgres@localhost:5433/bdc_scripts'
     )
+    AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-arquive')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')

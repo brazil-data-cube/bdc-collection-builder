@@ -1,13 +1,14 @@
 from sqlalchemy import Column, String, ARRAY, ForeignKey, Integer, JSON
 from sqlalchemy.orm import relationship
 from bdc_db.models.base_sql import BaseModel
+from bdc_db.models import Collection
 
 
 class DataStormActivity(BaseModel):
     __tablename__ = 'datastorm_activities'
 
     id = Column(Integer, primary_key=True)
-    collection_id = Column(ForeignKey('collections.id'), nullable=False)
+    collection_id = Column(ForeignKey(Collection.id), nullable=False)
     activity_type = Column('activity_type', String(64), nullable=False)
     args = Column('args', JSON)
     tags = Column('tags', ARRAY(String))

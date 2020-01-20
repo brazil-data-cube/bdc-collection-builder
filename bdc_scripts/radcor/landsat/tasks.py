@@ -110,7 +110,10 @@ class LandsatTask(RadcorTask):
         return len(fs) > 0
 
     def correction(self, scene):
+        # Set Collection to the Sentinel Surface Reflectance
+        scene['collection_id'] = 'LC8SR'
         activity_history = get_task_activity()
+        activity_history.activity.collection_id = scene['collection_id']
         activity_history.start = datetime.utcnow()
         activity_history.save()
 

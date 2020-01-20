@@ -105,11 +105,19 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     for gband, band in bands.items():
         template = productdir+'/LC08_*_{}_{}_*_{}.*'.format(pathrow, date, band)
         fs = glob.glob(template)
-        files[gband] = fs[0]
-        if gband in quicklook:
-            qlfiles[gband] = fs[0]
 
-    generate_vi(productdir, files)
+        if not fs:
+            continue
+
+        if fs[0].lower().endswith('.tif'):
+            files[gband] = fs[0]
+            if gband in quicklook:
+                qlfiles[gband] = fs[0]
+
+    # Skip EVI/NDVI generation for Surface Reflectance
+    # since the espa-science already done
+    if collection.id == 'LC8_DN':
+        generate_vi(productdir, files)
 
     # Cog files
     for band, file_path in files.items():
@@ -146,10 +154,12 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     write_png(pngname, image, transparent=(0, 0, 0))
 
+    productdir = productdir.replace(Config.DATA_DIR, '')
+
     assets_to_upload = {
         'quicklook': dict(
             url=pngname,
-            asset=productdir.replace(resource_path.join(Config.DATA_DIR, 'Repository/Archive'), '')
+            asset=productdir.replace('/Repository/Archive', '')
         )
     }
 
@@ -159,6 +169,13 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             'aws': db_aws
         }
         engine = engine_instance[instance]
+
+        if instance == 'aws':
+            asset_url = productdir.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
+        else:
+            asset_url = productdir
+
+        pngname = resource_path.join(asset_url, Path(pngname).name)
 
         with engine.session.begin_nested():
             # Add collection item to the session if not present
@@ -184,10 +201,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
             # Inserting data into Product table
             for band in files:
-                template = files[band].replace(Config.DATA_DIR, '')
-
-                if instance == 'aws':
-                    template = template.replace('Repository/Archive', Config.AWS_BUCKET_NAME)
+                template = resource_path.join(asset_url, Path(files[band]).name)
 
                 dataset = GDALOpen(files[band], GA_ReadOnly)
                 asset_band = dataset.GetRasterBand(1)

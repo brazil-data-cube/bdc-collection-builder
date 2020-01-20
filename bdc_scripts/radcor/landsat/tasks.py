@@ -84,7 +84,7 @@ class LandsatTask(RadcorTask):
 
             raise e
 
-        scene['activity_type'] = 'uploadS2'
+        scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
 
         return scene

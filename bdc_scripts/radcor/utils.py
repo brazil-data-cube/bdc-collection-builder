@@ -34,6 +34,7 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
         return instance, False
 
     params = dict((k, v) for k, v in restrictions.items())
+
     params.update(defaults or {})
     instance = model_class(**params)
 
@@ -64,7 +65,7 @@ def dispatch(activity: dict):
             raise RuntimeError('The collection "S2SR_SEN28" not found')
 
         # Raw chain represents TOA publish chain
-        raw_data_chain = sentinel_tasks.publish_sentinel.s() | sentinel_tasks.upload_sentinel.s()
+        raw_data_chain = sentinel_tasks.publish_sentinel.s()
 
         atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
             sentinel_tasks.upload_sentinel.s()
@@ -83,8 +84,12 @@ def dispatch(activity: dict):
                         sentinel_tasks.upload_sentinel.s()
         return chain(task_chain).apply_async()
     elif app == 'publishS2':
-        task_chain = sentinel_tasks.publish_sentinel.s(activity) | sentinel_tasks.upload_sentinel.s()
-        return chain(task_chain).apply_async()
+        tasks = [sentinel_tasks.publish_sentinel.s(activity)]
+
+        if 'S2SR' in activity['collection_id']:
+            tasks.append(sentinel_tasks.upload_sentinel.s())
+
+        return chain(*tasks).apply_async()
     elif app == 'downloadLC8':
         # We are assuming that collection DN
         collection_lc8 = Collection.query().filter(Collection.id == 'LC8SR').first()
@@ -93,7 +98,7 @@ def dispatch(activity: dict):
             raise RuntimeError('The collection "LC8SR" not found')
 
         # Raw chain represents DN publish chain
-        raw_data_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
+        raw_data_chain = landsat_tasks.publish_landsat.s()
 
         atm_chain = landsat_tasks.atm_correction_landsat.s() | landsat_tasks.publish_landsat.s() | \
             landsat_tasks.upload_landsat.s()
@@ -103,7 +108,7 @@ def dispatch(activity: dict):
                 # Publish raw data
                 raw_data_chain,
                 # ATM Correction
-                atm_chain
+                atm_chain.s()
             ])
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
@@ -112,8 +117,12 @@ def dispatch(activity: dict):
                         landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
-        task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
-        return chain(task_chain).apply_async()
+        tasks = [landsat_tasks.publish_landsat.s(activity)]
+
+        if 'LC8SR' in activity['collection_id']:
+            tasks.append(landsat_tasks.upload_landsat.s())
+
+        return chain(*tasks).apply_async()
     elif app == 'uploadS2':
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 

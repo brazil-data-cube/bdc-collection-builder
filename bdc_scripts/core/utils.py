@@ -11,7 +11,7 @@ import boto3
 import gdal
 import numpy
 # BDC Scripts
-from bdc_scripts.config import CURRENT_DIR
+from bdc_scripts.config import CURRENT_DIR, Config
 
 
 def get_credentials():
@@ -100,7 +100,7 @@ def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
         object_name = file_name
 
     # Upload the file
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client('s3', region_name=Config.AWS_REGION_NAME, aws_access_key_id=Config.AWS_ACCESS_KEY_ID, aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
     try:
         s3_client.upload_file(file_name, bucket, object_name)
     except ClientError as e:

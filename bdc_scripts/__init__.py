@@ -1,7 +1,5 @@
-import os
 from bdc_db.ext import BDCDatabase
 from flask import Flask
-from flask_migrate import Migrate
 from bdc_scripts import config, celery
 from bdc_scripts.config import get_settings
 

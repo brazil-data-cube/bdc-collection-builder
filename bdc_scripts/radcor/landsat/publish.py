@@ -158,7 +158,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     assets_to_upload = {
         'quicklook': dict(
-            url=pngname,
+            file=pngname,
             asset=productdir.replace('/Repository/Archive', '')
         )
     }
@@ -170,6 +170,10 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         }
         engine = engine_instance[instance]
 
+        # Skip catalog on aws for digital number
+        if collection_item.collection_id == 'LC8_DN' and instance == 'aws':
+            continue
+
         if instance == 'aws':
             asset_url = productdir.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
         else:
@@ -177,72 +181,75 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
         pngname = resource_path.join(asset_url, Path(pngname).name)
 
+        assets_to_upload['quicklook']['asset'] = pngname
+
         with engine.session.begin_nested():
-            # Add collection item to the session if not present
-            if collection_item not in engine.session:
-                item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
+            with engine.session.no_autoflush:
+                # Add collection item to the session if not present
+                if collection_item not in engine.session:
+                    item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
 
-                if not item:
-                    cloned_properties = CollectionItemForm().dump(collection_item)
-                    collection_item = CollectionItem(**cloned_properties)
-                    engine.session.add(collection_item)
+                    if not item:
+                        cloned_properties = CollectionItemForm().dump(collection_item)
+                        collection_item = CollectionItem(**cloned_properties)
+                        engine.session.add(collection_item)
 
-            collection_item.quicklook = pngname
+                collection_item.quicklook = pngname
 
-            restriction = dict(
-                grs_schema_id=collection_item.grs_schema_id,
-                tile_id=collection_item.tile_id,
-                collection_id=collection_item.collection_id
-            )
-
-            _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
-
-            collection_bands = Band.query().filter(Band.collection_id == collection_item.collection_id).all()
-
-            # Inserting data into Product table
-            for band in files:
-                template = resource_path.join(asset_url, Path(files[band]).name)
-
-                dataset = GDALOpen(files[band], GA_ReadOnly)
-                asset_band = dataset.GetRasterBand(1)
-
-                chunk_x, chunk_y = asset_band.GetBlockSize()
-
-                band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
-
-                if not band_model:
-                    logging.warning('Band {} of collection {} not found in database. Skipping...'.format(
-                        band, collection_item.collection_id))
-                    continue
-
-                defaults = dict(
-                    url=template,
-                    source=cc[0],
-                    raster_size_x=dataset.RasterXSize,
-                    raster_size_y=dataset.RasterYSize,
-                    raster_size_t=1,
-                    chunk_size_t=1,
-                    chunk_size_x=chunk_x,
-                    chunk_size_y=chunk_y
-                )
-
-                asset, _ = get_or_create_model(
-                    Asset,
-                    engine=engine,
-                    defaults=defaults,
-                    collection_id=scene.collection_id,
-                    band_id=band_model.id,
-                    grs_schema_id=scene.collection.grs_schema_id,
+                restriction = dict(
+                    grs_schema_id=collection_item.grs_schema_id,
                     tile_id=collection_item.tile_id,
-                    collection_item_id=collection_item.id,
+                    collection_id=collection_item.collection_id
                 )
 
-                assets_to_upload[band] = dict(file=files[band], asset=asset.url)
+                _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
 
-                # Add into scope of local and remote database
-                add_instance(engine, asset)
+                collection_bands = engine.session.query(Band).filter(Band.collection_id == collection_item.collection_id).all()
 
-        # Persist database
+                # Inserting data into Product table
+                for band in files:
+                    template = resource_path.join(asset_url, Path(files[band]).name)
+
+                    dataset = GDALOpen(files[band], GA_ReadOnly)
+                    asset_band = dataset.GetRasterBand(1)
+
+                    chunk_x, chunk_y = asset_band.GetBlockSize()
+
+                    band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
+
+                    if not band_model:
+                        logging.warning('Band {} of collection {} not found in database. Skipping...'.format(
+                            band, collection_item.collection_id))
+                        continue
+
+                    defaults = dict(
+                        url=template,
+                        source=cc[0],
+                        raster_size_x=dataset.RasterXSize,
+                        raster_size_y=dataset.RasterYSize,
+                        raster_size_t=1,
+                        chunk_size_t=1,
+                        chunk_size_x=chunk_x,
+                        chunk_size_y=chunk_y
+                    )
+
+                    asset, _ = get_or_create_model(
+                        Asset,
+                        engine=engine,
+                        defaults=defaults,
+                        collection_id=scene.collection_id,
+                        band_id=band_model.id,
+                        grs_schema_id=scene.collection.grs_schema_id,
+                        tile_id=collection_item.tile_id,
+                        collection_item_id=collection_item.id,
+                    )
+
+                    assets_to_upload[band] = dict(file=files[band], asset=asset.url)
+
+                    # Add into scope of local and remote database
+                    add_instance(engine, asset)
+
+            # Persist database
         commit(engine)
 
     return assets_to_upload

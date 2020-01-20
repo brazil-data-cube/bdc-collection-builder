@@ -21,6 +21,9 @@ class Config:
         'postgresql://postgres:postgres@localhost:5433/bdc_scripts'
     )
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-arquive')
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'CHANGE_ME')
+    AWS_REGION_NAME = os.environ.get('AWS_REGION_NAME', 'us-east-1')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')

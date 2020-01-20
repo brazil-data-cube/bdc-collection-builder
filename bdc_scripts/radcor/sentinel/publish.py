@@ -91,8 +91,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     BAND_MAP['NDVI'] = 'ndvi'
     BAND_MAP['EVI'] = 'evi'
 
-    collection_bands = Band.query().filter(Band.collection_id == scene.collection_id).all()
-
     for sband in bands:
         band = BAND_MAP[sband]
         file = files[band]
@@ -118,6 +116,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             asset_url = product_uri.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
         else:
             asset_url = product_uri
+
+        collection_bands = engine.session.query(Band).filter(Band.collection_id == scene.collection_id).all()
+
 
         with engine.session.begin_nested():
             # Add collection item to the session if not present

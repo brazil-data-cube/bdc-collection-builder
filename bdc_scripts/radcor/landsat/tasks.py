@@ -1,7 +1,6 @@
 # Python Native
 import logging
 import os
-import time
 from datetime import datetime
 
 # 3rdparty
@@ -11,6 +10,7 @@ from requests import get as resource_get
 # BDC Scripts
 from bdc_scripts.celery import celery_app
 from bdc_scripts.config import Config
+from bdc_scripts.core.utils import upload_file
 from bdc_scripts.radcor.base_task import RadcorTask
 from bdc_scripts.radcor.landsat.download import download_landsat_images
 from bdc_scripts.radcor.landsat.publish import publish
@@ -72,23 +72,34 @@ class LandsatTask(RadcorTask):
 
     def publish(self, scene):
         activity_history = get_task_activity()
+        activity_history.activity.activity_type = 'publishLC8'
+        activity_history.activity.args = scene.get('args')
         activity_history.start = datetime.utcnow()
         activity_history.save()
 
         try:
-            publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except BaseException as e:
             logging.error('An error occurred during task execution', e)
 
             raise e
 
-        scene['app'] = 'uploadLC8'
+        scene['activity_type'] = 'uploadLC8'
+        scene['args']['assets'] = assets
 
         return scene
 
     def upload(self, scene):
-        activity = get_task_activity()
-        activity.save()
+        activity_history = get_task_activity()
+        activity_history.activity.args = scene['args']
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
+
+        assets = scene['args']['assets']
+
+        for entry in assets.values():
+            file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
+            upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
 
     @staticmethod
     def espa_done(productdir, pathrow, date):
@@ -99,7 +110,10 @@ class LandsatTask(RadcorTask):
         return len(fs) > 0
 
     def correction(self, scene):
+        # Set Collection to the Sentinel Surface Reflectance
+        scene['collection_id'] = 'LC8SR'
         activity_history = get_task_activity()
+        activity_history.activity.collection_id = scene['collection_id']
         activity_history.start = datetime.utcnow()
         activity_history.save()
 

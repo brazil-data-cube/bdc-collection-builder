@@ -86,10 +86,25 @@ def dispatch(activity: dict):
         task_chain = sentinel_tasks.publish_sentinel.s(activity) | sentinel_tasks.upload_sentinel.s()
         return chain(task_chain).apply_async()
     elif app == 'downloadLC8':
+        # We are assuming that collection DN
+        collection_lc8 = Collection.query().filter(Collection.id == 'LC8SR').first()
+
+        if collection_lc8 is None:
+            raise RuntimeError('The collection "LC8SR" not found')
+
+        # Raw chain represents DN publish chain
+        raw_data_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
+
+        atm_chain = landsat_tasks.atm_correction_landsat.s() | landsat_tasks.publish_landsat.s() | \
+            landsat_tasks.upload_landsat.s()
+
         task_chain = landsat_tasks.download_landsat.s(activity) | \
-                        landsat_tasks.atm_correction_landsat.s() | \
-                        landsat_tasks.publish_landsat.s() | \
-                        landsat_tasks.upload_landsat.s()
+            group([
+                # Publish raw data
+                raw_data_chain,
+                # ATM Correction
+                atm_chain
+            ])
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
         task_chain = landsat_tasks.atm_correction_landsat.s(activity) | \

@@ -94,7 +94,7 @@ class RadcorBusiness:
                 scene['status'] = 'NOTDONE'
 
                 activity = dict(
-                    collection_id='LC8_DN',
+                    collection_id='LC8DN',
                     activity_type='downloadLC8',
                     tags=args.get('tags', '').split(','),
                     sceneid=sceneid,
@@ -132,7 +132,7 @@ class RadcorBusiness:
                     continue
 
                 activity = dict(
-                    collection_id='S2_TOA',
+                    collection_id='S2TOA',
                     activity_type='downloadS2',
                     tags=args.get('tags', []),
                     sceneid=sceneid,

@@ -4,12 +4,14 @@ from os import path as resource_path
 from zlib import error as zlib_error
 from zipfile import BadZipfile, ZipFile
 import logging
+
 # 3rdparty
 from botocore.exceptions import ClientError
 from skimage.transform import resize
 import boto3
 import gdal
 import numpy
+
 # BDC Scripts
 from bdc_scripts.config import CURRENT_DIR, Config
 
@@ -22,9 +24,6 @@ def get_credentials():
 
 
 def extractall(file):
-    formatted_filename = file.replace('.zip', '.SAFE')
-
-    if not resource_path.exists(formatted_filename):
         archive = ZipFile(file, 'r')
         archive.extractall(resource_path.dirname(file))
         archive.close()

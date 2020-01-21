@@ -91,9 +91,9 @@ class SentinelTask(RadcorTask):
             # Store environment variables in log execution
             activity_history.env = dict(os.environ)
 
-            activity_history.activity.collection_id = 'S2_TOA'
+            activity_history.activity.collection_id = 'S2TOA'
             activity_history.save()
-            scene['collection_id'] = 'S2_TOA'
+            scene['collection_id'] = 'S2TOA'
 
             with db.session.no_autoflush:
                 logging.debug('Starting Download {}...'.format(user.username))

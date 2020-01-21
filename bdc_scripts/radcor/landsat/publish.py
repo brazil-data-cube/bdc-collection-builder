@@ -97,7 +97,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     files = {}
     qlfiles = {}
 
-    if collection.id == 'LC8_DN':
+    if collection.id == 'LC8DN':
         bands = BAND_MAP_DN
     else:
         bands = BAND_MAP_SR
@@ -116,7 +116,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     # Skip EVI/NDVI generation for Surface Reflectance
     # since the espa-science already done
-    if collection.id == 'LC8_DN':
+    if collection.id == 'LC8DN':
         generate_vi(productdir, files)
 
     # Cog files
@@ -171,7 +171,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         engine = engine_instance[instance]
 
         # Skip catalog on aws for digital number
-        if collection_item.collection_id == 'LC8_DN' and instance == 'aws':
+        if collection_item.collection_id == 'LC8DN' and instance == 'aws':
             continue
 
         if instance == 'aws':

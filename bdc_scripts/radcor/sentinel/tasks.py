@@ -25,7 +25,6 @@ from bdc_scripts.radcor.sentinel.clients import sentinel_clients
 from bdc_scripts.radcor.sentinel.download import download_sentinel_images
 from bdc_scripts.radcor.sentinel.publish import publish
 from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
-from bdc_scripts.radcor.utils import get_task_activity
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -83,18 +82,13 @@ class SentinelTask(RadcorTask):
             dict Scene with sentinel file path
         """
 
+        scene['collection_id'] = 'S2TOA'
+
+        # Create/update activity
+        activity_history = self.create_execution(scene)
+
         # Acquire User to download
         with self.get_user() as user:
-            # Persist the activity to done
-            activity_history = get_task_activity()
-            activity_history.start = datetime.utcnow()
-            # Store environment variables in log execution
-            activity_history.env = dict(os.environ)
-
-            activity_history.activity.collection_id = 'S2TOA'
-            activity_history.save()
-            scene['collection_id'] = 'S2TOA'
-
             with db.session.no_autoflush:
                 logging.debug('Starting Download {}...'.format(user.username))
 
@@ -173,12 +167,10 @@ class SentinelTask(RadcorTask):
 
         # Set Collection to the Sentinel Surface Reflectance
         scene['collection_id'] = 'S2SR_SEN28'
+        scene['activity_type'] = 'correctionS2'
 
-        activity_history = get_task_activity()
-        activity_history.activity.activity_type = 'correctionS2'
-        activity_history.start = datetime.utcnow()
-        activity_history.activity.collection_id = scene['collection_id']
-        activity_history.save()
+        # Create/update activity
+        self.create_execution(scene)
 
         try:
             params = dict(
@@ -203,12 +195,11 @@ class SentinelTask(RadcorTask):
         return scene
 
     def publish(self, scene):
-        # TODO: check if is already published before publishing
-        activity_history = get_task_activity()
-        activity_history.activity.activity_type = 'publishS2'
-        activity_history.start = datetime.utcnow()
-        activity_history.activity.args = scene.get('args')
-        activity_history.save()
+        scene['activity_type'] = 'publishS2'
+
+        # Create/update activity
+        activity_history = self.create_execution(scene)
+
         logging.info('Starting publish Sentinel {} - Activity {}'.format(
             scene.get('collection_id'),
             activity_history.activity.id
@@ -229,10 +220,8 @@ class SentinelTask(RadcorTask):
         return scene
 
     def upload(self, scene):
-        activity_history = get_task_activity()
-        activity_history.activity.args = scene['args']
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
+        # Create/update activity
+        self.create_execution(scene)
 
         assets = scene['args']['assets']
 

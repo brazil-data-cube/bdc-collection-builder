@@ -1,8 +1,9 @@
-import logging
 from celery import Celery
 from flask import Flask
 from bdc_scripts.config import Config
 from bdc_db.models import db
+import logging
+import flask
 
 
 CELERY_TASKS = [
@@ -51,6 +52,9 @@ def create_celery_app(flask_app: Flask):
 
         def __call__(self, *args, **kwargs):
             if not celery.conf.CELERY_ALWAYS_EAGER:
+                if flask._app_ctx_stack.top is not None:
+                    return TaskBase.__call__(self, *args, **kwargs)
+
                 with flask_app.app_context():
                     # Following example of Flask
                     # Just make sure the task execution is running inside flask context
@@ -75,6 +79,13 @@ def create_celery_app(flask_app: Flask):
 
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()
+
+            if flask._app_ctx_stack.top is not None:
+                db.session.bind.dispose()
+            else:
+                with flask_app.app_context():
+                    db.session.bind.dispose()
+
 
     celery.Task = ContextTask
 

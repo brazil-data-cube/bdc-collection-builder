@@ -62,6 +62,11 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         elif band == qlband:
             files['qlfile'] = jp2file
 
+    logging.warning('Publish {} - {} (id={}, jp2files={})'.format(collection_item.collection_id,
+                                                                  scene.args.get('file'),
+                                                                  scene.id,
+                                                                  len(jp2files)))
+
     # Define new filenames for products
     parts = os.path.basename(files['qlfile']).split('_')
     file_basename = '_'.join(parts[:-2])

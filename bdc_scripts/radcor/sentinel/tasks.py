@@ -106,7 +106,7 @@ class SentinelTask(RadcorTask):
 
                 zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
 
-                collection_item.compressed_file = zip_file_name
+                collection_item.compressed_file = zip_file_name.replace(Config.DATA_DIR, '')
                 cloud = activity_args.get('cloud')
 
                 if cloud:

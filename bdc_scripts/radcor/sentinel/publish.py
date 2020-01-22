@@ -224,10 +224,6 @@ def generate_vi(identifier, productdir, files):
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
-    if os.path.exists(ndvi_name) and os.path.exists(evi_name):
-        logging.debug('generateVI returning 0 cause ndvi and evi exists')
-        return
-
     data_set = gdal.Open(files['red'], gdal.GA_ReadOnly)
     raster_xsize = data_set.RasterXSize
     raster_ysize = data_set.RasterYSize

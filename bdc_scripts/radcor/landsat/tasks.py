@@ -46,7 +46,7 @@ class LandsatTask(RadcorTask):
 
             file = download_landsat_images(activity_args['link'], productdir)
 
-            collection_item.compressed_file = file
+            collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
 
             cloud = activity_args.get('cloud')
 

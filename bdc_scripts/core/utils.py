@@ -1,6 +1,6 @@
 # Python Native
 from json import loads as json_parser
-from os import path as resource_path
+from os import remove as resource_remove, path as resource_path
 from zlib import error as zlib_error
 from zipfile import BadZipfile, ZipFile
 import logging
@@ -108,6 +108,17 @@ def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
     return True
 
 
+def remove_file(file_path: str):
+    """
+    Remove file if exists
+
+    Throws Error when user doesn't have access to the file at given path
+    """
+
+    if resource_path.exists(file_path):
+        resource_remove(file_path)
+
+
 def generate_evi_ndvi(red_band: str, nir_band: str, blue_bland: str, evi_name: str, ndvi_name: str):
     """
     Generate Normalized Difference Vegetation Index (NDVI) and Enhanced Vegetation Index (EVI)
@@ -136,26 +147,28 @@ def generate_evi_ndvi(red_band: str, nir_band: str, blue_bland: str, evi_name: s
     data_set = gdal.Open(blue_bland, gdal.GA_ReadOnly)
     blue = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
 
-    # Create the ndvi image data_set if it not exists
-    driver = gdal.GetDriverByName('GTiff')
-    if not resource_path.exists(ndvi_name):
-        raster_ndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
-        ndvi_data_set = driver.Create(ndvi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
-                                                                                                         'TILED=YES'])
-        ndvi_data_set.SetGeoTransform(data_set.GetGeoTransform())
-        ndvi_data_set.SetProjection(data_set.GetProjection())
-        ndvi_data_set.GetRasterBand(1).WriteArray(raster_ndvi)
-        del ndvi_data_set
+    # Create the ndvi image data_set
+    remove_file(ndvi_name)
 
-    # Create the evi image data set if it not exists
-    if not resource_path.exists(evi_name):
-        evi_data_set = driver.Create(evi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
-                                                                                                       'TILED=YES'])
-        raster_evi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
-        evi_data_set.SetGeoTransform(data_set.GetGeoTransform())
-        evi_data_set.SetProjection(data_set.GetProjection())
-        evi_data_set.GetRasterBand(1).WriteArray(raster_evi)
-        del raster_evi
-        del evi_data_set
+    driver = gdal.GetDriverByName('GTiff')
+
+    raster_ndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
+    ndvi_data_set = driver.Create(ndvi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
+                                                                                                        'TILED=YES'])
+    ndvi_data_set.SetGeoTransform(data_set.GetGeoTransform())
+    ndvi_data_set.SetProjection(data_set.GetProjection())
+    ndvi_data_set.GetRasterBand(1).WriteArray(raster_ndvi)
+    del ndvi_data_set
+
+    # Create the evi image data set
+    remove_file(evi_name)
+    evi_data_set = driver.Create(evi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
+                                                                                                    'TILED=YES'])
+    raster_evi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
+    evi_data_set.SetGeoTransform(data_set.GetGeoTransform())
+    evi_data_set.SetProjection(data_set.GetProjection())
+    evi_data_set.GetRasterBand(1).WriteArray(raster_evi)
+    del raster_evi
+    del evi_data_set
 
     del data_set

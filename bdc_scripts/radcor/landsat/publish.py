@@ -64,10 +64,6 @@ def generate_vi(productdir, files):
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
-    if resource_path.exists(ndvi_name) and resource_path.exists(evi_name):
-        logging.debug('generateVI returning 0 cause ndvi and evi exists')
-        return
-
     generate_evi_ndvi(files['red'], files['nir'], files['blue'], evi_name, ndvi_name)
 
 

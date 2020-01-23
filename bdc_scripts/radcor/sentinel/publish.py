@@ -15,7 +15,7 @@ from skimage.transform import resize
 from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_scripts.config import Config
 from bdc_scripts.db import add_instance, commit, db_aws
-from bdc_scripts.core.utils import generate_cogs
+from bdc_scripts.core.utils import generate_cogs, generate_evi_ndvi
 from bdc_scripts.radcor.forms import CollectionItemForm
 from bdc_scripts.radcor.utils import get_or_create_model
 from bdc_scripts.radcor.models import RadcorActivity
@@ -61,6 +61,11 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             files[BAND_MAP[band]] = jp2file
         elif band == qlband:
             files['qlfile'] = jp2file
+
+    logging.warning('Publish {} - {} (id={}, jp2files={})'.format(collection_item.collection_id,
+                                                                  scene.args.get('file'),
+                                                                  scene.id,
+                                                                  len(jp2files)))
 
     # Define new filenames for products
     parts = os.path.basename(files['qlfile']).split('_')
@@ -219,51 +224,7 @@ def generate_vi(identifier, productdir, files):
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
-    if os.path.exists(ndvi_name) and os.path.exists(evi_name):
-        logging.debug('generateVI returning 0 cause ndvi and evi exists')
-        return
-
-    data_set = gdal.Open(files['red'], gdal.GA_ReadOnly)
-    raster_xsize = data_set.RasterXSize
-    raster_ysize = data_set.RasterYSize
-    red = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
-
-    # Close data_set
-    del data_set
-
-    data_set = gdal.Open(files['nir'], gdal.GA_ReadOnly)
-    nir = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
-    # app.logger.warning('resize')
-    nir = resize(nir, red.shape, order=1, preserve_range=True).astype(numpy.float32)
-    # app.logger.warning('open blue band, read band')
-
-    del data_set
-    data_set = gdal.Open(files['blue'], gdal.GA_ReadOnly)
-    blue = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
-
-    # Create the ndvi image data_set if it not exists
-    # app.logger.warning('Create the ndvi image data_set if it not exists')
-    driver = gdal.GetDriverByName('GTiff')
-    if not os.path.exists(ndvi_name):
-        raster_ndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
-        ndvi_data_set = driver.Create(ndvi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
-                                                                                                         'TILED=YES'])
-        ndvi_data_set.SetGeoTransform(data_set.GetGeoTransform())
-        ndvi_data_set.SetProjection(data_set.GetProjection())
-        ndvi_data_set.GetRasterBand(1).WriteArray(raster_ndvi)
-        del ndvi_data_set
-
-    # Create the evi image data set if it not exists
-    if not os.path.exists(evi_name):
-        evi_data_set = driver.Create(evi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
-                                                                                                       'TILED=YES'])
-        raster_evi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
-        evi_data_set.SetGeoTransform(data_set.GetGeoTransform())
-        evi_data_set.SetProjection(data_set.GetProjection())
-        evi_data_set.GetRasterBand(1).WriteArray(raster_evi)
-        del raster_evi
-        del evi_data_set
-    del data_set
+    generate_evi_ndvi(files['red'], files['nir'], files['blue'], evi_name, ndvi_name)
 
 
 def filter_jp2_files(directory, pattern):

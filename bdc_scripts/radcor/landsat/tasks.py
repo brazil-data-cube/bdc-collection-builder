@@ -28,10 +28,8 @@ class LandsatTask(RadcorTask):
         return datetime.strptime(fragments[3], '%Y%m%d')
 
     def download(self, scene):
-        activity_history = get_task_activity()
-        activity_history.start = datetime.utcnow()
-        activity_history.env = dict(os.environ)
-        activity_history.save()
+        # Create/Update activity
+        activity_history = self.create_execution(scene)
 
         try:
             scene_id = scene['sceneid']
@@ -48,7 +46,7 @@ class LandsatTask(RadcorTask):
 
             file = download_landsat_images(activity_args['link'], productdir)
 
-            collection_item.compressed_file = file
+            collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
 
             cloud = activity_args.get('cloud')
 
@@ -71,11 +69,10 @@ class LandsatTask(RadcorTask):
         return scene
 
     def publish(self, scene):
-        activity_history = get_task_activity()
-        activity_history.activity.activity_type = 'publishLC8'
-        activity_history.activity.args = scene.get('args')
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
+        scene['activity_type'] = 'publishLC8'
+
+        # Create/Update activity
+        activity_history = self.create_execution(scene)
 
         try:
             assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
@@ -90,10 +87,10 @@ class LandsatTask(RadcorTask):
         return scene
 
     def upload(self, scene):
-        activity_history = get_task_activity()
-        activity_history.activity.args = scene['args']
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
+        scene['activity_type'] = 'uploadLC8'
+
+        # Create/Update activity
+        self.create_execution(scene)
 
         assets = scene['args']['assets']
 
@@ -112,10 +109,10 @@ class LandsatTask(RadcorTask):
     def correction(self, scene):
         # Set Collection to the Sentinel Surface Reflectance
         scene['collection_id'] = 'LC8SR'
-        activity_history = get_task_activity()
-        activity_history.activity.collection_id = scene['collection_id']
-        activity_history.start = datetime.utcnow()
-        activity_history.save()
+        scene['activity_type'] = 'correctionLC8'
+
+        # Create/Update activity
+        self.create_execution(scene)
 
         try:
             params = dict(

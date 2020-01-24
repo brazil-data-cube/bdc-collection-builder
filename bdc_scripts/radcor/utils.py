@@ -193,8 +193,8 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
                 scenes[identifier]['slat'] = float(r_dict['features'][i]['bbox'][1])
                 scenes[identifier]['elon'] = float(r_dict['features'][i]['bbox'][2])
                 scenes[identifier]['nlat'] = float(r_dict['features'][i]['bbox'][3])
-                scenes[identifier]['path'] = int(r_dict['features'][i]['properties']['eo:column'])
-                scenes[identifier]['row'] = int(r_dict['features'][i]['properties']['eo:row'])
+                scenes[identifier]['path'] = r_dict['features'][i]['properties']['eo:column']
+                scenes[identifier]['row'] = r_dict['features'][i]['properties']['eo:row']
                 scenes[identifier]['resolution'] = r_dict['features'][i]['properties']['eo:bands'][3]['gsd']
                 if ( str(r_dict['features'][i]['id']).find('LGN00') != -1 ):
                     scenes[identifier]['scene_id'] = r_dict['features'][i]['id']

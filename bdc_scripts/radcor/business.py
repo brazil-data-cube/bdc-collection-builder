@@ -5,13 +5,15 @@ import logging
 
 # 3rdparty
 from sqlalchemy import or_
+from werkzeug.exceptions import BadRequest
 
 # BDC Scripts
-from bdc_db.models.base_sql import db
+from bdc_db.models import db, Collection, CollectionTile
 from bdc_scripts.config import Config
+from bdc_scripts.db import db_aws
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
-from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes
+from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
 # Consts
 CLOUD_DEFAULT = 90
@@ -38,6 +40,9 @@ class RadcorBusiness:
         if activity_type:
             restrictions.append(RadcorActivity.activity_type == activity_type)
 
+        if len(restrictions) == 0:
+            raise BadRequest('Invalid restart. You must provide query restriction such "ids", "activity_type" or "status"')
+
         activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
         for activity in activities:
@@ -46,6 +51,19 @@ class RadcorBusiness:
             cls.start(dumps)
 
         return activities
+
+    @classmethod
+    def create_tile(cls, grs, tile, collection, engine=db):
+        with engine.session.begin_nested():
+            restriction = dict(
+                grs_schema_id=grs,
+                tile_id=tile,
+                collection_id=collection
+            )
+
+            _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
+
+        engine.session.commit()
 
     @classmethod
     def radcor(cls, args: dict):
@@ -93,6 +111,11 @@ class RadcorBusiness:
                     continue
                 scene['status'] = 'NOTDONE'
 
+                tile = '{}{}'.format(scene['path'], scene['row'])
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
+
                 activity = dict(
                     collection_id='LC8DN',
                     activity_type='downloadLC8',
@@ -130,6 +153,10 @@ class RadcorBusiness:
                 if len(activities) > 0:
                     logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
+
+                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2TOA', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2SR_SEN28', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2SR_SEN28', engine=db_aws)
 
                 activity = dict(
                     collection_id='S2TOA',

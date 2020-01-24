@@ -62,7 +62,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         elif band == qlband:
             files['qlfile'] = jp2file
 
-    logging.warning('Publish {} - {} (id={}, jp2files={})'.format(collection_item.collection_id,
+    logging.warning('Publish {} - {} (id={}, jp2files={})'.format(scene.collection_id,
                                                                   scene.args.get('file'),
                                                                   scene.id,
                                                                   len(jp2files)))
@@ -138,13 +138,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         cloned_properties = CollectionItemForm().dump(collection_item)
                         cloned_item = CollectionItem(**cloned_properties)
                         engine.session.add(cloned_item)
-
-                restriction = dict(
-                    grs_schema_id=collection_item.grs_schema_id,
-                    tile_id=collection_item.tile_id,
-                    collection_id=collection_item.collection_id
-                )
-                _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
 
                 # Convert original format to COG
                 for sband in bands:

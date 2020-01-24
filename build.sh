@@ -1,9 +1,21 @@
 #Build docker images
-cd ds_maestro
-docker build -t ds_maestro .
-cd ../ds_soloist
-docker build -t ds_soloist .
-cd ../ds_cubesearch
-docker build -t ds_cubesearch .
-cd ../ds_executive
-docker build -t ds_executive .
+
+
+echo
+echo "BUILD STARTED"
+echo
+
+if [ -z "${TAG_BDC_SCRIPTS}" ]; then
+  echo "NEW TAG BDC-SCRIPTS:"
+  read TAG_BDC_SCRIPTS
+
+  echo
+fi
+
+export IMAGE_BDC_SCRIPTS="registry.dpi.inpe.br/brazildatacube/bdc-scripts"
+export IMAGE_BDC_SCRIPTS_FULL="${IMAGE_BDC_SCRIPTS}:${TAG_BDC_SCRIPTS}"
+echo "IMAGE BDC Scripts :: ${IMAGE_BDC_SCRIPTS_FULL}"
+
+docker-compose build
+
+docker push ${IMAGE_BDC_SCRIPTS_FULL}

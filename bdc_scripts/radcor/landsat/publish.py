@@ -192,14 +192,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
                 collection_item.quicklook = pngname
 
-                restriction = dict(
-                    grs_schema_id=collection_item.grs_schema_id,
-                    tile_id=collection_item.tile_id,
-                    collection_id=collection_item.collection_id
-                )
-
-                _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
-
                 collection_bands = engine.session.query(Band).filter(Band.collection_id == collection_item.collection_id).all()
 
                 # Inserting data into Product table

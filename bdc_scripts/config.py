@@ -31,6 +31,8 @@ class Config:
     ESPA_URL = os.environ.get('ESPA_URL', 'http://127.0.0.1:5032')
     SEN2COR_URL = os.environ.get('SEN2COR_URL', 'http://127.0.0.1:5031')
     STAC_URL = os.environ.get('STAC_URL', 'http://brazildatacube.dpi.inpe.br/bdc-stac/0.7.0/')
+    CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
+    CLIENT_AUDIENCE = os.environ.get('CLIENT_AUDIENCE', 'CHANGE_ME')
 
 
 class ProductionConfig(Config):

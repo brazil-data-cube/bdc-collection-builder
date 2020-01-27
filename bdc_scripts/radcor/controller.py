@@ -2,6 +2,7 @@
 from flask import request
 from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest, NotFound
+from bdc_core.decorators.auth import require_oauth_scopes
 
 # BDC Scripts
 from bdc_db.models.collection import Collection
@@ -17,13 +18,16 @@ api = Namespace('radcor', description='radcor')
 
 @api.route('/')
 class RadcorController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
     def get(self):
         """Retrieves all radcor activities from database"""
 
+        args = request.args()
         activities = RadcorActivity.query().all()
 
         return RadcorActivityForm().dump(activities, many=True)
 
+    @require_oauth_scopes(scope="bdc_scripts:radcor:POST")
     def post(self):
         """
         curl -XPOST -H "Content-Type: application/json" \
@@ -54,6 +58,7 @@ class RadcorController(Resource):
 
 @api.route('/restart')
 class RadcorRestartController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:POST")
     def get(self):
         args = request.args.to_dict()
 
@@ -70,11 +75,13 @@ class RadcorRestartController(Resource):
 
 @api.route('/stats/active')
 class RadcorActiveTasksController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
     def get(self):
         return list_running_tasks()
 
 
 @api.route('/stats/pending')
 class RadcorPendingTasksController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
     def get(self):
         return list_pending_tasks()

@@ -22,7 +22,6 @@ class RadcorController(Resource):
     def get(self):
         """Retrieves all radcor activities from database"""
 
-        args = request.args()
         activities = RadcorActivity.query().all()
 
         return RadcorActivityForm().dump(activities, many=True)

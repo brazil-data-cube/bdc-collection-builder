@@ -28,7 +28,10 @@ def add_instance(engine, *instances):
         engine.session.add(instance)
 
 def commit(engine):
-    engine.session.commit()
+    try:
+        engine.session.commit()
+    except BaseException:
+        rollback(engine)
 
 def rollback(engine):
     engine.session.rollback()

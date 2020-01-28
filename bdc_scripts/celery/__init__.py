@@ -80,12 +80,6 @@ def create_celery_app(flask_app: Flask):
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()
 
-            if flask._app_ctx_stack.top is not None:
-                db.session.bind.dispose()
-            else:
-                with flask_app.app_context():
-                    db.session.bind.dispose()
-
 
     celery.Task = ContextTask
 

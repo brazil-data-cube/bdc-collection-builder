@@ -76,6 +76,12 @@ def create_celery_app(flask_app: Flask):
             if flask_app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN']:
                 if not isinstance(retval, Exception):
                     db.session.commit()
+                else:
+                    try:
+                        db.session.rollback()
+                    except BaseException:
+                        logging.warning('Error rollback transaction')
+                        pass
 
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()

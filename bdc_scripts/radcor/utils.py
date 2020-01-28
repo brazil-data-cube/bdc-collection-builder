@@ -108,7 +108,7 @@ def dispatch(activity: dict):
                 # Publish raw data
                 raw_data_chain,
                 # ATM Correction
-                atm_chain.s()
+                atm_chain
             ])
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':

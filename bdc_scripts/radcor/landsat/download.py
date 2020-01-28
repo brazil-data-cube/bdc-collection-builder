@@ -52,13 +52,17 @@ def download_landsat_images(link, destination):
         cc[-3] = sid[:-1]+last
         link = '/'.join(cc)
         req = session.get(link, stream=True)
+
     if count == 2:
-        return None
+        raise RuntimeError('Error in landsat download {} - {}'.format(link, req.status_code))
+
     outtar = os.path.join(destination, req.headers.get("Content-Disposition").split('=')[1])
     logging.warning('downloadLC8 - outtar {}'.format(outtar))
+
     if req.headers.get("Content-length") is None:
         logging.warning('downloadLC8 - Content-Length not found for {}'.format(link))
-        return None
+        raise RuntimeError('Error in landsat download - Content Length 0 {} - {}'.format(link, req.status_code))
+
     total_size = int(req.headers.get("Content-length"))
     logging.warning( 'downloadLC8 - {} to {} size {}'.format(link,outtar,int(total_size/1024/1024)))
     file_size = 0

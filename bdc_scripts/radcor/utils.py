@@ -196,10 +196,15 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
                 scenes[identifier]['path'] = r_dict['features'][i]['properties']['eo:column']
                 scenes[identifier]['row'] = r_dict['features'][i]['properties']['eo:row']
                 scenes[identifier]['resolution'] = r_dict['features'][i]['properties']['eo:bands'][3]['gsd']
-                if ( str(r_dict['features'][i]['id']).find('LGN00') != -1 ):
+
+                if (str(r_dict['features'][i]['id']).find('LGN') != -1):
                     scenes[identifier]['scene_id'] = r_dict['features'][i]['id']
                 else:
-                    scenes[identifier]['scene_id'] = '{}LGN00'.format( r_dict['features'][i]['id'] )
+                    feature = r_dict['features'][i]
+                    default_scene_id = '{}LGN00'.format(r_dict['features'][i]['id'])
+                    scene_id = feature['properties'].get('landsat:scene_id', default_scene_id)
+                    scenes[identifier]['scene_id'] = scene_id
+
                 scenes[identifier]['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scenes[identifier]['scene_id'])
                 scenes[identifier]['icon'] = r_dict['features'][i]['assets']['thumbnail']['href']
     return scenes

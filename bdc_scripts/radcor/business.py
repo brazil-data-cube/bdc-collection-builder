@@ -2,9 +2,10 @@
 from os import path as resource_path
 import glob
 import logging
+from datetime import datetime
 
 # 3rdparty
-from sqlalchemy import or_
+from sqlalchemy import or_, func, cast, Date
 from werkzeug.exceptions import BadRequest
 
 # BDC Scripts
@@ -14,6 +15,7 @@ from bdc_scripts.db import db_aws
 from bdc_scripts.radcor.forms import RadcorActivityForm
 from bdc_scripts.radcor.models import RadcorActivity, RadcorActivityHistory
 from bdc_scripts.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
+from celery.backends.database import Task
 
 # Consts
 CLOUD_DEFAULT = 90
@@ -178,3 +180,62 @@ class RadcorBusiness:
                     cls.start(activity)
 
         return scenes
+
+    @classmethod
+    def list_activities(cls, args: dict):
+        filters = []
+        if args.get('collection'): 
+            filters.append(RadcorActivity.collection_id == args['collection'])
+        if args.get('type'): 
+            filters.append(RadcorActivity.activity_type.contains(args['type']))
+        if args.get('period'):
+            dates = args['period'].split('/')
+            if len(dates) != 2:
+                raise BadRequest('Incorrect dates! Format: YYYY-mm-dd/YYYY-mm-dd')
+            filters.append(RadcorActivity.history.any(
+                    RadcorActivityHistory.start >= datetime.strptime(dates[0], '%Y-%m-%d')))
+            filters.append(RadcorActivity.history.any(
+                    RadcorActivityHistory.start <= datetime.strptime(dates[1]+' 23:59', '%Y-%m-%d %H:%M')))
+
+        activities = RadcorActivity.query().filter(*filters)
+        return activities
+
+    @classmethod
+    def count_activities(cls, args: dict):
+        filters = []
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
+        if args.get('type'): filters.append(RadcorActivityHistory.activity_type.contains(args['type']))
+
+        result = db.session.query(Task.status, func.count('*'))\
+            .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\
+            .join(RadcorActivity, RadcorActivity.id==RadcorActivityHistory.activity_id)\
+            .filter(*filters)\
+            .group_by(Task.status)\
+            .all()
+
+        return {r[0]: r[1] for r in result}
+    
+    @classmethod
+    def count_activities_with_date(cls, args: dict):
+        filters = []
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
+        if args.get('type'): filters.append(RadcorActivityHistory.activity_type.contains(args['type']))
+
+        result = db.session.query(RadcorActivityHistory.start.cast(Date), Task.status, func.count('*'))\
+            .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\
+            .join(RadcorActivity, RadcorActivity.id==RadcorActivityHistory.activity_id)\
+            .filter(*filters)\
+            .group_by(RadcorActivityHistory.start.cast(Date), Task.status)\
+            .order_by(RadcorActivityHistory.start.cast(Date))\
+            .all()
+
+        return [{'date': r[0].strftime('%Y-%m-%d'), 'status': r[1], 'count': r[2]} for r in result]
+
+    @classmethod
+    def get_collections_activities(cls):
+        activities = RadcorActivity.query().distinct(RadcorActivity.collection_id).all()
+        return [act.collection_id for act in activities]

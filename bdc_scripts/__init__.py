@@ -1,5 +1,6 @@
 from bdc_db.ext import BDCDatabase
 from flask import Flask
+from flask_cors import CORS
 from bdc_scripts import config, celery
 from bdc_scripts.config import get_settings
 
@@ -18,6 +19,8 @@ def create_app(config_name='DevelopmentConfig'):
     app.config.from_object(conf)
 
     with app.app_context():
+        cors = CORS(app, resources={r"/*": {"origins": "*"}})
+
         # Initialize Flask SQLAlchemy
         BDCDatabase(app)
 

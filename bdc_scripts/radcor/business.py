@@ -206,7 +206,7 @@ class RadcorBusiness:
         if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
         if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
-        if args.get('type'): filters.append(RadcorActivityHistory.activity_type.contains(args['type']))
+        if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 
         result = db.session.query(Task.status, func.count('*'))\
             .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\
@@ -223,7 +223,7 @@ class RadcorBusiness:
         if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
         if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
-        if args.get('type'): filters.append(RadcorActivityHistory.activity_type.contains(args['type']))
+        if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 
         result = db.session.query(RadcorActivityHistory.start.cast(Date), Task.status, func.count('*'))\
             .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\

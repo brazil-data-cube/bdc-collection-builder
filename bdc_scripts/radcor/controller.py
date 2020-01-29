@@ -22,9 +22,20 @@ class RadcorController(Resource):
     def get(self):
         """Retrieves all radcor activities from database"""
 
-        activities = RadcorActivity.query().all()
+        args = request.args
+        page = args.get('page', 1)
+        per_page = args.get('per_page', 10)
 
-        return RadcorActivityForm().dump(activities, many=True)
+        activities = RadcorBusiness.list_activities(args)\
+            .paginate(page, per_page)
+
+        return {
+            "total": activities.total,
+            "page": activities.page,
+            "per_page": activities.per_page,
+            "pages": activities.pages,
+            "items": RadcorActivityForm().dump(activities.items, many=True)
+        }
 
     @require_oauth_scopes(scope="bdc_scripts:radcor:POST")
     def post(self):
@@ -84,3 +95,32 @@ class RadcorPendingTasksController(Resource):
     @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
     def get(self):
         return list_pending_tasks()
+
+
+@api.route('/utils/collections-available')
+class RadcorCollectionsController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
+    def get(self):
+        return {
+            'collections': RadcorBusiness.get_collections_activities()
+        }
+
+
+@api.route('/utils/count-activities')
+class RadcorCollectionsController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
+    def get(self):
+        args = request.args
+        
+        result = RadcorBusiness.count_activities(args)
+        return result
+
+
+@api.route('/utils/count-activities-date')
+class RadcorCollectionsController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:radcor:GET")
+    def get(self):
+        args = request.args
+        
+        result = RadcorBusiness.count_activities_with_date(args)
+        return result

@@ -2,6 +2,7 @@
 from flask import request
 from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest
+from bdc_core.decorators.auth import require_oauth_scopes
 
 # BDC Scripts
 from .business import CubeBusiness
@@ -13,6 +14,7 @@ api = Namespace('datastorm', description='datastorm')
 
 @api.route('/create')
 class CubeCreateController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:datastorm:POST")
     def post(self):
         form = DataCubeParser()
 
@@ -32,6 +34,7 @@ class CubeCreateController(Resource):
 
 @api.route('/process')
 class CubeProcessController(Resource):
+    @require_oauth_scopes(scope="bdc_scripts:datastorm:POST")
     def post(self):
         args = request.get_json()
 

@@ -184,7 +184,9 @@ class RadcorBusiness:
     @classmethod
     def list_activities(cls, args: dict):
         filters = []
-        if args.get('collection'):
+        if args.get('scene_id'): 
+            filters.append(RadcorActivity.sceneid == args['scene_id'])
+        if args.get('collection'): 
             filters.append(RadcorActivity.collection_id == args['collection'])
         if args.get('type'):
             filters.append(RadcorActivity.activity_type.contains(args['type']))
@@ -203,8 +205,8 @@ class RadcorBusiness:
     @classmethod
     def count_activities(cls, args: dict):
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
         if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 
@@ -220,8 +222,8 @@ class RadcorBusiness:
     @classmethod
     def count_activities_with_date(cls, args: dict):
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
         if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 
@@ -239,3 +241,23 @@ class RadcorBusiness:
     def get_collections_activities(cls):
         activities = RadcorActivity.query().distinct(RadcorActivity.collection_id).all()
         return [act.collection_id for act in activities]
+
+    @classmethod
+    def get_unsuccessfully_activities(cls):
+        result = db.engine.execute("\
+            WITH activity_tasks AS (\
+                SELECT a.sceneid AS sceneid,\
+                    max(h.start) AS start_date\
+                FROM activity_history h, celery_taskmeta t, activities a\
+                WHERE h.task_id = t.id AND a.id = h.activity_id\
+                GROUP BY 1\
+            ), failed_tasks AS (\
+                SELECT a.id AS id,\
+                a.sceneid AS sceneid,\
+                a.activity_type AS type\
+                FROM activity_tasks act, activity_history h, celery_taskmeta t, activities a\
+                WHERE a.sceneid = act.sceneid AND h.start = act.start_date AND a.id = h.activity_id \
+                    AND t.id = h.task_id AND t.status != 'SUCCESS' ORDER BY a.id\
+            ) \
+            SELECT count(*) FROM failed_tasks").first()
+        return {"result": result.count}

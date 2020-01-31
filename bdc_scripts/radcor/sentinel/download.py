@@ -18,6 +18,9 @@ def download_sentinel_images(link, file_path, user):
         logging.error('Connection error during Sentinel Download')
         raise e
 
+    if response.status_code == 202:
+        raise requests.exceptions.HTTPError('Sentinel {} is offline. Data will be available soon. {}'.format(link, response.status_code))
+
     if response.status_code >= 400:
         raise requests.exceptions.HTTPError('Invalid sentinel request {}'.format(response.status_code))
 

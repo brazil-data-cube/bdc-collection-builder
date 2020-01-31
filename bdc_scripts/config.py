@@ -33,6 +33,8 @@ class Config:
     STAC_URL = os.environ.get('STAC_URL', 'http://brazildatacube.dpi.inpe.br/bdc-stac/0.7.0/')
     CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
     CLIENT_AUDIENCE = os.environ.get('CLIENT_AUDIENCE', 'CHANGE_ME')
+    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
+    CELERYD_PREFETCH_MULTIPLIER = 1  # disable
 
 
 class ProductionConfig(Config):

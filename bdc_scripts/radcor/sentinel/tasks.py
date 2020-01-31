@@ -12,6 +12,7 @@ from zipfile import ZipFile
 # 3rdparty
 from psycopg2 import InternalError
 from requests.exceptions import ConnectionError, HTTPError
+from sqlalchemy.exc import InvalidRequestError
 
 # BDC DB
 from bdc_db.models import db
@@ -282,7 +283,7 @@ def atm_correction(scene):
     return atm_correction.correction(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InternalError,), default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InternalError, InvalidRequestError,), default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel

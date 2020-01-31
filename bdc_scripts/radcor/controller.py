@@ -124,3 +124,10 @@ class RadcorCollectionsController(Resource):
         
         result = RadcorBusiness.count_activities_with_date(args)
         return result
+
+@api.route('/utils/count-unsuccessfully-activities')
+class RadcorCollectionsController(Resource):
+    @require_oauth_scopes(scope="collection_builder:activities:GET")
+    def get(self):
+        result = RadcorBusiness.get_unsuccessfully_activities()
+        return result

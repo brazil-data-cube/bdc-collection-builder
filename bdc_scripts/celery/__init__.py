@@ -41,6 +41,7 @@ def create_celery_app(flask_app: Flask):
     always_eager = flask_app.config.get('TESTING', False)
     celery.conf.update(dict(
         CELERY_TASK_ALWAYS_EAGER=always_eager,
+        CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
         CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
         # CELERY_TRACK_STARTED=True
     ))

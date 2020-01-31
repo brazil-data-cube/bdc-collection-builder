@@ -203,8 +203,8 @@ class RadcorBusiness:
     @classmethod
     def count_activities(cls, args: dict):
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
         if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 
@@ -220,8 +220,8 @@ class RadcorBusiness:
     @classmethod
     def count_activities_with_date(cls, args: dict):
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= args['start_date'])
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start >= args['last_date'])
+        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
         if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
         if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
 

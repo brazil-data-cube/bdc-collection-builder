@@ -33,6 +33,7 @@ class Config:
     STAC_URL = os.environ.get('STAC_URL', 'http://brazildatacube.dpi.inpe.br/bdc-stac/0.7.0/')
     CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
     CLIENT_AUDIENCE = os.environ.get('CLIENT_AUDIENCE', 'CHANGE_ME')
+    TASK_RETRY_DELAY = 30 * 60  # a half hour
 
 
 class ProductionConfig(Config):

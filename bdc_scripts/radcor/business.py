@@ -121,7 +121,7 @@ class RadcorBusiness:
                 activity = dict(
                     collection_id='LC8DN',
                     activity_type='downloadLC8',
-                    tags=args.get('tags', '').split(','),
+                    tags=args.get('tags', []),
                     sceneid=sceneid,
                     scene_type='SCENE',
                     args=dict(
@@ -156,9 +156,9 @@ class RadcorBusiness:
                     logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
 
-                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2TOA', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2SR_SEN28', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene['tileid'], 'S2SR_SEN28', engine=db_aws)
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2TOA', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db_aws)
 
                 activity = dict(
                     collection_id='S2TOA',
@@ -184,9 +184,9 @@ class RadcorBusiness:
     @classmethod
     def list_activities(cls, args: dict):
         filters = []
-        if args.get('collection'): 
+        if args.get('collection'):
             filters.append(RadcorActivity.collection_id == args['collection'])
-        if args.get('type'): 
+        if args.get('type'):
             filters.append(RadcorActivity.activity_type.contains(args['type']))
         if args.get('period'):
             dates = args['period'].split('/')
@@ -216,7 +216,7 @@ class RadcorBusiness:
             .all()
 
         return {r[0]: r[1] for r in result}
-    
+
     @classmethod
     def count_activities_with_date(cls, args: dict):
         filters = []

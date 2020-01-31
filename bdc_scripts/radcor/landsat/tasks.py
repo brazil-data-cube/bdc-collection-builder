@@ -5,6 +5,7 @@ from datetime import datetime
 
 # 3rdparty
 from glob import glob as resource_glob
+from psycopg2 import InternalError
 from requests import get as resource_get
 
 # BDC Scripts
@@ -162,7 +163,7 @@ def atm_correction_landsat(scene):
     return atm_correction_landsat.correction(scene)
 
 
-@celery_app.task(base=LandsatTask, queue='publish')
+@celery_app.task(base=LandsatTask, queue='publish', max_retries=3, autoretry_for=(InternalError,), default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_landsat(scene):
     return publish_landsat.publish(scene)
 

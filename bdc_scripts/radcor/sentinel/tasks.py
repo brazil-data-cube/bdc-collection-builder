@@ -10,7 +10,8 @@ from datetime import datetime
 from zipfile import ZipFile
 
 # 3rdparty
-from requests.exceptions import ConnectionError
+from psycopg2 import InternalError
+from requests.exceptions import ConnectionError, HTTPError
 
 # BDC DB
 from bdc_db.models import db
@@ -139,14 +140,23 @@ class SentinelTask(RadcorTask):
                     logging.debug('Done download.')
                     activity_args['file'] = extracted_file_path
 
-                except ConnectionError as e:
-                    logging.error('Connection error', e)
+                except HTTPError as e:
                     if os.path.exists(zip_file_name):
                         os.remove(zip_file_name)
+                    # Retry when sentinel is offline
+                    logging.warning('Retrying in {}'.format(Config.TASK_RETRY_DELAY))
+
+                    raise e
+
+                except ConnectionError as e:
+                    logging.error('Connection error - {}'.format(e))
+                    if os.path.exists(zip_file_name):
+                        os.remove(zip_file_name)
+                    # Retry when sentinel is offline
                     raise e
 
                 except BaseException as e:
-                    logging.error('An error occurred during task execution', e)
+                    logging.error('An error occurred during task execution {}'.format(e))
 
                     raise e
 
@@ -234,7 +244,7 @@ class SentinelTask(RadcorTask):
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection
 # We should set "autoretry_for" and retry_kwargs={'max_retries': 3} to retry
 # task execution since it seems to be bug related to the api
-@celery_app.task(base=SentinelTask, queue='download')
+@celery_app.task(base=SentinelTask, queue='download', max_retries=72, autoretry_for=(HTTPError,), default_retry_delay=Config.TASK_RETRY_DELAY)
 def download_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel Download files
@@ -251,7 +261,7 @@ def download_sentinel(scene):
     return download_sentinel.download(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='atm-correction')
+@celery_app.task(base=SentinelTask, queue='atm-correction', max_retries=3, default_retry_delay=Config.TASK_RETRY_DELAY)
 def atm_correction(scene):
     """
     Represents a celery task definition for handling Sentinel
@@ -272,7 +282,7 @@ def atm_correction(scene):
     return atm_correction.correction(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='publish')
+@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InternalError,), default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel
@@ -290,7 +300,7 @@ def publish_sentinel(scene):
     return publish_sentinel.publish(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='upload')
+@celery_app.task(base=SentinelTask, queue='upload', max_retries=3, default_retry_delay=Config.TASK_RETRY_DELAY)
 def upload_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel

@@ -26,29 +26,35 @@ class RadcorTask(celery_app.Task):
             activity (dict) - Radcor activity as dict
         """
 
-        where = dict(
-            sceneid=activity.get('sceneid'),
-            activity_type=activity.get('activity_type'),
-            collection_id=activity.get('collection_id')
-        )
+        model = RadcorActivityHistory.query().filter(
+            RadcorActivityHistory.task.has(task_id=current_task.request.id)
+        ).first()
 
-        activity.pop('history', None)
-        activity.pop('id', None)
-        activity.pop('last_execution', None)
+        if model is None:
+            where = dict(
+                sceneid=activity.get('sceneid'),
+                activity_type=activity.get('activity_type'),
+                collection_id=activity.get('collection_id')
+            )
 
-        activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
+            activity.pop('history', None)
+            activity.pop('id', None)
+            activity.pop('last_execution', None)
+
+            activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
+
+            model = RadcorActivityHistory()
+
+            task, _ = get_or_create_model(Task, defaults={}, task_id=current_task.request.id)
+
+            model.task = task
+            model.activity = activity_model
+            model.start = datetime.utcnow()
+            model.env = dict(environ)
 
         # Ensure that args values is always updated
-        activity_model.args = activity['args']
+        model.activity.args = activity['args']
 
-        model = RadcorActivityHistory()
-
-        task, _ = get_or_create_model(Task, defaults={}, task_id=current_task.request.id)
-
-        model.task = task
-        model.activity = activity_model
-        model.start = datetime.utcnow()
-        model.env = dict(environ)
         model.save()
 
         return model

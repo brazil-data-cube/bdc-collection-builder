@@ -41,6 +41,7 @@ def create_celery_app(flask_app: Flask):
     always_eager = flask_app.config.get('TESTING', False)
     celery.conf.update(dict(
         CELERY_TASK_ALWAYS_EAGER=always_eager,
+        CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
         CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
         # CELERY_TRACK_STARTED=True
     ))
@@ -76,15 +77,15 @@ def create_celery_app(flask_app: Flask):
             if flask_app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN']:
                 if not isinstance(retval, Exception):
                     db.session.commit()
+                else:
+                    try:
+                        db.session.rollback()
+                    except BaseException:
+                        logging.warning('Error rollback transaction')
+                        pass
 
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()
-
-            if flask._app_ctx_stack.top is not None:
-                db.session.bind.dispose()
-            else:
-                with flask_app.app_context():
-                    db.session.bind.dispose()
 
 
     celery.Task = ContextTask

@@ -33,6 +33,7 @@ setup(
         'boto3>=1.11',
         'docutils>=0.10,<0.15'
         'Flask>=1.1.1',
+        'Flask-Cors>=3.0,<4.0',
         'flask-restplus>=0.13.0',
         'Flask-Migrate>=2.5.2',
         'Flask-SQLAlchemy>=2.4.1',

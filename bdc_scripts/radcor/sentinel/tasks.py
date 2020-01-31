@@ -24,7 +24,7 @@ from bdc_scripts.core.utils import extractall, is_valid, upload_file
 from bdc_scripts.config import Config
 from bdc_scripts.radcor.base_task import RadcorTask
 from bdc_scripts.radcor.sentinel.clients import sentinel_clients
-from bdc_scripts.radcor.sentinel.download import download_sentinel_images
+from bdc_scripts.radcor.sentinel.download import download_sentinel_images, download_sentinel_from_creodias
 from bdc_scripts.radcor.sentinel.publish import publish
 from bdc_scripts.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
 
@@ -89,77 +89,83 @@ class SentinelTask(RadcorTask):
         # Create/update activity
         activity_history = self.create_execution(scene)
 
-        # Acquire User to download
-        with self.get_user() as user:
-            with db.session.no_autoflush:
-                logging.debug('Starting Download {}...'.format(user.username))
+        with db.session.no_autoflush:
+            activity_args = scene.get('args', dict())
 
-                activity_args = scene.get('args', dict())
+            collection_item = self.get_collection_item(activity_history.activity)
 
-                collection_item = self.get_collection_item(activity_history.activity)
+            fragments = scene['sceneid'].split('_')
+            year_month = fragments[2][:4] + '-' + fragments[2][4:6]
 
-                fragments = scene['sceneid'].split('_')
-                year_month = fragments[2][:4] + '-' + fragments[2][4:6]
+            # Output product dir
+            product_dir = os.path.join(activity_args.get('file'), year_month)
+            link = activity_args['link']
+            scene_id = scene['sceneid']
 
-                # Output product dir
-                product_dir = os.path.join(activity_args.get('file'), year_month)
-                link = activity_args['link']
-                scene_id = scene['sceneid']
+            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
 
-                zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+            collection_item.compressed_file = zip_file_name.replace(Config.DATA_DIR, '')
+            cloud = activity_args.get('cloud')
 
-                collection_item.compressed_file = zip_file_name.replace(Config.DATA_DIR, '')
-                cloud = activity_args.get('cloud')
+            if cloud:
+                collection_item.cloud_cover = cloud
 
-                if cloud:
-                    collection_item.cloud_cover = cloud
+            try:
+                valid = True
 
-                try:
-                    valid = True
+                if os.path.exists(zip_file_name):
+                    logging.debug('zip file exists')
+                    valid = is_valid(zip_file_name)
 
-                    if os.path.exists(zip_file_name):
-                        logging.debug('zip file exists')
-                        valid = is_valid(zip_file_name)
+                if not os.path.exists(zip_file_name) or not valid:
+                    try:
+                        # Acquire User to download
+                        with self.get_user() as user:
+                            logging.debug('Starting Download {}...'.format(user.username))
+                            # Download from Copernicus
+                            download_sentinel_images(link, zip_file_name, user)
+                    except (ConnectionError, HTTPError) as e:
+                        try:
+                            download_sentinel_from_creodias(scene_id, zip_file_name)
+                        except:
+                            # Ignore errors from external provider
+                            raise e
 
-                    if not os.path.exists(zip_file_name) or not valid:
-                        # Download from Copernicus
-                        download_sentinel_images(link, zip_file_name, user)
+                    # Check if file is valid
+                    valid = is_valid(zip_file_name)
 
-                        # Check if file is valid
-                        valid = is_valid(zip_file_name)
+                if not valid:
+                    raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+                else:
+                    extractall(zip_file_name)
 
-                    if not valid:
-                        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
-                    else:
-                        extractall(zip_file_name)
+                # Get extracted zip folder name
+                with ZipFile(zip_file_name) as zipObj:
+                    listOfiles = zipObj.namelist()
+                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
 
-                    ### Get extracted zip folder name
-                    with ZipFile(zip_file_name) as zipObj:
-                        listOfiles = zipObj.namelist()
-                        extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
+                logging.debug('Done download.')
+                activity_args['file'] = extracted_file_path
 
-                    logging.debug('Done download.')
-                    activity_args['file'] = extracted_file_path
+            except HTTPError as e:
+                if os.path.exists(zip_file_name):
+                    os.remove(zip_file_name)
+                # Retry when sentinel is offline
+                logging.warning('Retrying in {}'.format(Config.TASK_RETRY_DELAY))
 
-                except HTTPError as e:
-                    if os.path.exists(zip_file_name):
-                        os.remove(zip_file_name)
-                    # Retry when sentinel is offline
-                    logging.warning('Retrying in {}'.format(Config.TASK_RETRY_DELAY))
+                raise e
 
-                    raise e
+            except ConnectionError as e:
+                logging.error('Connection error - {}'.format(e))
+                if os.path.exists(zip_file_name):
+                    os.remove(zip_file_name)
+                # Retry when sentinel is offline
+                raise e
 
-                except ConnectionError as e:
-                    logging.error('Connection error - {}'.format(e))
-                    if os.path.exists(zip_file_name):
-                        os.remove(zip_file_name)
-                    # Retry when sentinel is offline
-                    raise e
+            except BaseException as e:
+                logging.error('An error occurred during task execution {}'.format(e))
 
-                except BaseException as e:
-                    logging.error('An error occurred during task execution {}'.format(e))
-
-                    raise e
+                raise e
 
         # Persist a collection item on database
         collection_item.save()

@@ -2,6 +2,24 @@ import logging
 import os
 import requests
 
+# BDC Scripts
+from bdc_scripts.core.utils import get_credentials
+
+
+def _download(file_path: str, response: requests.Response):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # May throw exception for read-only directory
+    stream = open(file_path, 'wb')
+
+    # Read chunks of 2048 bytes
+    chunk_size = 2048
+
+    for chunk in response.iter_content(chunk_size):
+        stream.write(chunk)
+
+    stream.close()
+
 
 def download_sentinel_images(link, file_path, user):
     """
@@ -28,18 +46,62 @@ def download_sentinel_images(link, file_path, user):
 
     logging.info('Downloading image {} in {}, user {}, size {} MB'.format(link, file_path, user, int(size / 1024 / 1024)))
 
-    dirname = os.path.dirname(file_path)
+    _download(file_path, response)
 
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
 
-    # May throw exception for read-only directory
-    stream = open(file_path, 'wb')
+def download_sentinel_from_creodias(scene_id: str, file_path: str):
+    """
+    Download sentinel image from CREODIAS provider
 
-    # Read chunks of 2048 bytes
-    chunk_size = 2048
+    Args:
+        scene_id Sentinel scene id
+        file_path Path to save sentinel
 
-    for chunk in response.iter_content(chunk_size):
-        stream.write(chunk)
+    """
 
-    stream.close()
+    credentials = get_credentials().get('creodias')
+
+    if credentials is None:
+        raise RuntimeError('No credentials set for CREODIAS provider')
+
+    url = 'https://auth.creodias.eu/auth/realms/DIAS/protocol/openid-connect/token'
+
+    params = dict(
+        username=credentials.get('username'),
+        password=credentials.get('password'),
+        client_id='CLOUDFERRO_PUBLIC',
+        grant_type='password'
+    )
+
+    token_req = requests.post(url, data=params)
+
+    if token_req.status_code != 200:
+        raise RuntimeError('Unauthorized')
+
+    token = token_req.json()
+
+    feature_params = dict(
+        maxRecords=10,
+        processingLevel='LEVEL1C',
+        sortParam='startDate',
+        sortOrder='descending',
+        status='all',
+        dataset='ESA-DATASET',
+        productIdentifier='%{}%'.format(scene_id)
+    )
+    feature_url = 'https://finder.creodias.eu/resto/api/collections/Sentinel2/search.json'
+    features_response = requests.get(feature_url, params=feature_params)
+
+    if features_response.status_code != 200:
+        raise RuntimeError('Invalid request')
+
+    features = features_response.json()
+
+    if len(features.get('features')) > 0:
+        link = 'https://zipper.creodias.eu/download/{}?token={}'.format(features['features'][0]['id'], token['access_token'])
+        response = requests.get(link, timeout=90, stream=True)
+
+        if response.status_code != 200:
+            raise RuntimeError('Could not download {} - {}'.format(response.status_code, scene_id))
+
+        _download(file_path, response)

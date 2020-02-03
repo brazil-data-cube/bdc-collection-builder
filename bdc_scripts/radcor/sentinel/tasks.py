@@ -121,11 +121,13 @@ class SentinelTask(RadcorTask):
                     try:
                         # Acquire User to download
                         with self.get_user() as user:
-                            logging.debug('Starting Download {}...'.format(user.username))
+                            logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
                             # Download from Copernicus
                             download_sentinel_images(link, zip_file_name, user)
                     except (ConnectionError, HTTPError) as e:
                         try:
+                            logging.warning('Trying to download "{}" from external provider...'.format(scene_id))
+
                             download_sentinel_from_creodias(scene_id, zip_file_name)
                         except:
                             # Ignore errors from external provider
@@ -151,7 +153,7 @@ class SentinelTask(RadcorTask):
                 if os.path.exists(zip_file_name):
                     os.remove(zip_file_name)
                 # Retry when sentinel is offline
-                logging.warning('Retrying in {}'.format(Config.TASK_RETRY_DELAY))
+                logging.warning('Sentinel "{}" is offline. Retrying in {}'.format(scene_id, Config.TASK_RETRY_DELAY))
 
                 raise e
 
@@ -204,7 +206,7 @@ class SentinelTask(RadcorTask):
                 scene['args']['file'] = correction_result
 
         except BaseException as e:
-            logging.error('An error occurred during task execution', e)
+            logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
 
         scene['activity_type'] = 'publishS2'

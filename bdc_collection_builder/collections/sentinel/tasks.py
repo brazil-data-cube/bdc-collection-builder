@@ -17,16 +17,16 @@ from sqlalchemy.exc import InvalidRequestError
 # BDC DB
 from bdc_db.models import db
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.celery import celery_app
 from bdc_collection_builder.celery.cache import lock_handler
 from bdc_collection_builder.core.utils import extractall, is_valid, upload_file
 from bdc_collection_builder.config import Config
-from bdc_collection_builder.radcor.base_task import RadcorTask
-from bdc_collection_builder.radcor.sentinel.clients import sentinel_clients
-from bdc_collection_builder.radcor.sentinel.download import download_sentinel_images, download_sentinel_from_creodias
-from bdc_collection_builder.radcor.sentinel.publish import publish
-from bdc_collection_builder.radcor.sentinel.correction import correction_sen2cor255, correction_sen2cor280
+from bdc_collection_builder.collections.base_task import RadcorTask
+from bdc_collection_builder.collections.sentinel.clients import sentinel_clients
+from bdc_collection_builder.collections.sentinel.download import download_sentinel_images, download_sentinel_from_creodias
+from bdc_collection_builder.collections.sentinel.publish import publish
+from bdc_collection_builder.collections.sentinel.correction import correction_sen2cor255, correction_sen2cor280
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')

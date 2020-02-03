@@ -6,7 +6,7 @@ import os
 from bs4 import BeautifulSoup
 from requests import Session as RequestSession
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.core.utils import get_credentials
 
 

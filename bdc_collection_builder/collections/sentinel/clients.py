@@ -16,7 +16,7 @@ class AtomicUser:
 
     Example:
         >>> from bdc_collection_builder.celery.cache import client
-        >>> from bdc_collection_builder.radcor.sentinel.clients import sentinel_clients
+        >>> from bdc_collection_builder.collections.sentinel.clients import sentinel_clients
         >>>
         >>> # Lock the access to the shared resource
         >>> with client.lock('my_lock'):

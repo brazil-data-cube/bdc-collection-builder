@@ -6,11 +6,11 @@ from os import environ
 from celery import current_task
 from celery.backends.database import Task
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.celery import celery_app
 from bdc_db.models import Collection, CollectionItem
-from bdc_collection_builder.radcor.models import RadcorActivity, RadcorActivityHistory
-from bdc_collection_builder.radcor.utils import get_or_create_model
+from .models import RadcorActivity, RadcorActivityHistory
+from .utils import get_or_create_model
 
 
 class RadcorTask(celery_app.Task):
@@ -64,7 +64,7 @@ class RadcorTask(celery_app.Task):
         raise NotImplementedError()
 
     def get_collection(self, activity) -> Collection:
-        """Retrieve the collection associated with BDC Scripts Activity"""
+        """Retrieve the collection associated with Builder Activity"""
         return Collection.query().filter(Collection.id == activity.collection_id).one()
 
     def get_collection_item(self, activity) -> CollectionItem:

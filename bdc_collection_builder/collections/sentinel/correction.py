@@ -9,7 +9,7 @@ from json import loads as json_parser
 # 3rdparty
 from requests import get as resource_get
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.config import Config
 
 

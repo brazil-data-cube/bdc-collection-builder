@@ -2,7 +2,7 @@ import logging
 import os
 import requests
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.core.utils import get_credentials
 
 

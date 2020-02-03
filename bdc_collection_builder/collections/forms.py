@@ -1,7 +1,10 @@
+# 3rdparty
 from marshmallow import Schema, fields
 from marshmallow_sqlalchemy import ModelSchema
 from bdc_db.models import db, CollectionItem
-from bdc_collection_builder.radcor.models import RadcorActivity, RadcorActivityHistory
+
+# Builder
+from .models import RadcorActivity, RadcorActivityHistory
 
 
 class TaskSchema(Schema):

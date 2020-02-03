@@ -12,7 +12,7 @@ import logging
 # 3rdparty
 from celery.signals import worker_shutdown
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder import create_app
 from bdc_collection_builder.celery import create_celery_app
 

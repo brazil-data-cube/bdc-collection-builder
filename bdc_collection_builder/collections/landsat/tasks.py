@@ -9,14 +9,14 @@ from psycopg2 import InternalError
 from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.celery import celery_app
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.core.utils import upload_file
-from bdc_collection_builder.radcor.base_task import RadcorTask
-from bdc_collection_builder.radcor.landsat.download import download_landsat_images
-from bdc_collection_builder.radcor.landsat.publish import publish
-from bdc_collection_builder.radcor.utils import get_task_activity
+from bdc_collection_builder.collections.base_task import RadcorTask
+from bdc_collection_builder.collections.landsat.download import download_landsat_images
+from bdc_collection_builder.collections.landsat.publish import publish
+from bdc_collection_builder.collections.utils import get_task_activity
 
 
 class LandsatTask(RadcorTask):

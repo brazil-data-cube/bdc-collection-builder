@@ -3,13 +3,13 @@ from flask import request
 from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest, NotFound
 from bdc_core.decorators.auth import require_oauth_scopes
-
-# BDC Scripts
 from bdc_db.models.collection import Collection
+
+# Builder
 from bdc_collection_builder.celery.utils import list_pending_tasks, list_running_tasks
-from bdc_collection_builder.radcor.forms import RadcorActivityForm
-from bdc_collection_builder.radcor.models import RadcorActivity
-from bdc_collection_builder.radcor.business import RadcorBusiness
+from .forms import RadcorActivityForm
+from .models import RadcorActivity
+from .business import RadcorBusiness
 
 import requests
 

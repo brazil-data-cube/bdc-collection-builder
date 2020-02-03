@@ -12,14 +12,14 @@ from skimage import exposure
 from skimage.transform import resize
 import numpy
 
-# BDC Scripts
+# Builder
 from bdc_db.models import Asset, Band, Collection, CollectionItem, CollectionTile, db
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.core.utils import generate_evi_ndvi, generate_cogs
-from bdc_collection_builder.radcor.forms import CollectionItemForm
-from bdc_collection_builder.radcor.utils import get_or_create_model
-from bdc_collection_builder.radcor.models import RadcorActivity
+from bdc_collection_builder.collections.forms import CollectionItemForm
+from bdc_collection_builder.collections.utils import get_or_create_model
+from bdc_collection_builder.collections.models import RadcorActivity
 
 
 # Get the product files

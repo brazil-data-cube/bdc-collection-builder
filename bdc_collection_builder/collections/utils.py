@@ -7,10 +7,10 @@ import logging
 from celery import chain, current_task, group
 import requests
 
-# BDC Scripts
+# Builder
 from bdc_db.models import db, Collection
-from bdc_collection_builder.radcor.models import RadcorActivityHistory
-from bdc_collection_builder.radcor.sentinel.clients import sentinel_clients
+from .models import RadcorActivityHistory
+from .sentinel.clients import sentinel_clients
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -44,8 +44,8 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
 
 
 def dispatch(activity: dict):
-    from bdc_collection_builder.radcor.sentinel import tasks as sentinel_tasks
-    from bdc_collection_builder.radcor.landsat import tasks as landsat_tasks
+    from .sentinel import tasks as sentinel_tasks
+    from .landsat import tasks as landsat_tasks
 
     """
     Dispatches the activity to the respective celery task handler

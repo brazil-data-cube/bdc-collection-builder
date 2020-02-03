@@ -1,21 +1,21 @@
 # Python Native
+from datetime import datetime
 from os import path as resource_path
 import glob
 import logging
-from datetime import datetime
 
 # 3rdparty
+from celery.backends.database import Task
 from sqlalchemy import or_, func, cast, Date
 from werkzeug.exceptions import BadRequest
 
-# BDC Scripts
+# Builder
 from bdc_db.models import db, Collection, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import db_aws
-from bdc_collection_builder.radcor.forms import RadcorActivityForm
-from bdc_collection_builder.radcor.models import RadcorActivity, RadcorActivityHistory
-from bdc_collection_builder.radcor.utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
-from celery.backends.database import Task
+from .forms import RadcorActivityForm
+from .models import RadcorActivity, RadcorActivityHistory
+from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
 # Consts
 CLOUD_DEFAULT = 90

@@ -7,8 +7,8 @@ import flask
 
 
 CELERY_TASKS = [
-    'bdc_collection_builder.radcor.sentinel',
-    'bdc_collection_builder.radcor.landsat'
+    'bdc_collection_builder.collections.sentinel',
+    'bdc_collection_builder.collections.landsat'
 ]
 
 celery_app = None

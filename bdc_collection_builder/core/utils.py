@@ -12,7 +12,7 @@ import boto3
 import gdal
 import numpy
 
-# BDC Scripts
+# Builder
 from bdc_collection_builder.config import CURRENT_DIR, Config
 
 

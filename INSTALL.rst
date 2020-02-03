@@ -9,7 +9,7 @@
 Installation
 ============
 
-``cube-buider`` has essentially several dependencies. Please, read the instructions below in order to install ``collection-builder``.
+``bdc-collection-buider`` has essentially several dependencies. Please, read the instructions below in order to install ``collection-builder``.
 
 
 Production installation

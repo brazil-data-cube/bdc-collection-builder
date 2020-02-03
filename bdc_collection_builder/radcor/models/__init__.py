@@ -1,0 +1,2 @@
+from bdc_collection_builder.radcor.models.activity import RadcorActivity
+from bdc_collection_builder.radcor.models.activity_history import RadcorActivityHistory

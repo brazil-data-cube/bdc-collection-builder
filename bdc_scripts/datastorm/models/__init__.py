@@ -1,2 +1,0 @@
-from bdc_scripts.datastorm.models.activity import DataStormActivity
-from bdc_scripts.datastorm.models.activity_history import DataStormActivityHistory

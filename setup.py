@@ -16,17 +16,17 @@ extras_require = {
 }
 
 g = {}
-with open(os.path.join('bdc_scripts', 'version.py'), 'rt') as fp:
+with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
     exec(fp.read(), g)
     version = g['__version__']
 
 setup(
-    name='bdc-scripts',
+    name='bdc-collection-builder',
     version=version,
-    description='Brazilian Data Cube Scripts for Cube Generation',
+    description='Brazil Data Cube for Collection Generation',
     author='Admin',
     author_email='admin@admin.com',
-    url='https://github.com/brazil-data-cube/bdc-scripts.git',
+    url='https://github.com/brazil-data-cube/bdc-collection-builder.git',
     packages=find_packages(),
     install_requires=[
         'beautifulsoup4>=4.8.1',
@@ -57,7 +57,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'bdc-scripts = bdc_scripts.cli:cli'
+            'bdc-collection-builder = bdc_collection_builder.cli:cli'
         ]
     },
     extras_require=extras_require,

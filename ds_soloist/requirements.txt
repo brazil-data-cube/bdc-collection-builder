@@ -1,9 +1,0 @@
-requests
-scikit-image
-scikit-learn
-sqlalchemy
-redis
-flask
-flask_cors
-numpy
-numpngw

@@ -15,49 +15,52 @@ extras_require = {
     "tests": tests_require
 }
 
+extras_require['all'] = [req for exts, reqs in extras_require.items() for req in reqs]
+
+install_requires = [
+    'beautifulsoup4>=4.8.1',
+    'boto3>=1.11',
+    'docutils>=0.10,<0.15'
+    'Flask>=1.1.1',
+    'Flask-Cors>=3.0,<4.0',
+    'flask-restplus>=0.13.0',
+    'Flask-Migrate>=2.5.2',
+    'Flask-SQLAlchemy>=2.4.1',
+    'GeoAlchemy2>=0.6.2',
+    'marshmallow-sqlalchemy>=0.19.0',
+    # Utils for database creation
+    'SQLAlchemy-Utils>=0.34.2',
+    'SQLAlchemy[postgresql]>=1.3.10',
+    'rasterio>=1.1.2',
+    'redis>=3.3.11',
+    'requests>=2.22.0',
+    'GDAL>=2.3.3',
+    'numpy>=1.17.2',
+    'numpngw>=0.0.8',  # TODO: Review this dependency
+    'scikit-image>=0.16.2',
+    'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
+    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
+    'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
+    'celery[librabbitmq]>=4.3.0',
+]
+
 g = {}
-with open(os.path.join('bdc_scripts', 'version.py'), 'rt') as fp:
+with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
     exec(fp.read(), g)
     version = g['__version__']
 
 setup(
-    name='bdc-scripts',
+    name='bdc-collection-builder',
     version=version,
-    description='Brazilian Data Cube Scripts for Cube Generation',
+    description='Brazil Data Cube for Collection Generation',
     author='Admin',
     author_email='admin@admin.com',
-    url='https://github.com/brazil-data-cube/bdc-scripts.git',
+    url='https://github.com/brazil-data-cube/bdc-collection-builder.git',
     packages=find_packages(),
-    install_requires=[
-        'beautifulsoup4>=4.8.1',
-        'boto3>=1.11',
-        'docutils>=0.10,<0.15'
-        'Flask>=1.1.1',
-        'Flask-Cors>=3.0,<4.0',
-        'flask-restplus>=0.13.0',
-        'Flask-Migrate>=2.5.2',
-        'Flask-SQLAlchemy>=2.4.1',
-        'GeoAlchemy2>=0.6.2',
-        'marshmallow-sqlalchemy>=0.19.0',
-        # Utils for database creation
-        'SQLAlchemy-Utils>=0.34.2',
-        'SQLAlchemy[postgresql]>=1.3.10',
-        'rasterio>=1.1.2',
-        'redis>=3.3.11',
-        'requests>=2.22.0',
-        'GDAL>=2.3.3',
-        'numpy>=1.17.2',
-        'numpngw>=0.0.8',  # TODO: Review this dependency
-        'scikit-image>=0.16.2',
-        'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-        'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
-        'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
-        # TODO: Temporary workaround since kombu has fixed version
-        'celery[librabbitmq]>=4.3.0',
-    ],
+    install_requires=install_requires,
     entry_points={
         'console_scripts': [
-            'bdc-scripts = bdc_scripts.cli:cli'
+            'bdc-collection-builder = bdc_collection_builder.cli:cli'
         ]
     },
     extras_require=extras_require,

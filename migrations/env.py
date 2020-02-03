@@ -30,8 +30,7 @@ config.set_main_option(
 # Importing Celery backend database to autocreate task tables
 from celery.backends.database import models, session
 from bdc_db.models import *
-from bdc_scripts.radcor.models import *
-from bdc_scripts.datastorm.models import *
+from bdc_collection_builder.models import *
 
 target_metadata = [current_app.extensions['migrate'].db.metadata, session.ResultModelBase.metadata]
 

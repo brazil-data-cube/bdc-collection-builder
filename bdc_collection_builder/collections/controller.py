@@ -23,8 +23,8 @@ class RadcorController(Resource):
         """Retrieves all radcor activities from database"""
 
         args = request.args
-        page = args.get('page', 1)
-        per_page = args.get('per_page', 10)
+        page = int(args.get('page', 1))
+        per_page = int(args.get('per_page', 10))
 
         activities = RadcorBusiness.list_activities(args)\
             .paginate(page, per_page)

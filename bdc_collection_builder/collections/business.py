@@ -68,6 +68,25 @@ class RadcorBusiness:
         engine.session.commit()
 
     @classmethod
+    def create_activity(cls, activity):
+        with db.session.begin_nested():
+            where = dict(
+                sceneid=activity['sceneid'],
+                activity_type=activity['activity_type'],
+                collection_id=activity['collection_id']
+            )
+
+            _, created = get_or_create_model(RadcorActivity, defaults=activity, **where)
+
+        if created:
+            db.session.commit()
+        else:
+            db.session.rollback()
+
+        return created
+
+
+    @classmethod
     def radcor(cls, args: dict):
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
@@ -106,19 +125,6 @@ class RadcorBusiness:
                 # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
 
-                activities = RadcorActivity.is_started_or_done(sceneid=scene['sceneid'])
-
-                if len(activities) > 0:
-                    logging.warning('radcor - activity already done {}'.format(len(activities)))
-                    continue
-
-                scene['status'] = 'NOTDONE'
-
-                tile = '{}{}'.format(scene['path'], scene['row'])
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
-
                 activity = dict(
                     collection_id='LC8DN',
                     activity_type='downloadLC8',
@@ -132,6 +138,17 @@ class RadcorBusiness:
                         cloud=scene.get('cloud')
                     )
                 )
+
+                if not cls.create_activity(activity):
+                    logging.warning('radcor - activity already done {}'.format(activity['sceneid']))
+                    continue
+
+                scene['status'] = 'NOTDONE'
+
+                tile = '{}{}'.format(scene['path'], scene['row'])
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
 
                 if action == 'start':
                     cls.start(activity)
@@ -149,18 +166,6 @@ class RadcorBusiness:
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/S2_MSI')
                 productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
 
-                scene['status'] = 'NOTDONE'
-
-                activities = RadcorActivity.is_started_or_done(sceneid=scene['sceneid'])
-
-                if len(activities) > 0:
-                    logging.warning('radcor - activity already done {}'.format(len(activities)))
-                    continue
-
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2TOA', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db_aws)
-
                 activity = dict(
                     collection_id='S2TOA',
                     activity_type='downloadS2',
@@ -174,6 +179,15 @@ class RadcorBusiness:
                         cloud=scene.get('cloud')
                     )
                 )
+
+                if not cls.create_activity(activity):
+                    logging.warning('radcor - activity already done {}'.format(sceneid))
+                    continue
+
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2TOA', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db)
+                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db_aws)
+                scene['status'] = 'NOTDONE'
 
                 scenes[id] = scene
 

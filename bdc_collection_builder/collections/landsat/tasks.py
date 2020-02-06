@@ -112,9 +112,10 @@ class LandsatTask(RadcorTask):
         # Set Collection to the Sentinel Surface Reflectance
         scene['collection_id'] = 'LC8SR'
         scene['activity_type'] = 'correctionLC8'
+        scene_id = scene['sceneid']
 
         # Create/Update activity
-        self.create_execution(scene)
+        execution = self.create_execution(scene)
 
         try:
             params = dict(
@@ -123,16 +124,22 @@ class LandsatTask(RadcorTask):
                 file=scene['args']['file']
             )
 
+            pathrow = self.get_tile_id(scene_id)
+            tile_date = self.get_tile_date(scene_id)
+            yyyymm = tile_date.strftime('%Y-%m')
+            date = tile_date.strftime('%Y%m%d')
+
+            params['pathrow'] = pathrow
+
             # Send scene to the ESPA service
             req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
             # Ensure the request has been successfully
             assert req.status_code == 200
 
-            scene_id = scene['sceneid']
-            pathrow = self.get_tile_id(scene_id)
-            tile_date = self.get_tile_date(scene_id)
-            yyyymm = tile_date.strftime('%Y-%m')
-            date = tile_date.strftime('%Y%m%d')
+            result = req.json()
+
+            if result and result.get('status') == 'ERROR':
+                raise RuntimeError('Error in espa-science execution - {}'.format(scene_id))
 
             # Product dir
             productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(scene['collection_id'], yyyymm, pathrow))
@@ -145,7 +152,7 @@ class LandsatTask(RadcorTask):
             scene['args']['file'] = productdir
 
         except BaseException as e:
-            logging.error('Error at ATM correction Landsat', e)
+            logging.error('Error at correction Landsat {}, id={} - {}'.format(scene_id, execution.activity_id, str(e)))
 
             raise e
 

@@ -105,12 +105,13 @@ class RadcorBusiness:
                 tileid = cc[2]
                 # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
-                LC8SRfull = resource_path.join(base_dir, '{}/{}/'.format(yyyymm,tileid))
-                template =  LC8SRfull+'{}.png'.format(sceneid)
-                LC8SRfiles = glob.glob(template)
-                if len(LC8SRfiles) > 0:
-                    scene['status'] = 'DONE'
+
+                activities = RadcorActivity.is_started_or_done(sceneid=scene['sceneid'])
+
+                if len(activities) > 0:
+                    logging.warning('radcor - activity already done {}'.format(len(activities)))
                     continue
+
                 scene['status'] = 'NOTDONE'
 
                 tile = '{}{}'.format(scene['path'], scene['row'])

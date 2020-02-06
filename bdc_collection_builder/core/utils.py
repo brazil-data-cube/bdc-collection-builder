@@ -68,7 +68,11 @@ def generate_cogs(input_data_set_path, file_path):
     data_set.SetProjection( src_ds.GetProjection() )
 
     data_set_band = data_set.GetRasterBand(1)
-    data_set_band.SetNoDataValue(src_band.GetNoDataValue())
+
+    dummy = src_band.GetNoDataValue()
+
+    if dummy is not None:
+        data_set_band.SetNoDataValue(dummy)
 
     data_set_band.WriteArray( src_band.ReadAsArray() )
     data_set.BuildOverviews("NEAREST", [2, 4, 8, 16, 32, 64])

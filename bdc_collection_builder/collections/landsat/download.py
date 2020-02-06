@@ -39,7 +39,7 @@ user = get_credentials()['landsat']
 def download_landsat_images(link, destination):
     session = get_session()
 
-    req = session.get(link, stream=True)
+    req = session.get(link, timeout=90, stream=True)
     logging.warning('downloadLC8 - r {}'.format(req.headers))
     count = 0
     while req.headers.get("Content-Disposition") is None and count < 2:

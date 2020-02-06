@@ -76,7 +76,7 @@ services:
       - ./secrets.json:/app/secrets.json
       - /gfs:/gfs
     command: >
-      bash -c "bdc_collection_builder db create && bdc_collection_builder db upgrade && bdc_collection_builder run --host 0.0.0.0"
+      bash -c "bdc-collection-builder db create && bdc-collection-builder db upgrade && bdc-collection-builder run --host 0.0.0.0"
     depends_on:
       - mq
       - redis

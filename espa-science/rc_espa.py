@@ -7,6 +7,7 @@ import subprocess
 import logging
 import tarfile
 import glob
+import shutil
 
 app = Flask(__name__)
 app.config['PROPAGATE_EXCEPTIONS'] = True
@@ -207,7 +208,7 @@ def espa():
 	pathrow = cc[2]
 	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
 
-# Output product dir 
+# Output product dir
 	productdir = '/home/espa/output-data/{}/{}'.format(yyyymm,pathrow)
 # Build command
 	cmd = 'cli.py \
@@ -220,11 +221,11 @@ def espa():
  --include-sr-ndvi \
  --include-sr-savi \
  --include-surface-reflectance'
-	cmd += ' --order-id {}'.format(pathrow) 
-	cmd += ' --input-product-id {}'.format(inputproductid) 
-	cmd += ' --input-url file://{}'.format(inputFull) 
-	cmd += ' --dist-dir /home/espa/output-data/{}'.format(yyyymm) 
-	#cmd += ' --work-dir /home/espa/work-dir/LC8/{}'.format(yyyymm) 
+	cmd += ' --order-id {}'.format(pathrow)
+	cmd += ' --input-product-id {}'.format(inputproductid)
+	cmd += ' --input-url file://{}'.format(inputFull)
+	cmd += ' --dist-dir /home/espa/output-data/{}'.format(yyyymm)
+	#cmd += ' --work-dir /home/espa/work-dir/LC8/{}'.format(yyyymm)
 	app.logger.warning('espa - cmd {}'.format(cmd))
 
 # cli.py creates the output file in dist-dir/order-id
@@ -236,7 +237,11 @@ def espa():
 	retcode = 0
 	if len(ofl) > 0:
 		app.logger.warning('espa - {} already exists'.format(template))
-	
+
+	espa_work_dir = '/home/espa/work-dir/'
+
+	scene_temporary_folder = os.path.join(espa_work_dir, '{}-{}'.format(pathrow, inputproductid))
+
 # Execute command
 	#cmd = 'cli.py --help'
 	app.logger.warning('espa - calling cmd {} '.format(cmd))
@@ -248,6 +253,9 @@ def espa():
 		activity['status'] = 'ERROR'
 		activity['retcode'] = 1
 		app.logger.warning('espa - subprocess error {}'.format(e))
+
+		app.logger.warning('Removing {}...'.format(scene_temporary_folder))
+		shutil.rmtree(scene_temporary_folder, ignore_errors=True)
 		return jsonify(activity)
 	#retcode = subprocess.call(cmd, shell = True)
 	ofl = glob.glob(template)
@@ -265,6 +273,8 @@ def espa():
 		activity['message'] = 'Abnormal execution'
 		activity['status'] = 'ERROR'
 	activity['retcode'] = 0
+	app.logger.warning('Removing {}...'.format(scene_temporary_folder))
+	shutil.rmtree(scene_temporary_folder, ignore_errors=True)
 	return jsonify(activity)
 
 if __name__ == "__main__":

@@ -81,6 +81,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     productdir = scene.args.get('file')
 
+    logging.warning('Publish {} - {} (id={})'.format(scene.collection_id, productdir, scene.id))
+
     if productdir and productdir.endswith('.gz'):
         target_dir = Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}'.format(collection_item.collection_id, yyyymm, pathrow)
         makedirs(target_dir, exist_ok=True)

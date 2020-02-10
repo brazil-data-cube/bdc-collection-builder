@@ -42,6 +42,8 @@ install_requires = [
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
     'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
     'celery[librabbitmq]>=4.3.0',
+    # TODO: Remove werkzeug dependency when https://github.com/noirbizarre/flask-restplus/issues/777 is fixed
+    'Werkzeug>=0.16,<1.0'
 ]
 
 g = {}

@@ -10,7 +10,6 @@ from datetime import datetime
 from zipfile import ZipFile
 
 # 3rdparty
-from psycopg2 import InternalError
 from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
@@ -27,6 +26,7 @@ from bdc_collection_builder.collections.sentinel.clients import sentinel_clients
 from bdc_collection_builder.collections.sentinel.download import download_sentinel_images, download_sentinel_from_creodias
 from bdc_collection_builder.collections.sentinel.publish import publish
 from bdc_collection_builder.collections.sentinel.correction import correction_sen2cor255, correction_sen2cor280
+from bdc_collection_builder.db import db_aws
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -226,8 +226,16 @@ class SentinelTask(RadcorTask):
 
         try:
             assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+        except InvalidRequestError as e:
+            # Error related with Transacion on AWS
+            # TODO: Is it occurs on local instance?
+            logging.error("Transaction Error on activity - {}".format(activity_history.activity_id), exc_info=True)
+
+            db_aws.session.rollback()
+
+            raise e
         except BaseException as e:
-            logging.error('An error occurred during task execution', e)
+            logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id), exc_info=True)
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
@@ -291,7 +299,7 @@ def atm_correction(scene):
     return atm_correction.correction(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InternalError, InvalidRequestError,), default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InvalidRequestError,), default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel

@@ -6,7 +6,7 @@ import glob
 import logging
 
 # 3rdparty
-from gdal import GA_ReadOnly, Open as GDALOpen
+from gdal import GA_ReadOnly, GA_Update, GetDriverByName, Open as GDALOpen
 from numpngw import write_png
 from skimage import exposure
 from skimage.transform import resize
@@ -18,7 +18,7 @@ from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.core.utils import generate_evi_ndvi, generate_cogs
 from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model
+from bdc_collection_builder.collections.utils import get_or_create_model, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
 
 
@@ -66,10 +66,56 @@ def generate_vi(productdir, files):
 
     generate_evi_ndvi(files['red'], files['nir'], files['blue'], evi_name, ndvi_name)
 
+    if not is_valid_tif(ndvi_name) or not is_valid_tif(evi_name):
+        raise RuntimeError('Not Valid Vegetation index file')
+
 
 def uncompress(file_path, destination):
     unpack_archive(file_path, destination)
     return destination
+
+
+def apply_valid_range(input_data_set_path, file_path):
+    """
+    Apply Valid Range -10000 -> 10000
+    Args:
+        input_data_set_path (str) - Path to the input data set
+        file_path (str) - Target data set filename
+    Returns:
+        Path to valid_range_image
+    """
+
+    src_ds = GDALOpen(input_data_set_path, GA_ReadOnly)
+
+    if src_ds is None:
+        raise ValueError('Could not open data set "{}"'.format(input_data_set_path))
+
+    driver = GetDriverByName('MEM')
+
+    src_band = src_ds.GetRasterBand(1)
+    data_set = driver.Create('', src_ds.RasterXSize, src_ds.RasterYSize, 1, src_band.DataType)
+    data_set.SetGeoTransform(src_ds.GetGeoTransform())
+    data_set.SetProjection(src_ds.GetProjection())
+
+    data_set_band = data_set.GetRasterBand(1)
+
+    data_set_band.WriteArray(src_band.ReadAsArray())
+
+    band_array = data_set_band.ReadAsArray()
+    dummy = -9999
+    data_set_band.SetNoDataValue(dummy)
+    band_array[band_array <= -10000] = dummy
+    band_array[band_array >= 10000] = dummy
+    driver = GetDriverByName('GTiff')
+    data_set_band.WriteArray(band_array)
+
+    dst_ds = driver.CreateCopy(file_path, data_set, options=["COMPRESS=LZW"])
+
+    del dst_ds
+    del src_ds
+    del data_set
+
+    return file_path
 
 
 def publish(collection_item: CollectionItem, scene: RadcorActivity):
@@ -117,10 +163,15 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     if collection.id == 'LC8DN':
         generate_vi(productdir, files)
 
-    # Cog files
+    # Apply valid range and Cog files
     for band, file_path in files.items():
+        if collection.id == 'LC8SR':
+            _ = apply_valid_range(file_path, file_path)
         # Set destination of COG file
         files[band] = generate_cogs(file_path, file_path)
+        if not is_valid_tif(file_path):
+            raise RuntimeError('Not Valid {}'.format(file_path))
+
 
     # Extract basic scene information and build the quicklook
     pngname = productdir+'/{}.png'.format(identifier)

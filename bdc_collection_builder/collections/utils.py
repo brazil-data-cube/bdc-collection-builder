@@ -5,6 +5,7 @@ import logging
 
 # 3rdparty
 from celery import chain, current_task, group
+from osgeo import gdal
 import requests
 
 # Builder
@@ -211,7 +212,6 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
 
 
 def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productType=None):
-
     #    api_hub options:
     #    'https://scihub.copernicus.eu/apihub/' for fast access to recently acquired imagery in the API HUB rolling archive
     #    'https://scihub.copernicus.eu/dhus/' for slower access to the full archive of all acquired imagery
@@ -305,3 +305,30 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
         else:
             totres = 0
     return scenes
+
+
+def is_valid_tif(input_data_set_path):
+    """
+    Validate Tif
+    Args:
+        input_data_set_path (str) - Path to the input data set
+    Returns:
+        True if tif is valid, False otherwise
+    """
+    # this allows GDAL to throw Python Exceptions
+    gdal.UseExceptions()
+
+    try:
+        ds  = gdal.Open(input_data_set_path)
+        srcband = ds.GetRasterBand(1)
+        # Get raster statistics
+        stats = srcband.GetStatistics(True, True)
+        # Check if min == max
+        if(stats[0] == stats[1]):
+            del ds
+            return False
+        del ds
+        return True
+    except RuntimeError as e:
+        logging.error('Unable to open {} {}'.format(input_data_set_path, e))
+        return False

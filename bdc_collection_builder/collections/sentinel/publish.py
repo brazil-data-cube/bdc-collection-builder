@@ -17,7 +17,7 @@ from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.core.utils import generate_cogs, generate_evi_ndvi
 from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model
+from bdc_collection_builder.collections.utils import get_or_create_model, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
 
 
@@ -105,6 +105,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         cog_file_path = os.path.join(productdir, cog_file_name)
 
         files[band] = generate_cogs(file, cog_file_path)
+        if not is_valid_tif(cog_file_path):
+            raise RuntimeError('Not Valid {}'.format(cog_file_path))
 
     source = scene.sceneid.split('_')[0]
 
@@ -218,6 +220,9 @@ def generate_vi(identifier, productdir, files):
     files['evi'] = evi_name
 
     generate_evi_ndvi(files['red'], files['nir'], files['blue'], evi_name, ndvi_name)
+
+    if not is_valid_tif(ndvi_name) or not is_valid_tif(evi_name):
+        raise RuntimeError('Not Valid Vegetation index file')
 
 
 def filter_jp2_files(directory, pattern):

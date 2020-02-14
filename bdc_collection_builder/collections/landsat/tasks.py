@@ -198,7 +198,7 @@ def publish_landsat(scene):
 
 @celery_app.task(base=LandsatTask,
                  queue='upload',
-                 max_retries=72,
+                 max_retries=3,
                  auto_retry=(EndpointConnectionError, NewConnectionError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
 def upload_landsat(scene):

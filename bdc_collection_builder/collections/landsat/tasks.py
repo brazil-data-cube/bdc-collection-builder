@@ -4,9 +4,11 @@ import os
 from datetime import datetime
 
 # 3rdparty
+from botocore.exceptions import EndpointConnectionError
 from glob import glob as resource_glob
 from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
+from urllib3.exceptions import NewConnectionError, MaxRetryError
 
 # Builder
 from bdc_collection_builder.celery import celery_app
@@ -15,7 +17,6 @@ from bdc_collection_builder.core.utils import upload_file
 from bdc_collection_builder.collections.base_task import RadcorTask
 from bdc_collection_builder.collections.landsat.download import download_landsat_images
 from bdc_collection_builder.collections.landsat.publish import publish
-from bdc_collection_builder.collections.utils import get_task_activity
 from bdc_collection_builder.db import db_aws
 
 
@@ -57,7 +58,8 @@ class LandsatTask(RadcorTask):
 
             activity_args['file'] = file
         except BaseException as e:
-            logging.error('An error occurred during task execution', e)
+            logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id),
+                          exc_info=True)
 
             raise e
 
@@ -79,7 +81,7 @@ class LandsatTask(RadcorTask):
         try:
             assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except InvalidRequestError as e:
-            # Error related with Transacion on AWS
+            # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
             logging.error("Transaction Error on activity - {}".format(activity_history.activity_id), exc_info=True)
 
@@ -88,7 +90,8 @@ class LandsatTask(RadcorTask):
             raise e
 
         except BaseException as e:
-            logging.error("An error occurred during task execution - {}".format(activity_history.activity_id), exc_info=True)
+            logging.error("An error occurred during task execution - {}".format(activity_history.activity_id),
+                          exc_info=True)
 
             raise e
 
@@ -170,7 +173,11 @@ class LandsatTask(RadcorTask):
         return scene
 
 
-@celery_app.task(base=LandsatTask, queue='download')
+@celery_app.task(base=LandsatTask,
+                 queue='download',
+                 max_retries=72,
+                 autoretry_for=(NewConnectionError, MaxRetryError),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def download_landsat(scene):
     return download_landsat.download(scene)
 
@@ -180,11 +187,19 @@ def atm_correction_landsat(scene):
     return atm_correction_landsat.correction(scene)
 
 
-@celery_app.task(base=LandsatTask, queue='publish', max_retries=3, autoretry_for=(InvalidRequestError,), default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=LandsatTask,
+                 queue='publish',
+                 max_retries=3,
+                 autoretry_for=(InvalidRequestError,),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_landsat(scene):
     return publish_landsat.publish(scene)
 
 
-@celery_app.task(base=LandsatTask, queue='upload')
+@celery_app.task(base=LandsatTask,
+                 queue='upload',
+                 max_retries=72,
+                 auto_retry=(EndpointConnectionError, NewConnectionError,),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def upload_landsat(scene):
     upload_landsat.upload(scene)

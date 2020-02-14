@@ -31,7 +31,7 @@ def download_sentinel_images(link, file_path, user):
         user (AtomicUser) - User credential
     """
     try:
-        response = requests.get(link, auth=(user.username, user.password), timeout = 90, stream=True)
+        response = requests.get(link, auth=(user.username, user.password), timeout=90, stream=True)
     except requests.exceptions.ConnectionError as e:
         logging.error('Connection error during Sentinel Download')
         raise e
@@ -39,7 +39,10 @@ def download_sentinel_images(link, file_path, user):
     if response.status_code == 202:
         raise requests.exceptions.HTTPError('Data is offline. {}'.format(response.status_code))
 
-    if response.status_code >= 400:
+    if response.status_code == 401:
+        raise requests.exceptions.RequestException('Invalid credentials for "{}"'.format(user.username))
+
+    if response.status_code >= 403:
         raise requests.exceptions.HTTPError('Invalid sentinel request {}'.format(response.status_code))
 
     size = int(response.headers['Content-Length'].strip())

@@ -1,15 +1,15 @@
-"""
-Describes the Celery Tasks definition of Sentinel products
-"""
+"""Describes the Celery Tasks definition of Sentinel products."""
 
 # Python Native
+from datetime import datetime
+from urllib3.exceptions import NewConnectionError, MaxRetryError
+from zipfile import ZipFile
 import logging
 import os
 import time
-from datetime import datetime
-from zipfile import ZipFile
 
 # 3rdparty
+from botocore.exceptions import EndpointConnectionError
 from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
@@ -149,23 +149,19 @@ class SentinelTask(RadcorTask):
                 logging.debug('Done download.')
                 activity_args['file'] = extracted_file_path
 
-            except HTTPError as e:
+            except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if os.path.exists(zip_file_name):
                     os.remove(zip_file_name)
-                # Retry when sentinel is offline
-                logging.warning('Sentinel "{}" is offline. Retrying in {}'.format(scene_id, Config.TASK_RETRY_DELAY))
 
-                raise e
-
-            except ConnectionError as e:
-                logging.error('Connection error - {}'.format(e))
-                if os.path.exists(zip_file_name):
-                    os.remove(zip_file_name)
                 # Retry when sentinel is offline
+                logging.error('Sentinel "{}" is offline or No internet connection - {}. Retrying in {}'.format(
+                    scene_id, str(e), Config.TASK_RETRY_DELAY), exc_info=True)
+
                 raise e
 
             except BaseException as e:
-                logging.error('An error occurred during task execution {}'.format(e))
+                logging.error('An error occurred during task execution {}'.format(activity_history.activity_id),
+                              exc_info=True)
 
                 raise e
 
@@ -261,7 +257,11 @@ class SentinelTask(RadcorTask):
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection
 # We should set "autoretry_for" and retry_kwargs={'max_retries': 3} to retry
 # task execution since it seems to be bug related to the api
-@celery_app.task(base=SentinelTask, queue='download', max_retries=72, autoretry_for=(HTTPError,), default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=SentinelTask,
+                 queue='download',
+                 max_retries=72,
+                 autoretry_for=(HTTPError, MaxRetryError, NewConnectionError, ConnectionError),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def download_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel Download files
@@ -299,7 +299,11 @@ def atm_correction(scene):
     return atm_correction.correction(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='publish', max_retries=3, autoretry_for=(InvalidRequestError,), default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=SentinelTask,
+                 queue='publish',
+                 max_retries=3,
+                 autoretry_for=(InvalidRequestError,),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel
@@ -317,7 +321,11 @@ def publish_sentinel(scene):
     return publish_sentinel.publish(scene)
 
 
-@celery_app.task(base=SentinelTask, queue='upload', max_retries=3, default_retry_delay=Config.TASK_RETRY_DELAY)
+@celery_app.task(base=SentinelTask,
+                 queue='upload',
+                 max_retries=3,
+                 auto_retry=(EndpointConnectionError, NewConnectionError,),
+                 default_retry_delay=Config.TASK_RETRY_DELAY)
 def upload_sentinel(scene):
     """
     Represents a celery task definition for handling Sentinel

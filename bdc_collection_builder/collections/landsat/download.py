@@ -1,22 +1,29 @@
+#
+# This file is part of BDC Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# BDC Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Handle Landsat 8 download interface."""
+
+
 # Python Native
 import logging
 import os
-
 # 3rdparty
 from bs4 import BeautifulSoup
 from requests import Session as RequestSession
-
 # Builder
 from bdc_collection_builder.core.utils import get_credentials
 
 
 def get_session() -> RequestSession:
-    """
-    Creates a session with USGS channel.
+    """Create a session with USGS channel.
 
     TODO: Use development seed STAC instead
     """
-
     url_login = 'https://ers.cr.usgs.gov/login/'
     session = RequestSession()
     login_html = session.get(url_login)
@@ -37,6 +44,7 @@ user = get_credentials()['landsat']
 
 
 def download_landsat_images(link, destination):
+    """Download landsat from USGS."""
     session = get_session()
 
     req = session.get(link, timeout=90, stream=True)

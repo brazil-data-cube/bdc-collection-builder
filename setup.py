@@ -4,7 +4,16 @@ import os
 from setuptools import find_packages, setup
 
 
-tests_require = []
+tests_require = [
+    'check-manifest>=0.40',
+    'coverage>=4.5',
+    'coveralls>=1.8',
+    'pydocstyle>=4.0',
+    'pytest>=5.0.0,<6.0.0',
+    'pytest-cov>=2.8',
+    'pytest-pep8>=1.0',
+    'isort>4.3',
+]
 
 
 extras_require = {

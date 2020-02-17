@@ -1,19 +1,30 @@
+#
+# This file is part of BDC Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# BDC Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Python BDC Collection Builder."""
+
 from bdc_db.ext import BDCDatabase
 from flask import Flask
 from flask_cors import CORS
-from bdc_collection_builder import config, celery
-from bdc_collection_builder.config import get_settings
+
+from . import celery, config
+from .config import get_settings
+from .version import __version__
 
 
 def create_app(config_name='DevelopmentConfig'):
-    """
-    Creates Brazil Data Cube application from config object
+    """Create Brazil Data Cube application from config object.
+
     Args:
         config_name (string) Config instance name
     Returns:
         Flask Application with config instance scope
     """
-
     app = Flask(__name__)
     conf = config.get_settings(config_name)
     app.config.from_object(conf)
@@ -36,3 +47,9 @@ def create_app(config_name='DevelopmentConfig'):
         app.register_blueprint(bp)
 
     return app
+
+
+__all__ = (
+    '__version__',
+    'create_app',
+)

@@ -33,9 +33,10 @@ lock = lock_handler.lock('sentinel_download_lock_4')
 
 
 class SentinelTask(RadcorTask):
+    """Define abstraction of Sentinel 2 - L1C and L2A products."""
+
     def get_user(self):
-        """
-        Tries to get an iddle user to download images.
+        """Try to get an iddle user to download images.
 
         Since we are downloading images from Copernicus, you can only have
         two concurrent download per account. In this way, we should handle the
@@ -64,18 +65,19 @@ class SentinelTask(RadcorTask):
         return user
 
     def get_tile_id(self, scene_id, **kwargs):
+        """Retrieve tile from sceneid."""
         fragments = scene_id.split('_')
         return fragments[-2][1:]
 
     def get_tile_date(self, scene_id, **kwargs):
+        """Retrieve tile date from sceneid."""
         fragments = scene_id.split('_')
 
         # Retrieve composite date of Collection Item
         return datetime.strptime(fragments[2][:8], '%Y%m%d')
 
     def download(self, scene):
-        """
-        Performs download sentinel images from copernicus
+        """Perform download sentinel images from copernicus.
 
         Args:
             scene (dict) - Scene containing activity
@@ -83,7 +85,6 @@ class SentinelTask(RadcorTask):
         Returns:
             dict Scene with sentinel file path
         """
-
         scene['collection_id'] = 'S2TOA'
 
         # Create/update activity
@@ -177,6 +178,11 @@ class SentinelTask(RadcorTask):
         return scene
 
     def correction(self, scene):
+        """Apply atmospheric correction on collection.
+
+        Args:
+            scene - Serialized Activity
+        """
         logging.debug('Starting Correction Sentinel...')
         version = 'sen2cor280'
 
@@ -210,6 +216,11 @@ class SentinelTask(RadcorTask):
         return scene
 
     def publish(self, scene):
+        """Publish and persist collection on database.
+
+        Args:
+            scene - Serialized Activity
+        """
         scene['activity_type'] = 'publishS2'
 
         # Create/update activity
@@ -243,6 +254,14 @@ class SentinelTask(RadcorTask):
         return scene
 
     def upload(self, scene):
+        """Upload collection to AWS.
+
+        Make sure to set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
+        `AWS_REGION_NAME` defined in `bdc_collection_builder.config.Config`.
+
+        Args:
+            scene - Serialized Activity
+        """
         # Create/update activity
         self.create_execution(scene)
 
@@ -263,8 +282,7 @@ class SentinelTask(RadcorTask):
                  autoretry_for=(HTTPError, MaxRetryError, NewConnectionError, ConnectionError),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
 def download_sentinel(scene):
-    """
-    Represents a celery task definition for handling Sentinel Download files
+    """Represent a celery task definition for handling Sentinel Download files.
 
     This celery tasks listen only for queues 'download'.
 
@@ -274,15 +292,12 @@ def download_sentinel(scene):
     Returns:
         Returns processed activity
     """
-
     return download_sentinel.download(scene)
 
 
 @celery_app.task(base=SentinelTask, queue='atm-correction', max_retries=3, default_retry_delay=Config.TASK_RETRY_DELAY)
 def atm_correction(scene):
-    """
-    Represents a celery task definition for handling Sentinel
-    Atmospheric correction - sen2cor.
+    """Represent a celery task definition for handling Sentinel Atmospheric correction - sen2cor.
 
     This celery tasks listen only for queues 'atm-correction'.
 
@@ -295,7 +310,6 @@ def atm_correction(scene):
     Returns:
         Returns processed activity
     """
-
     return atm_correction.correction(scene)
 
 
@@ -305,9 +319,7 @@ def atm_correction(scene):
                  autoretry_for=(InvalidRequestError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
 def publish_sentinel(scene):
-    """
-    Represents a celery task definition for handling Sentinel
-    Publish TIFF files generation
+    """Represent a celery task definition for handling Sentinel Publish TIFF files generation.
 
     This celery tasks listen only for queues 'publish'.
 
@@ -317,7 +329,6 @@ def publish_sentinel(scene):
     Returns:
         Returns processed activity
     """
-
     return publish_sentinel.publish(scene)
 
 
@@ -327,17 +338,11 @@ def publish_sentinel(scene):
                  auto_retry=(EndpointConnectionError, NewConnectionError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
 def upload_sentinel(scene):
-    """
-    Represents a celery task definition for handling Sentinel
-    Publish TIFF files generation
+    """Represent a celery task definition for handling Sentinel Upload TIFF to AWS.
 
-    This celery tasks listen only for queues 'publish'.
+    This celery tasks listen only for queues 'uploadS2'.
 
     Args:
-        scene (dict): Radcor Activity with "publishS2" app context
-
-    Returns:
-        Returns processed activity
+        scene (dict): Radcor Activity with "uploadS2" app context
     """
-
     upload_sentinel.upload(scene)

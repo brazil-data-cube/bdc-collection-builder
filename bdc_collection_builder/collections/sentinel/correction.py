@@ -1,3 +1,13 @@
+#
+# This file is part of BDC Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# BDC Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Describe Sentinel 2 atmosphere correction."""
+
 # Python Native
 import logging
 import os
@@ -13,12 +23,12 @@ from requests import get as resource_get
 from bdc_collection_builder.config import Config
 
 
-# TODO: Check if sen2cor is done
-def sen2cor_done():
-    return True
-
-
 def search_recent_sen2cor280(safeL2Afull):
+    """Search recent .SAFE folder from Sentinel.
+
+    Args:
+        safeL2Afull - Path to the folder where .SAFE files generated.
+    """
     safe = safeL2Afull.replace( os.path.basename(safeL2Afull).split('_')[3], 'N9999')
     safe_pattern = '_'.join( os.path.basename(safe).split('_')[0:-1])
     dirname = os.path.dirname(safeL2Afull)
@@ -27,6 +37,7 @@ def search_recent_sen2cor280(safeL2Afull):
 
 
 def correction_sen2cor255(scene):
+    """Dispatch sen2cor 2.5.5 execution."""
     safeL2Afull = scene['file'].replace('MSIL1C','MSIL2A')
     # TODO: check if file exists and validate SAFE
     valid = False
@@ -46,13 +57,11 @@ def correction_sen2cor255(scene):
                 shutil.rmtree(safeL2Afull)
             raise RuntimeError('Error in sen2cor execution')
 
-        while not sen2cor_done():
-            logging.debug('Atmospheric correction is not done yet...')
-            time.sleep(5)
     return safeL2Afull
 
 
 def correction_sen2cor280(scene):
+    """Dispatch sen2cor 2.8.0 execution."""
     safeL2Afull = scene['file'].replace('MSIL1C', 'MSIL2A')
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if len(dirs_L2) >= 1:
@@ -77,9 +86,6 @@ def correction_sen2cor280(scene):
     if result and result.get('status') == 'ERROR':
         raise RuntimeError('Error in sen2cor execution')
 
-    while not sen2cor_done():
-        logging.debug('Atmospheric correction is not done yet...')
-        time.sleep(5)
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
 
     return dirs_L2[-1]

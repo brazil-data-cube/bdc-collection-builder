@@ -1,9 +1,19 @@
+#
+# This file is part of BDC Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# BDC Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Celery module used in Brazil Data Cube."""
+
+import logging
 from celery import Celery
 from flask import Flask
-from bdc_collection_builder.config import Config
 from bdc_db.models import db
-import logging
 import flask
+from bdc_collection_builder.config import Config
 
 
 CELERY_TASKS = [
@@ -15,8 +25,7 @@ celery_app = None
 
 
 def create_celery_app(flask_app: Flask):
-    """
-    Creates a Celery object and tir the celery config to the Flask app config
+    """Create a Celery object and tir the celery config to the Flask app config.
 
     Wrap all the celery tasks in the context of Flask application
 
@@ -26,7 +35,6 @@ def create_celery_app(flask_app: Flask):
     Returns:
         Celery celery app
     """
-
     celery = Celery(
         flask_app.import_name,
         broker=Config.RABBIT_MQ_URL
@@ -66,14 +74,12 @@ def create_celery_app(flask_app: Flask):
                 logging.warning('Not Call context Task')
 
         def after_return(self, status, retval, task_id, args, kwargs, einfo):
-            """
-            Called after task execution.
+            """Teardown application session.
 
             Whenever task finishes, it must teardown our db session, since the Flask SQLAlchemy
             creates scoped session at startup.
             FMI: https://gist.github.com/twolfson/a1b329e9353f9b575131
             """
-
             if flask_app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN']:
                 if not isinstance(retval, Exception):
                     db.session.commit()

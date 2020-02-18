@@ -170,10 +170,11 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         if not fs:
             continue
 
-        if fs[0].lower().endswith('.tif'):
-            files[gband] = fs[0]
-            if gband in quicklook:
-                qlfiles[gband] = fs[0]
+        for f in fs:
+            if f.lower().endswith('.tif'):
+                files[gband] = f
+                if gband in quicklook:
+                    qlfiles[gband] = f
 
     # Skip EVI/NDVI generation for Surface Reflectance
     # since the espa-science already done

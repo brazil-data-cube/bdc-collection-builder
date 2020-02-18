@@ -20,6 +20,7 @@ Welcome to bdc-collection-builder's documentation!
 
    installation
    api
+   running
    license
 
 

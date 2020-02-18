@@ -57,6 +57,7 @@ cli.add_command(fixtures)
 def create_db(ctx: click.Context):
     """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
 
+    # Forward context to bdc-db createdb command in order to create database
     ctx.forward(bdc_create_db)
 
     click.secho('Creating schema {}...'.format(Config.ACTIVITIES_SCHEMA), fg='green')

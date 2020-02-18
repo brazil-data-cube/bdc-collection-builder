@@ -13,6 +13,7 @@ from sqlalchemy import Column, DateTime, JSON, Integer, String, Time, or_, Forei
 from sqlalchemy.orm import relationship
 from bdc_db.models.base_sql import db, BaseModel
 
+from ...config import Config
 
 class RadcorActivityHistory(BaseModel):
     """Define Activity History execution.
@@ -22,8 +23,9 @@ class RadcorActivityHistory(BaseModel):
     """
 
     __tablename__ = 'activity_history'
+    __table_args__ = dict(schema=Config.ACTIVITIES_SCHEMA)
 
-    activity_id = Column(ForeignKey('activities.id'), primary_key=True, nullable=False)
+    activity_id = Column(ForeignKey('{}.activities.id'.format(Config.ACTIVITIES_SCHEMA)), primary_key=True, nullable=False)
     task_id = Column(ForeignKey(Task.id), primary_key=True, nullable=False)
 
     start = Column('start', DateTime)

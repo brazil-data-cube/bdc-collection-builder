@@ -1,3 +1,13 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Handle Sentinel Download interface."""
+
 import logging
 import os
 import requests
@@ -7,6 +17,12 @@ from bdc_collection_builder.core.utils import get_credentials
 
 
 def _download(file_path: str, response: requests.Response):
+    """Write compressed sentinel output to disk.
+
+    Args:
+        file_path - Path to store compressed data
+        response - HTTP Response object
+    """
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
     # May throw exception for read-only directory
@@ -22,8 +38,7 @@ def _download(file_path: str, response: requests.Response):
 
 
 def download_sentinel_images(link, file_path, user):
-    """
-    Download sentinel image from Copernicus (compressed data)
+    """Download sentinel image from Copernicus (compressed data).
 
     Args:
         link (str) - Sentinel Image Link
@@ -53,15 +68,12 @@ def download_sentinel_images(link, file_path, user):
 
 
 def download_sentinel_from_creodias(scene_id: str, file_path: str):
-    """
-    Download sentinel image from CREODIAS provider
+    """Download sentinel image from CREODIAS provider.
 
     Args:
         scene_id Sentinel scene id
         file_path Path to save sentinel
-
     """
-
     credentials = get_credentials().get('creodias')
 
     if credentials is None:

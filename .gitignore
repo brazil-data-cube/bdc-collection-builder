@@ -132,7 +132,6 @@ dmypy.json
 .vscode
 .idea
 doc/sphinx/_build
-doc/sphinx/_static
 
 # Logs and installer logs
 pip-log.txt

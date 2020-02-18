@@ -4,7 +4,16 @@ import os
 from setuptools import find_packages, setup
 
 
-tests_require = []
+tests_require = [
+    'check-manifest>=0.40',
+    'coverage>=4.5',
+    'coveralls>=1.8',
+    'pydocstyle>=4.0',
+    'pytest>=5.0.0,<6.0.0',
+    'pytest-cov>=2.8',
+    'pytest-pep8>=1.0',
+    'isort>4.3',
+]
 
 
 extras_require = {
@@ -39,7 +48,7 @@ install_requires = [
     'numpngw>=0.0.8',  # TODO: Review this dependency
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git#egg=bdc-db',
+    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@v0.2.0#egg=bdc-db',
     'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
     'celery[librabbitmq]>=4.3.0',
     # TODO: Remove werkzeug dependency when https://github.com/noirbizarre/flask-restplus/issues/777 is fixed

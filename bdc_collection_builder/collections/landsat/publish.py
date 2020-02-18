@@ -1,17 +1,25 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Describe Landsat 8 publish generation."""
+
 # Python Native
 from os import makedirs, path as resource_path
 from pathlib import Path
 from shutil import unpack_archive
 import glob
 import logging
-
 # 3rdparty
 from gdal import GA_ReadOnly, GA_Update, GetDriverByName, Open as GDALOpen
 from numpngw import write_png
 from skimage import exposure
 from skimage.transform import resize
 import numpy
-
 # Builder
 from bdc_db.models import Asset, Band, Collection, CollectionItem, CollectionTile, db
 from bdc_collection_builder.config import Config
@@ -56,6 +64,7 @@ DEFAULT_QUICK_LOOK_BANDS = ["swir2", "nir", "red"]
 
 
 def generate_vi(productdir, files):
+    """Prepare and generate Vegetation Index of Landsat Products."""
     fragments = Path(files['red']).stem.split('_')
     pattern = "_".join(fragments[:-1])
 
@@ -71,20 +80,20 @@ def generate_vi(productdir, files):
 
 
 def uncompress(file_path, destination):
+    """Uncompress Landsat 8 DN."""
     unpack_archive(file_path, destination)
     return destination
 
 
-def apply_valid_range(input_data_set_path, file_path):
-    """
-    Apply Valid Range -10000 -> 10000
+def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
+    """Apply Valid Range -10000 -> 10000.
+
     Args:
         input_data_set_path (str) - Path to the input data set
         file_path (str) - Target data set filename
     Returns:
         Path to valid_range_image
     """
-
     src_ds = GDALOpen(input_data_set_path, GA_ReadOnly)
 
     if src_ds is None:
@@ -119,6 +128,14 @@ def apply_valid_range(input_data_set_path, file_path):
 
 
 def publish(collection_item: CollectionItem, scene: RadcorActivity):
+    """Publish Landsat collection.
+
+    It works with both Digital Number (DN) and Surface Reflectance (SR).
+
+    Args:
+        collection_item - Collection Item
+        scene - Current Activity
+    """
     identifier = scene.sceneid
     cc = identifier.split('_')
     pathrow = cc[2]

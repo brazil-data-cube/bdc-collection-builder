@@ -1,16 +1,24 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Describe Sentinel 2 publish generation."""
+
 # Python Native
 import fnmatch
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
-
-# 3rd-party
+# 3rdparty
 import gdal
 import numpy
 from numpngw import write_png
 from skimage.transform import resize
-
 # Builder
 from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_collection_builder.config import Config
@@ -42,6 +50,14 @@ SENTINEL_BANDS = BAND_MAP.keys()
 
 
 def publish(collection_item: CollectionItem, scene: RadcorActivity):
+    """Publish Sentinel collection.
+
+    It works with both L1C and L2A.
+
+    Args:
+        collection_item - Collection Item
+        scene - Current Activity
+    """
     qlband = 'TCI'
 
     # Retrieves all jp2 files from scene
@@ -205,6 +221,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
 
 def create_qlook_file(pngname, qlfile):
+    """Create sentinel 2 quicklook."""
     image = numpy.ones((768, 768, 3,), dtype=numpy.uint8)
     dataset = gdal.Open(qlfile, gdal.GA_ReadOnly)
     for nb in [0, 1, 2]:
@@ -214,6 +231,7 @@ def create_qlook_file(pngname, qlfile):
 
 
 def generate_vi(identifier, productdir, files):
+    """Prepare and generate Vegetation Index of Sentinel Products."""
     ndvi_name = os.path.join(productdir, identifier+"_NDVI.tif")
     evi_name = os.path.join(productdir, identifier+"_EVI.tif")
     files['ndvi'] = ndvi_name
@@ -225,13 +243,15 @@ def generate_vi(identifier, productdir, files):
         raise RuntimeError('Not Valid Vegetation index file')
 
 
-def filter_jp2_files(directory, pattern):
-    return [os.path.join(dirpath, f)
-            for dirpath, dirnames, files in os.walk("{0}".format(directory))
-            for f in fnmatch.filter(files, pattern)]
-
-
 def get_jp2_files(scene: RadcorActivity):
+    """Retrieve all .jp2 files from Sentinel using Activity.
+
+    Args:
+        activity - Scene activity
+
+    Returns:
+        List of matched .jp2 files.
+    """
     # Find all jp2 files in L2A SAFE
     sentinel_folder_data = scene.args.get('file', '')
     template = "T*.jp2"
@@ -252,8 +272,8 @@ def get_jp2_files(scene: RadcorActivity):
 
 
 def compute_cloud_cover(raster):
-    """
-    Label Classification
+    """Label Classification.
+
     0      NO_DATA
     1      SATURATED_OR_DEFECTIVE
     2      DARK_AREA_PIXELS

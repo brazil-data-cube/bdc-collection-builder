@@ -1,14 +1,23 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Define base interface for Celery Tasks."""
+
+
 # Python Native
 from datetime import datetime
 from os import path as resource_path
 import glob
 import logging
-
 # 3rdparty
 from celery.backends.database import Task
 from sqlalchemy import or_, func, cast, Date
 from werkzeug.exceptions import BadRequest
-
 # Builder
 from bdc_db.models import db, Collection, CollectionTile
 from bdc_collection_builder.config import Config
@@ -23,14 +32,25 @@ DESTINATION_DIR = Config.DATA_DIR
 
 
 class RadcorBusiness:
+    """Define an interface for handling entire module business."""
+
     @classmethod
     def start(cls, activity):
-        """Dispatch the celery tasks"""
-
+        """Dispatch the celery tasks."""
         return dispatch(activity)
 
     @classmethod
     def restart(cls, ids=None, status=None, activity_type=None):
+        """Restart celery task execution.
+
+        Args:
+            ids - List of Activity ID
+            status - Filter by task status
+            activity_type - Filter by activity type
+
+        Returns:
+            Affected activities
+        """
         restrictions = []
 
         if ids:
@@ -56,6 +76,7 @@ class RadcorBusiness:
 
     @classmethod
     def create_tile(cls, grs, tile, collection, engine=db):
+        """Create tile on database."""
         with engine.session.begin_nested():
             restriction = dict(
                 grs_schema_id=grs,
@@ -69,6 +90,7 @@ class RadcorBusiness:
 
     @classmethod
     def create_activity(cls, activity):
+        """Persist an activity on database."""
         with db.session.begin_nested():
             where = dict(
                 sceneid=activity['sceneid'],
@@ -88,6 +110,7 @@ class RadcorBusiness:
 
     @classmethod
     def radcor(cls, args: dict):
+        """Search for Landsat/Sentinel Images and dispatch download task."""
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
@@ -198,6 +221,7 @@ class RadcorBusiness:
 
     @classmethod
     def list_activities(cls, args: dict):
+        """List task activities from database."""
         filters = []
         if args.get('scene_id'):
             filters.append(RadcorActivity.sceneid == args['scene_id'])
@@ -219,6 +243,7 @@ class RadcorBusiness:
 
     @classmethod
     def count_activities(cls, args: dict):
+        """Count grouped by status on database."""
         filters = []
         if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
         if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
@@ -236,6 +261,7 @@ class RadcorBusiness:
 
     @classmethod
     def count_activities_with_date(cls, args: dict):
+        """Count activities by date."""
         filters = []
         if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
         if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
@@ -254,11 +280,13 @@ class RadcorBusiness:
 
     @classmethod
     def get_collections_activities(cls):
+        """Retrieve activities distinct."""
         activities = RadcorActivity.query().distinct(RadcorActivity.collection_id).all()
         return [act.collection_id for act in activities]
 
     @classmethod
     def get_unsuccessfully_activities(cls):
+        """Retrieve all failed activities."""
         result = db.engine.execute("\
             WITH activity_tasks AS (\
                 SELECT a.sceneid AS sceneid,\

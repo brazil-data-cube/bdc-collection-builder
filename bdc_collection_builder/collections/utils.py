@@ -1,13 +1,22 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Define Brazil Data Cube utils."""
+
+
 # Python Native
 import datetime
 import json
 import logging
-
 # 3rdparty
 from celery import chain, current_task, group
 from osgeo import gdal
 import requests
-
 # Builder
 from bdc_db.models import db, Collection
 from .models import RadcorActivityHistory
@@ -15,9 +24,10 @@ from .sentinel.clients import sentinel_clients
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
-    """
-    Utility method for looking up an object with the given restrictions, creating
-    one if necessary.
+    """Get or create Brazil Data Cube model.
+
+    Utility method for looking up an object with the given restrictions, creating one if necessary.
+
     Args:
         model_class (BaseModel) - Base Model of Brazil Data Cube DB
         defaults (dict) - Values to fill out model instance
@@ -25,7 +35,6 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
     Returns:
         BaseModel Retrieves model instance
     """
-
     if not engine:
         engine = db
 
@@ -45,15 +54,13 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
 
 
 def dispatch(activity: dict):
-    from .sentinel import tasks as sentinel_tasks
-    from .landsat import tasks as landsat_tasks
-
-    """
-    Dispatches the activity to the respective celery task handler
+    """Dispatches the activity to the respective celery task handler.
 
     Args:
         activity (RadcorActivity) - A not done activity
     """
+    from .sentinel import tasks as sentinel_tasks
+    from .landsat import tasks as landsat_tasks
     # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
     app = activity.get('activity_type')
@@ -128,13 +135,18 @@ def dispatch(activity: dict):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
 
-def get_task_activity() -> RadcorActivityHistory:
-    task_id = current_task.request.id
-
-    return RadcorActivityHistory.get_by_task_id(task_id)
-
-
 def create_wkt(ullon, ullat, lrlon, lrlat):
+    """Create WKT representation using lat/long coordinates.
+
+    Args:
+        ullon - Upper Left longitude
+        ullat - Upper Left Latitude
+        lrlon - Lower Right Longitude
+        lrlat - Lower Right Latitude
+
+    Returns:
+        WKT Object from osr
+    """
     from ogr import Geometry, wkbLinearRing, wkbPolygon
 
     # Create ring
@@ -153,6 +165,7 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
 
 
 def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit):
+    """List landsat scenes from USGS."""
     collection='landsat-8-l1'
 
     if enddate is None:
@@ -212,6 +225,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
 
 
 def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productType=None):
+    """Retrieve Sentinel Images from Copernicus."""
     #    api_hub options:
     #    'https://scihub.copernicus.eu/apihub/' for fast access to recently acquired imagery in the API HUB rolling archive
     #    'https://scihub.copernicus.eu/dhus/' for slower access to the full archive of all acquired imagery
@@ -308,8 +322,8 @@ def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,produc
 
 
 def is_valid_tif(input_data_set_path):
-    """
-    Validate Tif
+    """Validate Tif.
+
     Args:
         input_data_set_path (str) - Path to the input data set
     Returns:

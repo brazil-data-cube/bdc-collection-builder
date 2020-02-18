@@ -1,22 +1,31 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Define generic package utility for Brazil Data Cube Collection Builder."""
+
 # Python Native
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
 from zlib import error as zlib_error
 from zipfile import BadZipfile, ZipFile
 import logging
-
 # 3rdparty
 from botocore.exceptions import ClientError
 from skimage.transform import resize
 import boto3
 import gdal
 import numpy
-
 # Builder
 from bdc_collection_builder.config import CURRENT_DIR, Config
 
 
 def get_credentials():
+    """Retrieve global secrets with credentials."""
     file = resource_path.join(resource_path.dirname(CURRENT_DIR), 'secrets.json')
 
     with open(file) as f:
@@ -24,12 +33,14 @@ def get_credentials():
 
 
 def extractall(file):
+    """Extract zipfile."""
     archive = ZipFile(file, 'r')
     archive.extractall(resource_path.dirname(file))
     archive.close()
 
 
 def is_valid(file):
+    """Check tar gz is valid."""
     try:
         archive = ZipFile(file, 'r')
         try:
@@ -44,17 +55,22 @@ def is_valid(file):
 
 
 def generate_cogs(input_data_set_path, file_path):
-    """
-    Generate Cloud Optimized GeoTIFF files (COG)
+    """Generate Cloud Optimized GeoTIFF files (COG).
+
+    Example:
+        >>> from bdc_collection_builder.core.utils import generate_cogs
+        >>> import gdal
+        >>>
+        >>> tif_file = '/path/to/tif'
+        >>> generate_cogs(tif_file, '/tmp/cog.tif')
 
     Args:
         input_data_set_path (str) - Path to the input data set
         file_path (str) - Target data set filename
 
     Returns:
-        Path to COG
+        Path to COG.
     """
-
     src_ds = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
 
     if src_ds is None:
@@ -88,8 +104,7 @@ def generate_cogs(input_data_set_path, file_path):
 
 
 def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
-    """
-    Upload a file to an S3 bucket
+    """Upload a file to an S3 bucket.
 
     Adapted code from boto3 example.
 
@@ -98,7 +113,6 @@ def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
         bucket (str): Bucket to upload to
         object_name (str): S3 object name. If not specified then file_name is used
     """
-
     # If S3 object_name was not specified, use file_name
     if object_name is None:
         object_name = file_name
@@ -114,19 +128,16 @@ def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
 
 
 def remove_file(file_path: str):
-    """
-    Remove file if exists
+    """Remove file if exists.
 
     Throws Error when user doesn't have access to the file at given path
     """
-
     if resource_path.exists(file_path):
         resource_remove(file_path)
 
 
 def generate_evi_ndvi(red_band: str, nir_band: str, blue_bland: str, evi_name: str, ndvi_name: str):
-    """
-    Generate Normalized Difference Vegetation Index (NDVI) and Enhanced Vegetation Index (EVI)
+    """Generate Normalized Difference Vegetation Index (NDVI) and Enhanced Vegetation Index (EVI).
 
     Args:
         red_band: Path to the RED band
@@ -134,7 +145,6 @@ def generate_evi_ndvi(red_band: str, nir_band: str, blue_bland: str, evi_name: s
         blue_bland: Path to the BLUE band
         evi_name: Path to save EVI file
         ndvi_name: Path to save NDVI file
-
     """
     data_set = gdal.Open(red_band, gdal.GA_ReadOnly)
     raster_xsize = data_set.RasterXSize

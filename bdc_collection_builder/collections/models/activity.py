@@ -13,6 +13,8 @@ from sqlalchemy.orm import relationship
 from bdc_db.models import Collection
 from bdc_db.models.base_sql import BaseModel
 
+from ...config import Config
+
 
 class RadcorActivity(BaseModel):
     """Define a collection activity.
@@ -21,6 +23,7 @@ class RadcorActivity(BaseModel):
     """
 
     __tablename__ = 'activities'
+    __table_args__ = dict(schema=Config.ACTIVITIES_SCHEMA)
 
     id = Column(Integer, primary_key=True)
     collection_id = Column(ForeignKey(Collection.id), nullable=False)

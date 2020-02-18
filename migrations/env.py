@@ -30,7 +30,8 @@ config.set_main_option(
 # Importing Celery backend database to autocreate task tables
 from celery.backends.database import models, session
 from bdc_db.models import *
-from bdc_collection_builder.models import *
+from bdc_collection_builder.config import Config
+from bdc_collection_builder.collections.models import *
 
 target_metadata = [current_app.extensions['migrate'].db.metadata, session.ResultModelBase.metadata]
 
@@ -105,6 +106,7 @@ def run_migrations_online():
             include_schemas=True,
             include_object=include_object,
             compare_type=True,
+            version_table_schema=Config.ACTIVITIES_SCHEMA,
             **current_app.extensions['migrate'].configure_args
         )
 

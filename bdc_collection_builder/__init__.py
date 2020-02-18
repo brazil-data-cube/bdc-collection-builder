@@ -30,7 +30,7 @@ def create_app(config_name='DevelopmentConfig'):
     app.config.from_object(conf)
 
     with app.app_context():
-        cors = CORS(app, resources={r"/*": {"origins": "*"}})
+        CORS(app, resources={r"/*": {"origins": "*"}})
 
         # Initialize Flask SQLAlchemy
         BDCDatabase(app)

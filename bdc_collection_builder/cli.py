@@ -13,11 +13,13 @@ Creates a python click context and inject it to the global flask commands.
 
 import click
 from bdc_db.models import db
+from bdc_db.cli import create_db as bdc_create_db
 from flask.cli import FlaskGroup, with_appcontext
 from flask_migrate.cli import db as flask_migrate_db
-from sqlalchemy_utils.functions import create_database, database_exists
 
 from . import create_app
+from .config import Config
+from .fixtures.cli import fixtures
 
 
 def create_cli(create_app=None):
@@ -46,20 +48,21 @@ def create_cli(create_app=None):
 
 
 cli = create_cli(create_app=create_app)
+cli.add_command(fixtures)
 
 
 @flask_migrate_db.command()
 @with_appcontext
-def create():
+@click.pass_context
+def create_db(ctx: click.Context):
     """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
-    click.secho('Creating database {0}'.format(db.engine.url),
-                fg='green')
-    if not database_exists(str(db.engine.url)):
-        create_database(str(db.engine.url))
 
-    click.secho('Creating extension postgis...', fg='green')
+    # Forward context to bdc-db createdb command in order to create database
+    ctx.forward(bdc_create_db)
+
+    click.secho('Creating schema {}...'.format(Config.ACTIVITIES_SCHEMA), fg='green')
     with db.session.begin_nested():
-        db.session.execute('CREATE EXTENSION IF NOT EXISTS postgis')
+        db.session.execute('CREATE SCHEMA IF NOT EXISTS {}'.format(Config.ACTIVITIES_SCHEMA))
 
     db.session.commit()
 

@@ -33,12 +33,8 @@ install_requires = [
     'Flask>=1.1.1',
     'Flask-Cors>=3.0,<4.0',
     'flask-restplus>=0.13.0',
-    'Flask-Migrate>=2.5.2',
     'Flask-SQLAlchemy>=2.4.1',
-    'GeoAlchemy2>=0.6.2',
     'marshmallow-sqlalchemy>=0.19.0',
-    # Utils for database creation
-    'SQLAlchemy-Utils>=0.34.2',
     'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',
     'redis>=3.3.11',

@@ -93,6 +93,12 @@ The following variables consists in integration with AWS:
 3. **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY** - AWS Credentials. You can generate in https://aws.amazon.com/pt/iam/.
 
 
+.. note::
+
+    Keep in mind that on invalid configuration for AWS instance will turn out in execution error on tasks `publish` and `upload` of
+    surface reflectance products (SR).
+
+
 Creating the Brazil Data Cube Data Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -100,20 +106,35 @@ Creating the Brazil Data Cube Data Model
 
 .. code-block:: shell
 
-        docker-compose run --rm bdc-collection-builder bdc-collection-builder db create-db
+        # Local
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+        bdc-collection-builder db create-db
+        # URI DB AWS
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
+        bdc-collection-builder db create-db
 
 
 **2.** After that, run Flask-Migrate command to prepare the Brazil Data Cube Collection Builder data model:
 
 .. code-block:: shell
 
-        docker-compose run --rm bdc-collection-builder bdc-collection-builder db upgrade
+        # Local
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+        bdc-collection-builder db upgrade
+        # URI DB AWS
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
+        bdc-collection-builder db upgrade
 
 **3.** Once database is updated, we have prepared command utility to load initial collections on database:
 
 .. code-block:: shell
 
-        docker-compose run --rm bdc-collection-builder bdc-collection-builder fixture init
+        # Local
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5435/bdc \
+        bdc-collection-builder fixtures init
+        # URI DB AWS
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5435/bdc_aws \
+        bdc-collection-builder fixtures init
 
 
 Updating an Existing Data Model
@@ -121,7 +142,8 @@ Updating an Existing Data Model
 
 .. code-block:: shell
 
-        docker-compose run --rm bdc-collection-builder bdc-collection-builder db upgrade
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+        bdc-collection-builder db upgrade
 
 
 Updating the Migration Scripts
@@ -129,7 +151,8 @@ Updating the Migration Scripts
 
 .. code-block:: shell
 
-        docker-compose run --rm bdc-collection-builder bdc-collection-builder db migrate
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+        bdc-collection-builder db migrate
 
 
 
@@ -150,7 +173,7 @@ Dispatch Sentinel
 .. code-block:: shell
 
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/
 
 Dispatch Landsat-8
@@ -160,5 +183,5 @@ Dispatch Landsat-8
 .. code-block:: shell
 
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-01-01", "end": "2019-01-16", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/

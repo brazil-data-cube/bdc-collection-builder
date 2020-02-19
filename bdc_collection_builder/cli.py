@@ -13,9 +13,8 @@ Creates a python click context and inject it to the global flask commands.
 
 import click
 from bdc_db.models import db
-from bdc_db.cli import create_db as bdc_create_db
+from bdc_db.cli import cli as bdc_db_cli, create_db as bdc_create_db
 from flask.cli import FlaskGroup, with_appcontext
-from flask_migrate.cli import db as flask_migrate_db
 
 from . import create_app
 from .config import Config
@@ -51,7 +50,7 @@ cli = create_cli(create_app=create_app)
 cli.add_command(fixtures)
 
 
-@flask_migrate_db.command()
+@bdc_db_cli.command()
 @with_appcontext
 @click.pass_context
 def create_db(ctx: click.Context):

@@ -37,20 +37,7 @@ services:
     networks:
       - bdc_net
     ports:
-      - "5435:5432"
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: bdc-collection-builder-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: "bdc"
-      PGADMIN_DEFAULT_PASSWORD: "Postgres2019!"
-    ports:
-      - "16543:80"
-    depends_on:
-      - postgres
-    networks:
-      - bdc_net
+      - "5432:5432"
 
   bdc-collection-builder:
     build:
@@ -64,15 +51,14 @@ services:
       - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_scripts"
-      - "SQLALCHEMY_DATABASE_URI_AWS=CHANGE_ME"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
     networks:
       - bdc_net
     ports:
       - "5000:5000"
     volumes:
-      - ./credentials:/root/.aws/credentials
       - ./secrets.json:/app/secrets.json
       - /gfs:/gfs
     command: >
@@ -128,15 +114,15 @@ services:
       - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_scripts"
-      - "SQLALCHEMY_DATABASE_URI_AWS=CHANGE_ME"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
     volumes:
       - ./credentials:/root/.aws/credentials
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     command: >
-      celery -A bdc-collection-builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
     networks:
       - bdc_net
 
@@ -152,8 +138,8 @@ services:
       - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_scripts"
-      - "SQLALCHEMY_DATABASE_URI_AWS=CHANGE_ME"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
       - "ESPA_URL=http://bdc-collection-builder-espa-science:5032"
       - "SEN2COR_URL=http://bdc-collection-builder-sen2cor:5031"
@@ -162,7 +148,7 @@ services:
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     command: >
-      celery -A bdc-collection-buildercelery.worker:celery worker -l INFO --concurrency 2 -Q atm-correction
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 2 -Q atm-correction
     networks:
       - bdc_net
 
@@ -183,10 +169,10 @@ services:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_scripts"
-      - "SQLALCHEMY_DATABASE_URI_AWS=CHANGE_ME"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
     command: >
-        celery worker -A bdc-collection-buildercelery.worker:celery -l INFO --concurrency 2 -Q publish
+        celery worker -A bdc_collection_builder.celery.worker:celery -l INFO --concurrency 2 -Q publish
     networks:
       - bdc_net
 
@@ -206,10 +192,10 @@ services:
       - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_scripts"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
       - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI_AWS=CHANGE_ME"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
     command: >
-      celery worker -A bdc-collection-buildercelery.worker:celery -l INFO --concurrency 2 -Q upload
+      celery worker -A bdc_collection_builder.celery.worker:celery -l INFO --concurrency 2 -Q upload
     networks:
       - bdc_net

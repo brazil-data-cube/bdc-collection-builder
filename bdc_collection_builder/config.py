@@ -24,7 +24,7 @@ class Config:
 
     DEBUG = False
     TESTING = False
-    ACTIVITIES_SCHEMA = 'collection_builder'
+    ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
         'postgresql://postgres:postgres@localhost:5433/bdc_collection_builder'

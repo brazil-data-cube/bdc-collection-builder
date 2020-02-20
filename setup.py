@@ -45,7 +45,6 @@ install_requires = [
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@v0.2.1#egg=bdc-db',
-    'stac @ git+git://github.com/brazil-data-cube/stac.py.git#egg=stac',
     'celery[librabbitmq]>=4.3.0',
     # TODO: Remove werkzeug dependency when https://github.com/noirbizarre/flask-restplus/issues/777 is fixed
     'Werkzeug>=0.16,<1.0'

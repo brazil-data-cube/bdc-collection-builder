@@ -118,7 +118,6 @@ services:
       - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
     volumes:
-      - ./credentials:/root/.aws/credentials
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     command: >
@@ -144,7 +143,6 @@ services:
       - "ESPA_URL=http://bdc-collection-builder-espa-science:5032"
       - "SEN2COR_URL=http://bdc-collection-builder-sen2cor:5031"
     volumes:
-      - ./credentials:/root/.aws/credentials
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     command: >
@@ -160,7 +158,6 @@ services:
       - mq
       - bdc-collection-builder
     volumes:
-      - ./credentials:/root/.aws/credentials
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     environment:
@@ -184,7 +181,6 @@ services:
       - mq
       - bdc-collection-builder
     volumes:
-      - ./credentials:/root/.aws/credentials
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     environment:

@@ -1,5 +1,0 @@
-[
-    {"id": "IDENTITY", "description": "Identity's function"},
-    {"id": "MED", "description": "Median by pixels"},
-    {"id": "STK", "description": "Best pixel"}
-]

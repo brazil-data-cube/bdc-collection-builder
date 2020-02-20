@@ -81,22 +81,29 @@ Configuration
 Open and edit **docker-compose.yml** with the following variables:
 
 1. **DATA_DIR** - Path to store collections.
-2. **SQLALCHEMY_DATABASE_URI** - BDC Collection Builder Database URI
-3. **REDIS_URL** - URI to connect on Redis Instance
+2. **SQLALCHEMY_DATABASE_URI** - BDC Collection Builder Database URI.
+3. **REDIS_URL** - URI to connect on Redis Instance.
 4. **RABBIT_MQ_URL** - URI to connect on RabbitMQ protocol.
 5. **CLIENT_SECRET_KEY** and **CLIENT_AUDIENCE** for OAuth2 Integration.
 
+.. note::
+
+    By default, the Brazil Data Cube Collection Builder uses OAuth2 client. If you don't have any
+    OAuth2 credentials, make sure to comment the directives: **@require_oauth_scopes(scope="collection_builder:activities:POST")** and
+    **@require_oauth_scopes(scope="collection_builder:activities:GET")** on ``bdc_collection_builder.collections.controller.py``.
+
+
 The following variables consists in integration with AWS:
 
-1. **SQLALCHEMY_DATABASE_URI_AWS** - Database URI to catalog on AWS
-2. **AWS_BUCKET_NAME** - AWS Bucket Name to store collections Surface Reflectance (SR)
+1. **SQLALCHEMY_DATABASE_URI_AWS** - Database URI to catalog on AWS.
+2. **AWS_BUCKET_NAME** - AWS Bucket Name to store collections Surface Reflectance (SR).
 3. **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY** - AWS Credentials. You can generate in https://aws.amazon.com/pt/iam/.
 
 
 .. note::
 
-    Keep in mind that on invalid configuration for AWS instance will turn out in execution error on tasks `publish` and `upload` of
-    surface reflectance products (SR).
+    Keep in mind that on invalid configuration for AWS instance will turn out in execution error on the following tasks
+    related with surface reflectance products (SR): ``publish`` and ``upload``
 
 
 Creating the Brazil Data Cube Data Model
@@ -125,16 +132,16 @@ Creating the Brazil Data Cube Data Model
         SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
         bdc-collection-builder db upgrade
 
-**3.** Once database is updated, we have prepared command utility to load initial collections on database:
+**3.** Once database is updated, we have prepared command utility on Brazil Data Cube Database module:
 
 .. code-block:: shell
 
         # Local
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5435/bdc \
-        bdc-collection-builder fixtures init
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+        bdc-db fixtures init
         # URI DB AWS
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5435/bdc_aws \
-        bdc-collection-builder fixtures init
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
+        bdc-db fixtures init
 
 
 Updating an Existing Data Model

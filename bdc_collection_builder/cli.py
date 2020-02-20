@@ -13,44 +13,19 @@ Creates a python click context and inject it to the global flask commands.
 
 import click
 from bdc_db.models import db
-from bdc_db.cli import cli as bdc_db_cli, create_db as bdc_create_db
+from bdc_db.cli import create_db as bdc_create_db, create_cli
 from flask.cli import FlaskGroup, with_appcontext
+from flask_migrate.cli import db as flask_db
 
 from . import create_app
 from .config import Config
-from .fixtures.cli import fixtures
 
 
-def create_cli(create_app=None):
-    """Define a Wrapper creation of Flask App in order to attach into flask click.
-
-    Args:
-         create_app (function) - Create app factory (Flask)
-    """
-    def create_cli_app(info):
-        """Describe flask factory to create click command."""
-        if create_app is None:
-            info.create_app = None
-
-            app = info.load_app()
-        else:
-            app = create_app()
-
-        return app
-
-    @click.group(cls=FlaskGroup, create_app=create_cli_app)
-    def cli(**params):
-        """Command line interface for bdc_collection_builder."""
-        pass
-
-    return cli
-
-
+# Create bdc-collection-builder cli from bdc-db
 cli = create_cli(create_app=create_app)
-cli.add_command(fixtures)
 
 
-@bdc_db_cli.command()
+@flask_db.command()
 @with_appcontext
 @click.pass_context
 def create_db(ctx: click.Context):

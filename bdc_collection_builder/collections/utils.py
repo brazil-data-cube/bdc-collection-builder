@@ -14,11 +14,13 @@ import datetime
 import json
 import logging
 # 3rdparty
+from bdc_db.models import Collection, db
 from celery import chain, current_task, group
+from landsatxplore.api import API
 from osgeo import gdal
 import requests
 # Builder
-from bdc_db.models import db, Collection
+from ..core.utils import get_credentials
 from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
 
@@ -166,62 +168,47 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
 
 def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit):
     """List landsat scenes from USGS."""
-    collection='landsat-8-l1'
+    credentials = get_credentials()['landsat']
 
-    if enddate is None:
-        enddate = datetime.datetime.now().strftime("%Y-%m-%d")
-    if limit is None:
-        limit = 299
+    api = API(credentials['username'], credentials['password'])
 
-    url = 'https://sat-api.developmentseed.org/stac/search'
-    params = {
-        "bbox": [
-            wlon,
-            slat,
-            elon,
-            nlat
-        ],
-        "time": "{}T00:00:00Z/{}T23:59:59Z".format(startdate, enddate),
-        "limit": "{}".format(limit),
-        "query": {
-            "eo:cloud_cover": {"lt": cloud},
-            "collection": {"eq": "{}".format(collection)}
-        }
-    }
-    r = requests.post(url, data= json.dumps(params))
-    r_dict = r.json()
+    # Request
+    scenes_result = api.search(
+        dataset='LANDSAT_8_C1',
+        bbox=(slat, wlon, nlat, elon),
+        start_date=startdate,
+        end_date=enddate,
+        max_cloud_cover=cloud or 100
+    )
 
-    scenes = {}
-    # Check if request obtained results
-    if r_dict['meta']['returned'] > 0:
-        for i in range(len(r_dict['features'])):
-            # This is performed due to BAD catalog, which includes box from -170 to +175 (instead of -)
-            if ( (r_dict['features'][i]['bbox'][0] - r_dict['features'][i]['bbox'][2]) > -3 ):
-                identifier = r_dict['features'][i]['properties']['landsat:product_id'] # CHECK L1TP L1GT
-                scenes[identifier] = {}
-                scenes[identifier]['sceneid'] = identifier
-                scenes[identifier]['scene_id'] = r_dict['features'][i]['id']
-                scenes[identifier]['cloud'] = int(r_dict['features'][i]['properties']['eo:cloud_cover'])
-                scenes[identifier]['date'] = r_dict['features'][i]['properties']['datetime'][:10]
-                scenes[identifier]['wlon'] = float(r_dict['features'][i]['bbox'][0])
-                scenes[identifier]['slat'] = float(r_dict['features'][i]['bbox'][1])
-                scenes[identifier]['elon'] = float(r_dict['features'][i]['bbox'][2])
-                scenes[identifier]['nlat'] = float(r_dict['features'][i]['bbox'][3])
-                scenes[identifier]['path'] = r_dict['features'][i]['properties']['eo:column']
-                scenes[identifier]['row'] = r_dict['features'][i]['properties']['eo:row']
-                scenes[identifier]['resolution'] = r_dict['features'][i]['properties']['eo:bands'][3]['gsd']
+    scenes_output = {}
 
-                if (str(r_dict['features'][i]['id']).find('LGN') != -1):
-                    scenes[identifier]['scene_id'] = r_dict['features'][i]['id']
-                else:
-                    feature = r_dict['features'][i]
-                    default_scene_id = '{}LGN00'.format(r_dict['features'][i]['id'])
-                    scene_id = feature['properties'].get('landsat:scene_id', default_scene_id)
-                    scenes[identifier]['scene_id'] = scene_id
+    for scene in scenes_result:
+        if scene['displayId'].endswith('RT'):
+            logging.warning('Skipping Real Time {}'.format(scene['displayId']))
+            continue
 
-                scenes[identifier]['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scenes[identifier]['scene_id'])
-                scenes[identifier]['icon'] = r_dict['features'][i]['assets']['thumbnail']['href']
-    return scenes
+        copy_scene = dict()
+        copy_scene['sceneid'] = scene['displayId']
+        copy_scene['scene_id'] = scene['entityId']
+        copy_scene['cloud'] = int(scene['cloudCover'])
+        copy_scene['date'] = scene['acquisitionDate']
+
+        xmin, ymin, xmax, ymax = scene['sceneBounds'].split(',')
+        copy_scene['wlon'] = float(xmin)
+        copy_scene['slat'] = float(ymin)
+        copy_scene['elon'] = float(xmax)
+        copy_scene['nlat'] = float(ymax)
+        copy_scene['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scene['entityId'])
+
+        pathrow = scene['displayId'].split('_')[2]
+
+        copy_scene['path'] = pathrow[:3]
+        copy_scene['row'] = pathrow[3:]
+
+        scenes_output[scene['displayId']] = copy_scene
+
+    return scenes_output
 
 
 def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productType=None):

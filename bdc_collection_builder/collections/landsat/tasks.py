@@ -23,7 +23,7 @@ from bdc_collection_builder.celery import celery_app
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.core.utils import upload_file
 from bdc_collection_builder.collections.base_task import RadcorTask
-from bdc_collection_builder.collections.landsat.download import download_landsat_images
+from bdc_collection_builder.collections.landsat.download import download_landsat_images, download_from_aws
 from bdc_collection_builder.collections.landsat.publish import publish
 from bdc_collection_builder.db import db_aws
 
@@ -67,7 +67,17 @@ class LandsatTask(RadcorTask):
             if not os.path.exists(productdir):
                 os.makedirs(productdir)
 
-            file = download_landsat_images(activity_args['link'], productdir)
+            try:
+                toa_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
+                    scene['collection_id'],
+                    yyyymm,
+                    self.get_tile_id(scene_id)
+                ))
+                file = download_from_aws(scene_id, toa_dir, productdir)
+            except BaseException:
+                logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+
+                file = download_landsat_images(activity_args['link'], productdir)
 
             collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
 

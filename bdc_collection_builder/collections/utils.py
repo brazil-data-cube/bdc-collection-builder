@@ -322,10 +322,11 @@ def is_valid_tif(input_data_set_path):
     try:
         ds  = gdal.Open(input_data_set_path)
         srcband = ds.GetRasterBand(1)
-        # Get raster statistics
-        stats = srcband.GetStatistics(True, True)
+
+        array = srcband.ReadAsArray()
+
         # Check if min == max
-        if(stats[0] == stats[1]):
+        if(array.min() == array.max()):
             del ds
             return False
         del ds

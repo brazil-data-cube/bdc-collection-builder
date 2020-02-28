@@ -135,83 +135,83 @@ developer:
 
 @app.route('/updatelads')
 def updatelads():
-	options = {}
-	options['start_year'] = None
-	options['end_year'] = None
-	options['today'] = None
-	options['quarterly'] = None
-	for key in request.args:
-		options[key] = request.args.get(key)
+    options = {}
+    options['start_year'] = None
+    options['end_year'] = None
+    options['today'] = None
+    options['quarterly'] = None
+    for key in request.args:
+        options[key] = request.args.get(key)
 
-	syear = options['start_year']		# starting year
-	eyear = options['end_year']			# ending year
-	today = options['today']			# process most recent year of data
-	quarterly = options['quarterly']	# process today back to START_YEAR
+    syear = options['start_year']        # starting year
+    eyear = options['end_year']            # ending year
+    today = options['today']            # process most recent year of data
+    quarterly = options['quarterly']    # process today back to START_YEAR
 
 # check the arguments
-	if (today == None) and (quarterly == None) and \
-		(syear == None or eyear == None):
-		msg = ('Invalid command line argument combination.\n')
-		app.logger.error(msg)
-		return msg
+    if (today == None) and (quarterly == None) and \
+        (syear == None or eyear == None):
+        msg = ('Invalid command line argument combination.\n')
+        app.logger.error(msg)
+        return msg
 
-	params = ''
-	for key,val in options.items():
-		if val is not None:
-			params += ' --{} {}'.format(key,val)
+    params = ''
+    for key,val in options.items():
+        if val is not None:
+            params += ' --{} {}'.format(key,val)
 # Execute command
-	cmd = 'env |grep PATH'
-	cmd = 'ls -l /usr/local/bin | grep combi'
-	cmd = '/usr/local/espa-surface-reflectance/lasrc/bin/combine_l8_aux_data --help'
-	cmd = 'updatelads.py --help'
-	cmd = 'cp /usr/local/espa-surface-reflectance/lasrc/bin/combine_l8_aux_data /app'
-	cmd = './combine_l8_aux_data --help'
-	cmd = '/app/combine_l8_aux_data --help'
-	cmd = 'updatelads.py --help'
-	cmd = 'python updatelads.py {}'.format(params)
-	app.logger.warning('updatelads - calling cmd {} '.format(cmd))
-	try:
-		ret = subprocess.call(cmd, shell = True)
-		#ret = subprocess.check_output(cmd, stderr=subprocess.PIPE, shell=True)
-		#ret = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=False)
-		#return '{}\n'.format(ret)
-	except subprocess.CalledProcessError as e:
-		#options['message'] = e
-		app.logger.warning('updatelads - subprocess error {}'.format(e))
-		return jsonify(options)
-	return jsonify(options)
+    cmd = 'env |grep PATH'
+    cmd = 'ls -l /usr/local/bin | grep combi'
+    cmd = '/usr/local/espa-surface-reflectance/lasrc/bin/combine_l8_aux_data --help'
+    cmd = 'updatelads.py --help'
+    cmd = 'cp /usr/local/espa-surface-reflectance/lasrc/bin/combine_l8_aux_data /app'
+    cmd = './combine_l8_aux_data --help'
+    cmd = '/app/combine_l8_aux_data --help'
+    cmd = 'updatelads.py --help'
+    cmd = 'python updatelads.py {}'.format(params)
+    app.logger.warning('updatelads - calling cmd {} '.format(cmd))
+    try:
+        ret = subprocess.call(cmd, shell = True)
+        #ret = subprocess.check_output(cmd, stderr=subprocess.PIPE, shell=True)
+        #ret = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=False)
+        #return '{}\n'.format(ret)
+    except subprocess.CalledProcessError as e:
+        #options['message'] = e
+        app.logger.warning('updatelads - subprocess error {}'.format(e))
+        return jsonify(options)
+    return jsonify(options)
 
 @app.route('/espa')
 def espa():
-	activity = {}
-	for key in request.args:
-		activity[key] = request.args.get(key)
-	inputFull = '/home/espa/input-data' + activity['file']
-	app.logger.warning('espa - inputFull {}  activity {}'.format(inputFull,activity))
-	activity['start'] = request.args.get('start', None)
-	step_start = time.time()
-	if not os.path.exists(inputFull):
-		activity['status'] = 'ERROR'
-		activity['message'] = 'No such file {}'.format(inputFull)
-		activity['retcode'] = 1
-		step_end = time.time()
-		elapsedtime = step_end - step_start
-		activity['end'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_end)))
-		activity['elapsed'] = str(datetime.timedelta(seconds=elapsedtime))
-		app.logger.warning('espa - ERROR in activity {}'.format(activity))
-		return jsonify(activity)
+    activity = {}
+    for key in request.args:
+        activity[key] = request.args.get(key)
+    inputFull = '/home/espa/input-data' + activity['file']
+    app.logger.warning('espa - inputFull {}  activity {}'.format(inputFull,activity))
+    activity['start'] = request.args.get('start', None)
+    step_start = time.time()
+    if not os.path.exists(inputFull):
+        activity['status'] = 'ERROR'
+        activity['message'] = 'No such file {}'.format(inputFull)
+        activity['retcode'] = 1
+        step_end = time.time()
+        elapsedtime = step_end - step_start
+        activity['end'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_end)))
+        activity['elapsed'] = str(datetime.timedelta(seconds=elapsedtime))
+        app.logger.warning('espa - ERROR in activity {}'.format(activity))
+        return jsonify(activity)
 
 # Decode input file name and encode output product id and order id (pathrow)
-	inputproductid = os.path.basename(inputFull).replace('.tar.gz','')
-	cc = inputproductid.split('_')
-	outputproductid = cc[0]+cc[2]+cc[3]
-	pathrow = cc[2]
-	yyyymm = cc[3][:4]+'-'+cc[3][4:6]
+    inputproductid = os.path.basename(inputFull).replace('.tar.gz','')
+    cc = inputproductid.split('_')
+    outputproductid = cc[0]+cc[2]+cc[3]
+    pathrow = cc[2]
+    yyyymm = cc[3][:4]+'-'+cc[3][4:6]
 
 # Output product dir
-	productdir = '/home/espa/output-data/{}/{}'.format(yyyymm,pathrow)
+    productdir = '/home/espa/output-data/{}/{}'.format(yyyymm,pathrow)
 # Build command
-	cmd = 'cli.py \
+    cmd = 'cli.py \
  --dev-mode \
  --debug \
  --product-type landsat \
@@ -221,61 +221,61 @@ def espa():
  --include-sr-ndvi \
  --include-sr-savi \
  --include-surface-reflectance'
-	cmd += ' --order-id {}'.format(pathrow)
-	cmd += ' --input-product-id {}'.format(inputproductid)
-	cmd += ' --input-url file://{}'.format(inputFull)
-	cmd += ' --dist-dir /home/espa/output-data/{}'.format(yyyymm)
-	#cmd += ' --work-dir /home/espa/work-dir/LC8/{}'.format(yyyymm)
-	app.logger.warning('espa - cmd {}'.format(cmd))
+    cmd += ' --order-id {}'.format(pathrow)
+    cmd += ' --input-product-id {}'.format(inputproductid)
+    cmd += ' --input-url file://{}'.format(inputFull)
+    cmd += ' --dist-dir /home/espa/output-data/{}'.format(yyyymm)
+    #cmd += ' --work-dir /home/espa/work-dir/LC8/{}'.format(yyyymm)
+    app.logger.warning('espa - cmd {}'.format(cmd))
 
 # cli.py creates the output file in dist-dir/order-id
 
 # Check if output file already exists
-	template = '{}/{}*.tar.gz'.format(productdir,outputproductid)
-	app.logger.warning('espa - output file {} '.format(template))
-	ofl = glob.glob(template)
-	retcode = 0
-	if len(ofl) > 0:
-		app.logger.warning('espa - {} already exists'.format(template))
+    template = '{}/{}*.tar.gz'.format(productdir,outputproductid)
+    app.logger.warning('espa - output file {} '.format(template))
+    ofl = glob.glob(template)
+    retcode = 0
+    if len(ofl) > 0:
+        app.logger.warning('espa - {} already exists'.format(template))
 
-	espa_work_dir = '/home/espa/work-dir/'
+    espa_work_dir = '/home/espa/work-dir/'
 
-	scene_temporary_folder = os.path.join(espa_work_dir, '{}-{}'.format(pathrow, inputproductid))
+    scene_temporary_folder = os.path.join(espa_work_dir, '{}-{}'.format(pathrow, inputproductid))
 
 # Execute command
-	#cmd = 'cli.py --help'
-	app.logger.warning('espa - calling cmd {} '.format(cmd))
-	try:
-		subprocess.check_output(cmd, stderr=subprocess.PIPE, shell=True)
-	except subprocess.CalledProcessError as e:
-		retcode = e.returncode
-		activity['message'] = 'Abnormal execution'
-		activity['status'] = 'ERROR'
-		activity['retcode'] = 1
-		app.logger.warning('espa - subprocess error {}'.format(e))
+    #cmd = 'cli.py --help'
+    app.logger.warning('espa - calling cmd {} '.format(cmd))
+    try:
+        subprocess.check_output(cmd, stderr=subprocess.PIPE, shell=True)
+    except subprocess.CalledProcessError as e:
+        retcode = e.returncode
+        activity['message'] = 'Abnormal execution'
+        activity['status'] = 'ERROR'
+        activity['retcode'] = 1
+        app.logger.warning('espa - subprocess error {}'.format(e))
 
-		app.logger.warning('Removing {}...'.format(scene_temporary_folder))
-		shutil.rmtree(scene_temporary_folder, ignore_errors=True)
-		return jsonify(activity)
-	#retcode = subprocess.call(cmd, shell = True)
-	ofl = glob.glob(template)
-	if len(ofl) > 0:
-		tar = tarfile.open(ofl[0], 'r:gz')
-		tar.extractall(productdir)
-	step_end = time.time()
-	elapsedtime = step_end - step_start
-	activity['end'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_end)))
-	activity['elapsed'] = str(datetime.timedelta(seconds=elapsedtime))
-	if retcode == 0:
-		activity['message'] = 'Normal execution'
-		activity['status'] = 'DONE'
-	else:
-		activity['message'] = 'Abnormal execution'
-		activity['status'] = 'ERROR'
-	activity['retcode'] = 0
-	app.logger.warning('Removing {}...'.format(scene_temporary_folder))
-	shutil.rmtree(scene_temporary_folder, ignore_errors=True)
-	return jsonify(activity)
+        app.logger.warning('Removing {}...'.format(scene_temporary_folder))
+        shutil.rmtree(scene_temporary_folder, ignore_errors=True)
+        return jsonify(activity)
+    #retcode = subprocess.call(cmd, shell = True)
+    ofl = glob.glob(template)
+    if len(ofl) > 0:
+        tar = tarfile.open(ofl[0], 'r:gz')
+        tar.extractall(productdir)
+    step_end = time.time()
+    elapsedtime = step_end - step_start
+    activity['end'] = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(step_end)))
+    activity['elapsed'] = str(datetime.timedelta(seconds=elapsedtime))
+    if retcode == 0:
+        activity['message'] = 'Normal execution'
+        activity['status'] = 'DONE'
+    else:
+        activity['message'] = 'Abnormal execution'
+        activity['status'] = 'ERROR'
+    activity['retcode'] = 0
+    app.logger.warning('Removing {}...'.format(scene_temporary_folder))
+    shutil.rmtree(scene_temporary_folder, ignore_errors=True)
+    return jsonify(activity)
 
 if __name__ == "__main__":
-	app.run(host="0.0.0.0", port=5032, debug=True)
+    app.run(host="0.0.0.0", port=5032, debug=True)

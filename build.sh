@@ -5,17 +5,17 @@ echo
 echo "BUILD STARTED"
 echo
 
-if [ -z "${TAG_BDC_SCRIPTS}" ]; then
-  echo "NEW TAG BDC-SCRIPTS:"
-  read TAG_BDC_SCRIPTS
+if [ -z "${TAG_BDC_COLLECTION_BUILDER}" ]; then
+  echo "NEW TAG BDC-COLLECTION-BUILDER:"
+  read TAG_BDC_COLLECTION_BUILDER
 
   echo
 fi
 
-export IMAGE_BDC_SCRIPTS="registry.dpi.inpe.br/brazildatacube/bdc-scripts"
-export IMAGE_BDC_SCRIPTS_FULL="${IMAGE_BDC_SCRIPTS}:${TAG_BDC_SCRIPTS}"
-echo "IMAGE BDC Scripts :: ${IMAGE_BDC_SCRIPTS_FULL}"
+export IMAGE_BDC_COLLECTION_BUILDER="registry.dpi.inpe.br/brazildatacube/bdc-collection-builder"
+export IMAGE_BDC_COLLECTION_BUILDER_FULL="${IMAGE_BDC_COLLECTION_BUILDER}:${TAG_BDC_COLLECTION_BUILDER}"
+echo "IMAGE BDC COLLECTION-BUILDER :: ${IMAGE_BDC_COLLECTION_BUILDER_FULL}"
 
 docker-compose build
-
-docker push ${IMAGE_BDC_SCRIPTS_FULL}
+docker tag ${IMAGE_BDC_COLLECTION_BUILDER}:latest ${IMAGE_BDC_COLLECTION_BUILDER_FULL}
+docker push ${IMAGE_BDC_COLLECTION_BUILDER_FULL}

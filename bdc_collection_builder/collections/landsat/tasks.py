@@ -11,7 +11,9 @@
 # Python Native
 import logging
 import os
+import tarfile
 from datetime import datetime
+from pathlib import Path
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
 from glob import glob as resource_glob
@@ -26,6 +28,16 @@ from bdc_collection_builder.collections.base_task import RadcorTask
 from bdc_collection_builder.collections.landsat.download import download_landsat_images, download_from_aws
 from bdc_collection_builder.collections.landsat.publish import publish
 from bdc_collection_builder.db import db_aws
+
+
+def is_valid_tar_gz(file_path: str):
+    """Check tar file integrity."""
+    try:
+        _ = tarfile.open(file_path, mode='r')
+
+        return True
+    except:
+        return False
 
 
 class LandsatTask(RadcorTask):
@@ -64,20 +76,36 @@ class LandsatTask(RadcorTask):
             # Output product dir
             productdir = os.path.join(activity_args.get('file'), '{}/{}'.format(yyyymm, self.get_tile_id(scene_id)))
 
-            if not os.path.exists(productdir):
-                os.makedirs(productdir)
+            os.makedirs(productdir, exist_ok=True)
 
-            try:
-                toa_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
-                    scene['collection_id'],
-                    yyyymm,
-                    self.get_tile_id(scene_id)
-                ))
-                file = download_from_aws(scene_id, toa_dir, productdir)
-            except BaseException:
-                logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+            digital_number_file = Path(productdir) / '{}.tar.gz'.format(scene_id)
 
-                file = download_landsat_images(activity_args['link'], productdir)
+            valid = False
+
+            # When file exists, check persistence
+            if digital_number_file.exists() and digital_number_file.is_file():
+                logging.info('File {} downloaded. Checking file integrity...'.format(str(digital_number_file)))
+                # Check Landsat 8 tar gz is valid
+                valid = is_valid_tar_gz(str(digital_number_file))
+
+                file = str(digital_number_file)
+
+            if not valid:
+                try:
+                    logging.info('Download Lansat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
+                    digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
+                        scene['collection_id'],
+                        yyyymm,
+                        self.get_tile_id(scene_id)
+                    ))
+
+                    file = download_from_aws(scene_id, digital_number_dir, productdir)
+                except BaseException:
+                    logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+
+                    file = download_landsat_images(activity_args['link'], productdir)
+            else:
+                logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
             collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
 

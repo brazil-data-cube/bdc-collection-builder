@@ -11,7 +11,7 @@
 # Python Native
 import logging
 import os
-import tarfile
+import subprocess
 from datetime import datetime
 from pathlib import Path
 # 3rdparty
@@ -33,11 +33,8 @@ from bdc_collection_builder.db import db_aws
 def is_valid_tar_gz(file_path: str):
     """Check tar file integrity."""
     try:
-        with tarfile.open(file_path, mode='r') as compressed_data:
-            for f in compressed_data.getmembers():
-                # Skip content just to check all file integrity
-                pass
-        return True
+        retcode = subprocess.call(['gunzip', '-t', file_path])
+        return retcode == 0
     except BaseException:
         return False
 

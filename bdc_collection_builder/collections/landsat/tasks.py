@@ -33,10 +33,12 @@ from bdc_collection_builder.db import db_aws
 def is_valid_tar_gz(file_path: str):
     """Check tar file integrity."""
     try:
-        _ = tarfile.open(file_path, mode='r')
-
+        with tarfile.open(file_path, mode='r') as compressed_data:
+            for f in compressed_data.getmembers():
+                # Skip content just to check all file integrity
+                pass
         return True
-    except:
+    except BaseException:
         return False
 
 

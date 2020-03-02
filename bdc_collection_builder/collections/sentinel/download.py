@@ -13,7 +13,7 @@ import os
 import requests
 
 # Builder
-from bdc_collection_builder.core.utils import get_credentials
+from bdc_collection_builder.collections.utils import get_credentials
 
 
 def _download(file_path: str, response: requests.Response):

@@ -16,7 +16,7 @@ import os
 from bs4 import BeautifulSoup
 from requests import Session as RequestSession
 # Builder
-from bdc_collection_builder.core.utils import get_credentials
+from bdc_collection_builder.collections.utils import get_credentials
 
 
 def get_session() -> RequestSession:

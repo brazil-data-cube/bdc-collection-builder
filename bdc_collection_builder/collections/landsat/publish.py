@@ -24,9 +24,8 @@ import numpy
 from bdc_db.models import Asset, Band, Collection, CollectionItem, CollectionTile, db
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
-from bdc_collection_builder.core.utils import generate_evi_ndvi, generate_cogs
 from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model, is_valid_tif
+from bdc_collection_builder.collections.utils import get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
 
 
@@ -59,6 +58,15 @@ BAND_MAP_DN = {
     'tirs2': 'B11'
 }
 
+BAND_MAP_NBAR = {
+    'blue': 'sr_band2_NBAR',
+    'green': 'sr_band3_NBAR',
+    'red': 'sr_band4_NBAR',
+    'nir': 'sr_band5_NBAR',
+    'swir1': 'sr_band6_NBAR',
+    'swir2': 'sr_band7_NBAR',
+    'quality': 'pixel_qa'
+}
 
 DEFAULT_QUICK_LOOK_BANDS = ["swir2", "nir", "red"]
 
@@ -160,6 +168,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     if collection.id == 'LC8DN':
         bands = BAND_MAP_DN
+    elif collection.id == 'LC8NBAR':
+        bands = BAND_MAP_NBAR
     else:
         bands = BAND_MAP_SR
 
@@ -178,7 +188,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     # Skip EVI/NDVI generation for Surface Reflectance
     # since the espa-science already done
-    if collection.id == 'LC8DN':
+    if collection.id == 'LC8DN' or collection.id == 'LC8NBAR':
         generate_vi(productdir, files)
 
     # Apply valid range and Cog files

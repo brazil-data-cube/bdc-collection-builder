@@ -23,9 +23,8 @@ from skimage.transform import resize
 from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
-from bdc_collection_builder.core.utils import generate_cogs, generate_evi_ndvi
 from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model, is_valid_tif
+from bdc_collection_builder.collections.utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
 
 

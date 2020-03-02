@@ -19,7 +19,7 @@ from bdc_db.models import db
 # Builder
 from bdc_collection_builder.celery import celery_app
 from bdc_collection_builder.celery.cache import lock_handler
-from bdc_collection_builder.core.utils import extractall, is_valid, upload_file
+from bdc_collection_builder.collections.utils import extractall, is_valid, upload_file
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.collections.base_task import RadcorTask
 from bdc_collection_builder.collections.sentinel.clients import sentinel_clients

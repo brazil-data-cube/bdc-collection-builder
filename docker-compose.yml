@@ -173,6 +173,29 @@ services:
     networks:
       - bdc_net
 
+  worker-harmonization:
+    container_name: bdc_collection_builder-worker-harmonization
+    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    restart: "always"
+    depends_on:
+      - mq
+      - bdc-collection-builder
+    environment:
+      - "LC_ALL=C.UTF-8"
+      - "LANG=C.UTF-8"
+      - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
+      - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
+      - "DATA_DIR=/gfs"
+      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
+    volumes:
+      - /gfs:/gfs
+      - ./secrets.json:/app/secrets.json
+    command: >
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 1 -Q harmonization
+    networks:
+      - bdc_net
+
   worker-upload:
     container_name: bdc-collection-builder-worker-upload
     image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest

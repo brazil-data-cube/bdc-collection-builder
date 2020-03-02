@@ -173,9 +173,11 @@ class RadcorBusiness:
                 tile = '{}{}'.format(scene['path'], scene['row'])
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
+                if do_harmonization:
+                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
+                if do_harmonization:
+                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
 
                 if action == 'start':
                     cls.start(activity)

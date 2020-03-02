@@ -26,7 +26,9 @@ from bdc_collection_builder.config import Config
 from bdc_collection_builder.core.utils import upload_file
 from bdc_collection_builder.collections.base_task import RadcorTask
 from bdc_collection_builder.collections.landsat.download import download_landsat_images, download_from_aws
+from bdc_collection_builder.collections.landsat.harmonization import landsat_harmonize
 from bdc_collection_builder.collections.landsat.publish import publish
+from bdc_collection_builder.collections.utils import upload_file
 from bdc_collection_builder.db import db_aws
 
 
@@ -124,7 +126,7 @@ class LandsatTask(RadcorTask):
 
         scene['args'] = activity_args
 
-        # Create new activity 'correctionS2' to continue task chain
+        # Create new activity 'correctionLC8' to continue task chain
         scene['activity_type'] = 'correctionLC8'
 
         return scene
@@ -240,6 +242,40 @@ class LandsatTask(RadcorTask):
 
         except BaseException as e:
             logging.error('Error at correction Landsat {}, id={} - {}'.format(scene_id, execution.activity_id, str(e)))
+
+            raise e
+
+        scene['activity_type'] = 'publishLC8'
+
+        return scene
+
+    def harmonize(self, scene):
+        """Apply Harmonization on collection.
+
+        Args:
+            scene - Serialized Activity
+        """
+        # Set Collection to the Landsat NBAR (Nadir BRDF Adjusted Reflectance)
+        scene['collection_id'] = 'LC8NBAR'
+        scene['activity_type'] = 'harmonizeLC8'
+
+        # Create/Update activity
+        activity_history = self.create_execution(scene)
+
+        logging.debug('Starting Harmonization Landsat...')
+        logging.info('L8TASKS Harmonize Starting Harmonization Landsat...') #TODO REMOVE
+
+        activity_history.activity.activity_type = 'harmonizeLC8'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
+
+        try:
+            # Get ESPA output dir
+            harmonized_dir = landsat_harmonize(self.get_collection_item(activity_history.activity), activity_history.activity)
+            scene['args']['file'] = harmonized_dir
+
+        except BaseException as e:
+            logging.error('Error at Harmonize Landsat', e)
 
             raise e
 

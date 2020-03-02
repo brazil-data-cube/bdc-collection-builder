@@ -132,6 +132,7 @@ class RadcorBusiness:
         cloud = float(args['cloud'])
         limit = args['limit']
         action = args['action']
+        do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
 
         scenes = {}
         if 'LC8' in sat or 'LC8SR' in sat:
@@ -158,7 +159,8 @@ class RadcorBusiness:
                         link=scene['link'],
                         file=base_dir,
                         satellite='LC8',
-                        cloud=scene.get('cloud')
+                        cloud=scene.get('cloud'),
+                        harmonize=do_harmonization
                     )
                 )
 
@@ -171,7 +173,9 @@ class RadcorBusiness:
                 tile = '{}{}'.format(scene['path'], scene['row'])
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
+                RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
 
                 if action == 'start':
                     cls.start(activity)
@@ -199,7 +203,8 @@ class RadcorBusiness:
                         link=scene['link'],
                         file=base_dir,
                         satellite='S2',
-                        cloud=scene.get('cloud')
+                        cloud=scene.get('cloud'),
+                        harmonize=do_harmonization
                     )
                 )
 

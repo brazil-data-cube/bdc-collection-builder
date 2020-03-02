@@ -19,7 +19,7 @@ from requests import Session as RequestSession
 import requests
 import tarfile
 # Builder
-from bdc_collection_builder.core.utils import get_credentials
+from bdc_collection_builder.collections.utils import get_credentials
 
 
 def get_session() -> RequestSession:

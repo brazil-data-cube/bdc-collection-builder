@@ -53,7 +53,13 @@ class RadcorController(Resource):
         """Dispatch task execution of collection.
 
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "e": -46.3, "n": -13, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05",
+            "cloud": 100, "limit": 500000, "action": "start"}' \
+            localhost:5000/api/radcor/
+
+        curl -XPOST -H "Content-Type: application/json" \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-03-01", "end": "2019-03-05",
+            "cloud": 100, "harmonize": "True", "action": "start"}' \
             localhost:5000/api/radcor/
         """
         args = request.get_json()
@@ -86,7 +92,10 @@ class RadcorRestartController(Resource):
 
     @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
-        """Restart Task."""
+        """Restart Task.
+
+        curl localhost:5000/api/radcor/restart?ids=13
+        """
         args = request.args.to_dict()
 
         if 'id' in args:

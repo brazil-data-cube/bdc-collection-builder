@@ -54,7 +54,7 @@ def correction_sen2cor255(scene):
 
         if result and result.get('status') == 'ERROR':
             if os.path.exists(safeL2Afull):
-                shutil.rmtree(safeL2Afull)
+                shutil.rmtree(safeL2Afull, ignore_errors=True)
             raise RuntimeError('Error in sen2cor execution')
 
     return safeL2Afull
@@ -66,7 +66,7 @@ def correction_sen2cor280(scene):
     dirs_L2 = search_recent_sen2cor280(safeL2Afull)
     if len(dirs_L2) >= 1:
         for i in range(len(dirs_L2) - 1):
-            shutil.rmtree( dirs_L2[i] )
+            shutil.rmtree(dirs_L2[i], ignore_errors=True)
         #TODO: Validate SAFE os.path.join(dirname, dirs_L2[0])
         valid = False
         if valid == True:
@@ -74,7 +74,7 @@ def correction_sen2cor280(scene):
             # scene['file'] = dirs_L2[0]
             return dirs_L2[-1]
         else:
-            shutil.rmtree( dirs_L2[-1] )
+            shutil.rmtree(dirs_L2[-1], ignore_errors=True)
 
     # Send scene to the sen2cor service
     req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)

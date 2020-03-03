@@ -26,6 +26,7 @@ from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.collections.forms import CollectionItemForm
 from bdc_collection_builder.collections.utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
+from .utils import get_jp2_files
 
 
 BAND_MAP = {
@@ -240,34 +241,6 @@ def generate_vi(identifier, productdir, files):
 
     if not is_valid_tif(ndvi_name) or not is_valid_tif(evi_name):
         raise RuntimeError('Not Valid Vegetation index file')
-
-
-def get_jp2_files(scene: RadcorActivity):
-    """Retrieve all .jp2 files from Sentinel using Activity.
-
-    Args:
-        activity - Scene activity
-
-    Returns:
-        List of matched .jp2 files.
-    """
-    # Find all jp2 files in L2A SAFE
-    sentinel_folder_data = scene.args.get('file', '')
-    template = "T*.jp2"
-    jp2files = [os.path.join(dirpath, f)
-                for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
-                for f in fnmatch.filter(files, template)]
-    if len(jp2files) <= 1:
-        template = "L2A_T*.jp2"
-        jp2files = [os.path.join(dirpath, f)
-                    for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
-                    for f in fnmatch.filter(files, template)]
-        if len(jp2files) <= 1:
-            msg = 'No {} files found in {}'.format(template, sentinel_folder_data)
-            logging.warning(msg)
-            raise FileNotFoundError(msg)
-
-    return jp2files
 
 
 def compute_cloud_cover(raster):

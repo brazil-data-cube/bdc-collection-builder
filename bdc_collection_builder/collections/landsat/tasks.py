@@ -23,7 +23,6 @@ from urllib3.exceptions import NewConnectionError, MaxRetryError
 # Builder
 from bdc_collection_builder.celery import celery_app
 from bdc_collection_builder.config import Config
-from bdc_collection_builder.core.utils import upload_file
 from bdc_collection_builder.collections.base_task import RadcorTask
 from bdc_collection_builder.collections.landsat.download import download_landsat_images, download_from_aws
 from bdc_collection_builder.collections.landsat.harmonization import landsat_harmonize

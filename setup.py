@@ -34,6 +34,7 @@ install_requires = [
     'Flask-Cors>=3.0,<4.0',
     'flask-restplus>=0.13.0',
     'Flask-SQLAlchemy>=2.4.1',
+    'landsatxplore>=0.6,<1',
     'marshmallow-sqlalchemy>=0.19.0',
     'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',

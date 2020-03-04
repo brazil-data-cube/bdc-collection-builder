@@ -23,12 +23,14 @@ from botocore.exceptions import ClientError
 from celery import chain, current_task, group
 from landsatxplore.api import API
 from osgeo import gdal
+from skimage.transform import resize
+import boto3
+import numpy
 import requests
 # Builder
 from ..config import CURRENT_DIR, Config
 from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
-
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
     """Get or create Brazil Data Cube model.
@@ -115,7 +117,7 @@ def dispatch(activity: dict):
         if collection_lc8 is None:
             raise RuntimeError('The collection "LC8SR" not found')
 
-        # Raw chain represents TOA publish chain
+        # Raw chain represents DN publish chain
         raw_data_chain = landsat_tasks.publish_landsat.s()
         # Atm Correction chain
         atm_corr_chain = landsat_tasks.atm_correction_landsat.s()

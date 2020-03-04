@@ -249,7 +249,7 @@ class LandsatTask(RadcorTask):
         return scene
 
     def harmonize(self, scene):
-        """Apply Harmonization on collection.
+        """Apply Harmonization on Landsat collection.
 
         Args:
             scene - Serialized Activity
@@ -356,3 +356,15 @@ def upload_landsat(scene):
         scene (dict): Radcor Activity with "uploadLC8" app context
     """
     upload_landsat.upload(scene)
+
+
+@celery_app.task(base=LandsatTask, queue='harmonization')
+def harmonization_landsat(scene):
+    """Represent a celery task definition for harmonizing Landsat8.
+
+    This celery tasks listen only for queues 'harmonizeLC8'.
+
+    Args:
+        scene (dict): Radcor Activity with "harmonizeLC8" app context
+    """
+    return harmonization_landsat.harmonize(scene)

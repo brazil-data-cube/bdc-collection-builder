@@ -3,17 +3,15 @@ import glob
 import logging
 import os
 import re
-
+# 3rd-party
 from pathlib import Path
 from shutil import copy
-
 # BDC Scripts
-from bdc_db.models import CollectionItem
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.collections.nbar import process_NBAR
 from bdc_collection_builder.collections.utils import load_img
 from bdc_collection_builder.collections.models import RadcorActivity
-
+from bdc_db.models import CollectionItem
 
 def load_landsat_angles(productdir):
     """Load Landsat Angle bands."""
@@ -32,7 +30,7 @@ def load_landsat_angles(productdir):
 
 
 def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
-    """Prepare landsat angle bands and process NBAR."""
+    """Prepare Landsat angle bands and process NBAR."""
     ### Landsat-8 data set ###
     satsen = 'LC8'
     bands10m = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']

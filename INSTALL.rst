@@ -12,6 +12,11 @@ Installation
 ``bdc-collection-builder`` has essentially several dependencies. Please, read the instructions below in order to install ``collection-builder``.
 
 
+.. note::
+
+    The ``bdc-collection-builder`` requires `GDAL 2+` to work properly. Make sure that ``gdal-config`` is installed on PATH.
+
+
 Production installation
 -----------------------
 

@@ -131,10 +131,11 @@ def download_from_aws(scene_id: str, destination: str, compressed_path: str = No
         digital_number_file_path = os.path.join(destination, f)
         _download_file(stream, digital_number_file_path, byte_size=chunk_size)
 
-        # Remove compression and Tiled order from AWS files in order
-        # to espa-science work properly.
-        # https://github.com/USGS-EROS/espa-surface-reflectance/issues/76
-        remove_tile_compression(digital_number_file_path)
+        if f.lower().endswith('.tif'):
+            # Remove compression and Tiled order from AWS files in order
+            # to espa-science work properly.
+            # https://github.com/USGS-EROS/espa-surface-reflectance/issues/76
+            remove_tile_compression(digital_number_file_path)
 
     try:
         logging.debug('Compressing {}'.format(compressed_path))

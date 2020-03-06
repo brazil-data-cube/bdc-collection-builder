@@ -127,7 +127,7 @@ def dispatch(activity: dict):
         inner_group = publish_atm_chain
 
         # Check if will add harmonization chain on group
-        if activity['args']['harmonize']:
+        if activity['args'].get('harmonize'):
             # Harmonization chain
             harmonize_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()
@@ -147,7 +147,7 @@ def dispatch(activity: dict):
         inner_group = publish_atm_chain
 
         # Check if will add harmonization chain on group
-        if activity['args']['harmonize']:
+        if activity['args'].get('harmonize'):
             # Harmonization chain
             harmonize_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()

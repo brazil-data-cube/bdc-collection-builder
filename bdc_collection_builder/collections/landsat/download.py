@@ -13,6 +13,7 @@
 import logging
 import os
 # 3rdparty
+import rasterio
 from bdc_core.decorators.utils import working_directory
 from bs4 import BeautifulSoup
 from requests import Session as RequestSession
@@ -41,6 +42,39 @@ def get_session() -> RequestSession:
     session.post(url_login, data=auth, allow_redirects=False)
 
     return session
+
+
+def remove_tile_compression(tiff_file_path: str, destination: str = None) -> str:
+    """Generate new data set in disk without compression and mark as ``TILED=NO``.
+
+    Warning:
+        Beware when no destination file is set, it overrites the origin file.
+        It may be corrupted on error.
+
+    Args:
+        tiff_file_path - Path to the input data set
+        destination - Destination file name. Default is input.
+
+    Returns:
+        Path to the generated file.
+    """
+    if destination is None:
+        destination = tiff_file_path
+
+    with rasterio.Env():
+        with rasterio.open(tiff_file_path, 'r') as source_data_set:
+            profile = source_data_set.profile
+            raster = source_data_set.read(1)
+
+        profile.pop('compress', '')
+        profile.update(dict(
+            tiled=False
+        ))
+
+        with rasterio.open(destination, 'w', **profile) as target_data_set:
+            target_data_set.write_band(1, raster)
+
+    return tiff_file_path
 
 
 user = get_credentials()['landsat']
@@ -93,7 +127,15 @@ def download_from_aws(scene_id: str, destination: str, compressed_path: str = No
         stream.raise_for_status()
 
         logging.debug('Downloading {}...'.format(f))
-        _download_file(stream, os.path.join(destination, f), byte_size=chunk_size)
+
+        digital_number_file_path = os.path.join(destination, f)
+        _download_file(stream, digital_number_file_path, byte_size=chunk_size)
+
+        if f.lower().endswith('.tif'):
+            # Remove compression and Tiled order from AWS files in order
+            # to espa-science work properly.
+            # https://github.com/USGS-EROS/espa-surface-reflectance/issues/76
+            remove_tile_compression(digital_number_file_path)
 
     try:
         logging.debug('Compressing {}'.format(compressed_path))

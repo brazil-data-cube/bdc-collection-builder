@@ -6,18 +6,21 @@
     under the terms of the MIT License; see LICENSE file for more details.
 
 
-
 ======================
 BDC Collection Builder
 ======================
 
 .. image:: https://img.shields.io/badge/license-MIT-green
-        :target: https://github.com//brazil-data-cube/bdc-collection-builder/blob/master/LICENSE
+        :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/master/LICENSE
         :alt: Software License
+
+.. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=latest
+        :target: https://bdc-collection-builder.readthedocs.io/en/latest/
+        :alt: Documentation Status
 
 .. image:: https://img.shields.io/badge/lifecycle-experimental-orange.svg
         :target: https://www.tidyverse.org/lifecycle/#experimental
-        :alt: Package Lifecycle Status: Experimental
+        :alt: Software Life Cycle
 
 .. image:: https://img.shields.io/github/tag/brazil-data-cube/bdc-collection-builder.svg
         :target: https://github.com/brazil-data-cube/bdc-collection-builder/releases
@@ -27,7 +30,10 @@ BDC Collection Builder
         :target: https://gitter.im/brazil-data-cube/community#
         :alt: Join the chat
 
-TODO
+
+About
+=====
+
 
 
 Installation
@@ -36,16 +42,16 @@ Installation
 See `INSTALL.rst <./INSTALL.rst>`_.
 
 
-Running
-=======
+Deploying
+=========
 
-See `RUNNING.rst <./RUNNING.rst>`_.
+See `DEPLOY.rst <./DEPLOY.rst>`_.
 
 
 Developer Documentation
 =======================
 
-TODO
+See https://bdc-collection-builder.readthedocs.io/en/latest.
 
 
 License

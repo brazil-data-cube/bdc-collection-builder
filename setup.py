@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
 
 import os
 from setuptools import find_packages, setup
@@ -8,7 +15,6 @@ readme = open('README.rst').read()
 history = open('CHANGES.rst').read()
 
 docs_require = [
-    'bdc-readthedocs-theme @ git+git://github.com/brazil-data-cube/bdc-readthedocs-theme.git#egg=bdc-readthedocs-theme',
     'Sphinx>=2.1',
 ]
 
@@ -49,7 +55,7 @@ install_requires = [
     'requests>=2.22.0',
     'GDAL>=2.3.3',
     'numpy>=1.17.2',
-    'numpngw>=0.0.8',  # TODO: Review this dependency
+    'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git@v0.2.0#egg=bdc-core',
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@v0.2.1#egg=bdc-db',
@@ -72,8 +78,8 @@ setup(
     long_description=readme + '\n\n' + history,
     keywords='Brazil Data Cube Collection Builder Module',
     license='MIT',
-    author='Admin',
-    author_email='admin@admin.com',
+    author='INPE',
+    author_email='gribeiro@dpi.inpe.br',
     url='https://github.com/brazil-data-cube/bdc-collection-builder.git',
     packages=packages,
     zip_safe=False,

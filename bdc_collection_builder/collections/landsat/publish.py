@@ -240,7 +240,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         )
     }
 
-    for instance in ['local', 'aws']:
+    engine = scene.args['engine'] if scene.args.get('engine') else ['local', 'aws']
+    for instance in engine:
         engine_instance = {
             'local': db,
             'aws': db_aws

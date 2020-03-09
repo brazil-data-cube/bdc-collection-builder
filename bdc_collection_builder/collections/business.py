@@ -40,7 +40,7 @@ class RadcorBusiness:
         return dispatch(activity)
 
     @classmethod
-    def restart(cls, ids=None, status=None, activity_type=None):
+    def restart(cls, ids=None, status=None, activity_type=None, engine=None):
         """Restart celery task execution.
 
         Args:
@@ -69,7 +69,8 @@ class RadcorBusiness:
 
         for activity in activities:
             dumps = RadcorActivityForm().dump(activity)
-
+            if engine:
+                dumps['engine'] = engine
             cls.start(dumps)
 
         return activities

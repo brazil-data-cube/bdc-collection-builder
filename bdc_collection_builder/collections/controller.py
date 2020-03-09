@@ -89,12 +89,13 @@ class RadcorRestartController(Resource):
 
     This route requires OAuth2 token to work properly.
     """
-
     @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
         """Restart Task.
 
         curl localhost:5000/api/radcor/restart?ids=13
+
+        curl localhost:5000/api/radcor/restart?ids=85139\&engine='aws'
         """
         args = request.args.to_dict()
 
@@ -103,6 +104,9 @@ class RadcorRestartController(Resource):
 
         if 'ids' in args:
             args['ids'] = args['ids'].split(',')
+
+        if 'engine' in args:
+            args['engine'] = args['engine'].split(',')
 
         RadcorBusiness.restart(**args)
 

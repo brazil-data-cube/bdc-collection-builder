@@ -15,12 +15,14 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from distutils.util import strtobool
+
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
 from glob import glob as resource_glob
 from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
 from urllib3.exceptions import NewConnectionError, MaxRetryError
+
 # Builder
 from ...celery import celery_app
 from ...config import Config
@@ -286,7 +288,7 @@ class LandsatTask(RadcorTask):
             scene['args']['file'] = harmonized_dir
 
         except BaseException as e:
-            logging.error('Error at Harmonize Landsat', e)
+            logging.error('Error at Harmonize Landsat {}'.format(e))
 
             raise e
 

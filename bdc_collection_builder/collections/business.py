@@ -185,10 +185,9 @@ class RadcorBusiness:
                 tile = '{}{}'.format(scene['path'], scene['row'])
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
-                if do_harmonization:
-                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
                 RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
                 if do_harmonization:
+                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
                     RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
 
                 if action == 'start':
@@ -229,6 +228,10 @@ class RadcorBusiness:
                 RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2TOA', engine=db)
                 RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db)
                 RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db_aws)
+                if do_harmonization:
+                    RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2NBAR', engine=db)
+                    RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2NBAR', engine=db_aws)
+
                 scene['status'] = 'NOTDONE'
 
                 scenes[id] = scene

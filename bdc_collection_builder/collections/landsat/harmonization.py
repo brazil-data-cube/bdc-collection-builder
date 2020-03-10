@@ -1,17 +1,20 @@
 # Python Native
+from pathlib import Path
+from shutil import copy
 import glob
 import logging
 import os
 import re
-# 3rd-party
-from pathlib import Path
-from shutil import copy
-# BDC Scripts
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.collections.nbar import process_NBAR
-from bdc_collection_builder.collections.utils import load_img
-from bdc_collection_builder.collections.models import RadcorActivity
+
+# BDC DB
 from bdc_db.models import CollectionItem
+
+# BDC Scripts
+from ...config import Config
+from ..nbar import process_NBAR
+from ..utils import load_img
+from ..models import RadcorActivity
+
 
 def load_landsat_angles(productdir):
     """Load Landsat Angle bands."""

@@ -29,8 +29,8 @@ def search_recent_sen2cor280(safeL2Afull):
     Args:
         safeL2Afull - Path to the folder where .SAFE files generated.
     """
-    safe = safeL2Afull.replace( os.path.basename(safeL2Afull).split('_')[3], 'N9999')
-    safe_pattern = '_'.join( os.path.basename(safe).split('_')[0:-1])
+    safe = safeL2Afull.replace(os.path.basename(safeL2Afull).split('_')[3], 'N9999')
+    safe_pattern = '_'.join(os.path.basename(safe).split('_')[0:-1])
     dirname = os.path.dirname(safeL2Afull)
     dirs_L2 = [os.path.join(dirname,d) for d in os.listdir(dirname) if re.match('^{}.*SAFE$'.format(safe_pattern), d)]
     return dirs_L2

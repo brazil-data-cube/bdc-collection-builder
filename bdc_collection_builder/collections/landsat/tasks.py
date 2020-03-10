@@ -274,7 +274,7 @@ class LandsatTask(RadcorTask):
             scene['args']['file'] = harmonized_dir
 
         except BaseException as e:
-            logging.error('Error at Harmonize Landsat', e)
+            logging.error('Error at Harmonize Landsat {}'.format(e))
 
             raise e
 

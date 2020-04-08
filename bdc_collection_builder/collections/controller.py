@@ -30,7 +30,7 @@ api = Namespace('radcor', description='radcor')
 class RadcorController(Resource):
     """Define controller to dispatch activity and celery execution."""
 
-    # @require_oauth_scopes(scope="collection_builder:activities:GET")
+    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """Retrieve all radcor activities from database."""
         args = request.args
@@ -48,7 +48,7 @@ class RadcorController(Resource):
             "items": RadcorActivityForm().dump(activities.items, many=True)
         }
 
-    # @require_oauth_scopes(scope="collection_builder:activities:POST")
+    @require_oauth_scopes(scope="collection_builder:activities:POST")
     def post(self):
         """Dispatch task execution of collection.
 
@@ -90,7 +90,7 @@ class RadcorRestartController(Resource):
     This route requires OAuth2 token to work properly.
     """
 
-    # @require_oauth_scopes(scope="collection_builder:activities:POST")
+    @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
         """Restart Task.
 
@@ -116,7 +116,7 @@ class RadcorActiveTasksController(Resource):
     List active tasks on celery worker.
     """
 
-    # @require_oauth_scopes(scope="collection_builder:activities:GET")
+    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """Retrieve running tasks on workers."""
         return list_running_tasks()

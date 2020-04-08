@@ -207,7 +207,8 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
         bbox=(slat, wlon, nlat, elon),
         start_date=startdate,
         end_date=enddate,
-        max_cloud_cover=cloud or 100
+        max_cloud_cover=cloud or 100,
+        max_results=10000
     )
 
     scenes_output = {}
@@ -355,7 +356,7 @@ def is_valid_tif(input_data_set_path):
         array = srcband.ReadAsArray()
 
         # Check if min == max
-        if(array.min() == array.max()):
+        if array.min() == array.max() == 0:
             del ds
             return False
         del ds

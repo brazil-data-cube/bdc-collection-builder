@@ -22,7 +22,7 @@ from werkzeug.exceptions import BadRequest
 from bdc_db.models import db, Collection, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import db_aws
-from .forms import RadcorActivityForm
+from .forms import SimpleActivityForm
 from .models import RadcorActivity, RadcorActivityHistory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
@@ -40,7 +40,7 @@ class RadcorBusiness:
         return dispatch(activity)
 
     @classmethod
-    def restart(cls, ids=None, status=None, activity_type=None):
+    def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None):
         """Restart celery task execution.
 
         Args:
@@ -54,7 +54,7 @@ class RadcorBusiness:
         restrictions = []
 
         if ids:
-            restrictions.append(or_(RadcorActivity.id == id for id in ids))
+            restrictions.append(RadcorActivity.id.in_(ids))
 
         if status:
             restrictions.append(RadcorActivityHistory.task.has(status=status))
@@ -62,17 +62,30 @@ class RadcorBusiness:
         if activity_type:
             restrictions.append(RadcorActivity.activity_type == activity_type)
 
+        if collection_id:
+            restrictions.append(RadcorActivity.collection_id == collection_id)
+
+        if sceneid:
+            if collection_id is None or activity_type is None:
+                raise BadRequest('The parameters "collection_id" and "activity_type" are required to search by sceneid.')
+
+            scenes = sceneid.split(',') if isinstance(sceneid, str) else sceneid
+            restrictions.append(RadcorActivity.sceneid.in_(scenes))
+
         if len(restrictions) == 0:
             raise BadRequest('Invalid restart. You must provide query restriction such "ids", "activity_type" or "status"')
 
         activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
-        for activity in activities:
-            dumps = RadcorActivityForm().dump(activity)
+        # Define a start wrapper in order to preview or start activity
+        start_activity = cls.start if str(action).lower() == 'start' else lambda _: _
 
-            cls.start(dumps)
+        serialized_activities = SimpleActivityForm().dump(activities, many=True)
 
-        return activities
+        for activity in serialized_activities:
+            start_activity(activity)
+
+        return serialized_activities
 
     @classmethod
     def create_tile(cls, grs, tile, collection, engine=db):

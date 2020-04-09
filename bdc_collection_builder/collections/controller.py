@@ -108,6 +108,7 @@ class RadcorRestartController(Resource):
             args['ids'] = args['ids'].split(',') if isinstance(args['ids'], str) else args['ids']
 
         args.setdefault('action', None)
+        args.setdefault('use_aws', False)
 
         activities = RadcorBusiness.restart(**args)
 

@@ -98,6 +98,9 @@ def download_from_aws(scene_id: str, destination: str, compressed_path: str = No
         scene_id - Lansat 8 scene id. Example: LC08_L1TP_139045_20170304_20170316_01_T1.
         destination - Path to store downloaded file.
         chunk_size - Request chunk size download. Default is 512kb.
+
+    Returns:
+        Tuple with path where file was saved and AWS link downloaded.
     """
     from .publish import BAND_MAP_DN
 
@@ -150,7 +153,7 @@ def download_from_aws(scene_id: str, destination: str, compressed_path: str = No
 
         raise
 
-    return compressed_path
+    return compressed_path, url
 
 
 def download_landsat_images(link, destination):

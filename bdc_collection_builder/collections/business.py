@@ -35,12 +35,13 @@ class RadcorBusiness:
     """Define an interface for handling entire module business."""
 
     @classmethod
-    def start(cls, activity):
+    def start(cls, activity, **kwargs):
         """Dispatch the celery tasks."""
+        activity['args'].update(kwargs)
         return dispatch(activity)
 
     @classmethod
-    def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None):
+    def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None, **kwargs):
         """Restart celery task execution.
 
         Args:
@@ -83,6 +84,7 @@ class RadcorBusiness:
         serialized_activities = SimpleActivityForm().dump(activities, many=True)
 
         for activity in serialized_activities:
+            activity['args'].update(kwargs)
             start_activity(activity)
 
         return serialized_activities
@@ -120,7 +122,6 @@ class RadcorBusiness:
 
         return created
 
-
     @classmethod
     def radcor(cls, args: dict):
         """Search for Landsat/Sentinel Images and dispatch download task."""
@@ -139,7 +140,7 @@ class RadcorBusiness:
 
         # Get the requested period to be processed
         rstart = args['start']
-        rend   = args['end']
+        rend = args['end']
 
         sat = args['satsen']
         cloud = float(args['cloud'])
@@ -147,18 +148,16 @@ class RadcorBusiness:
         action = args['action']
         do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
 
+        extra_args = args.get('args', dict())
+
         scenes = {}
         if 'LC8' in sat or 'LC8SR' in sat:
             # result = developmentSeed(w,n,e,s,rstart,rend,cloud,limit)
-            result = get_landsat_scenes(w,n,e,s,rstart,rend,cloud,limit)
+            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, limit)
             scenes.update(result)
             for id in result:
                 scene = result[id]
                 sceneid = scene['sceneid']
-                # Check if this scene is already in Repository
-                cc = sceneid.split('_')
-                yyyymm = cc[3][:4]+'-'+cc[3][4:6]
-                tileid = cc[2]
                 # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
 
@@ -193,7 +192,7 @@ class RadcorBusiness:
                     RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
 
                 if action == 'start':
-                    cls.start(activity)
+                    cls.start(activity, **extra_args)
 
         if 'S2' in sat or 'S2SR_SEN28' in sat:
             result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
@@ -235,7 +234,7 @@ class RadcorBusiness:
                 scenes[id] = scene
 
                 if action == 'start':
-                    cls.start(activity)
+                    cls.start(activity, **extra_args)
 
         return scenes
 

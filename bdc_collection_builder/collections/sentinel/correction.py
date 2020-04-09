@@ -14,6 +14,9 @@ import os
 import re
 import shutil
 import time
+from datetime import datetime
+from pathlib import Path
+from shutil import rmtree
 from json import loads as json_parser
 
 # 3rdparty
@@ -63,29 +66,33 @@ def correction_sen2cor255(scene):
 def correction_sen2cor280(scene):
     """Dispatch sen2cor 2.8.0 execution."""
     safeL2Afull = scene['file'].replace('MSIL1C', 'MSIL2A')
-    dirs_L2 = search_recent_sen2cor280(safeL2Afull)
-    if len(dirs_L2) >= 1:
-        for i in range(len(dirs_L2) - 1):
-            shutil.rmtree(dirs_L2[i], ignore_errors=True)
-        #TODO: Validate SAFE os.path.join(dirname, dirs_L2[0])
-        valid = False
-        if valid == True:
-            logging.info('sen2cor skipped')
-            # scene['file'] = dirs_L2[0]
-            return dirs_L2[-1]
-        else:
-            shutil.rmtree(dirs_L2[-1], ignore_errors=True)
+
+    fragments = Path(safeL2Afull).name.split('_')
+    fragments[3] = 'N9999'
+
+    processing_date = datetime.strptime(fragments[-1].replace('.SAFE', ''), '%Y%m%dT%H%M%S')
+    today = datetime.utcnow().timetuple()
+
+    processing_date = processing_date.replace(year=today.tm_year, month=today.tm_mon, day=today.tm_mday)
+
+    output_dir = '_'.join(fragments[:-1])
+    sensing_date = datetime.strptime(fragments[2], '%Y%m%dT%H%M%S')
+    output_dir = Config.DATA_DIR / Path('Repository/Archive/S2_MSI/{}/{}_{}.SAFE'.format(sensing_date.strftime('%Y-%m'), output_dir,
+                                                                       processing_date.strftime('%Y%m%dT%H%M%S')))
+
+    os.makedirs(str(output_dir), exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    logging.info('Using outputdir {}'.format(str(output_dir)))
+    scene['output_dir'] = str(output_dir)
 
     # Send scene to the sen2cor service
     req = resource_get('{}/sen2cor'.format(Config.SEN2COR_URL), params=scene)
-    # Ensure the request has been successfully
-    assert req.status_code == 200
 
     result = json_parser(req.content)
 
-    if result and result.get('status') == 'ERROR':
+    if req.status_code != 200 and result and result.get('status') == 'ERROR':
+        rmtree(str(output_dir))
         raise RuntimeError('Error in sen2cor execution')
 
-    dirs_L2 = search_recent_sen2cor280(safeL2Afull)
-
-    return dirs_L2[-1]
+    return str(output_dir)

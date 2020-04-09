@@ -312,6 +312,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         tile_id=collection_item.tile_id,
                         collection_item_id=collection_item.id,
                     )
+                    asset.url = defaults['url']
 
                     assets_to_upload[band] = dict(file=files[band], asset=asset.url)
 

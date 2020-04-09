@@ -26,7 +26,8 @@ def sen2cor():
     safeL1Cfull = '/dados' + activity['file']
     activity['start'] = request.args.get('start', None)
     step_start = time.time()
-    cmd = 'L2A_Process --resolution 10 {0}'.format(safeL1Cfull)
+    output_dir = request.args.get('output_dir')
+    cmd = 'L2A_Process --resolution 10 {0} --output_dir {1}'.format(safeL1Cfull, output_dir)
     retcode = 1
     activity['status'] = 'ERROR'
     if os.path.exists(safeL1Cfull):

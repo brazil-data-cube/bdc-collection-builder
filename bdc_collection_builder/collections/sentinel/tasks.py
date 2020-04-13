@@ -17,16 +17,17 @@ from sqlalchemy.exc import InvalidRequestError
 from bdc_db.models import db
 
 # Builder
-from bdc_collection_builder.celery import celery_app
-from bdc_collection_builder.celery.cache import lock_handler
-from bdc_collection_builder.collections.utils import extractall, is_valid, upload_file
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.collections.base_task import RadcorTask
-from bdc_collection_builder.collections.sentinel.clients import sentinel_clients
-from bdc_collection_builder.collections.sentinel.download import download_sentinel_images, download_sentinel_from_creodias
-from bdc_collection_builder.collections.sentinel.publish import publish
-from bdc_collection_builder.collections.sentinel.correction import correction_sen2cor255, correction_sen2cor280
-from bdc_collection_builder.db import db_aws
+from ...celery import celery_app
+from ...celery.cache import lock_handler
+from ...config import Config
+from ...db import db_aws
+from ..base_task import RadcorTask
+from ..utils import extractall, is_valid, upload_file
+from .clients import sentinel_clients
+from .download import download_sentinel_images, download_sentinel_from_creodias
+from .publish import publish
+from .correction import correction_sen2cor255, correction_sen2cor280
+from .onda import download_from_onda
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -127,12 +128,16 @@ class SentinelTask(RadcorTask):
                             download_sentinel_images(link, zip_file_name, user)
                     except (ConnectionError, HTTPError) as e:
                         try:
-                            logging.warning('Trying to download "{}" from external provider...'.format(scene_id))
+                            logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
 
-                            download_sentinel_from_creodias(scene_id, zip_file_name)
+                            download_from_onda(scene_id, os.path.dirname(zip_file_name))
                         except:
-                            # Ignore errors from external provider
-                            raise e
+                            try:
+                                logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
+                                download_sentinel_from_creodias(scene_id, zip_file_name)
+                            except:
+                                # Ignore errors from external provider
+                                raise e
 
                     # Check if file is valid
                     valid = is_valid(zip_file_name)

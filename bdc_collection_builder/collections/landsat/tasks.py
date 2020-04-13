@@ -14,6 +14,7 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from distutils.util import strtobool
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
 from glob import glob as resource_glob
@@ -21,14 +22,14 @@ from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
 from urllib3.exceptions import NewConnectionError, MaxRetryError
 # Builder
-from bdc_collection_builder.celery import celery_app
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.collections.base_task import RadcorTask
-from bdc_collection_builder.collections.landsat.download import download_landsat_images, download_from_aws
-from bdc_collection_builder.collections.landsat.harmonization import landsat_harmonize
-from bdc_collection_builder.collections.landsat.publish import publish
-from bdc_collection_builder.collections.utils import upload_file
-from bdc_collection_builder.db import db_aws
+from ...celery import celery_app
+from ...config import Config
+from ...db import db_aws
+from ..base_task import RadcorTask
+from ..utils import upload_file
+from .download import download_landsat_images, download_from_aws
+from .harmonization import landsat_harmonize
+from .publish import publish
 
 
 def is_valid_tar_gz(file_path: str):
@@ -91,19 +92,30 @@ class LandsatTask(RadcorTask):
                 file = str(digital_number_file)
 
             if not valid:
-                try:
-                    logging.info('Download Lansat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
-                    digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
-                        scene['collection_id'],
-                        yyyymm,
-                        self.get_tile_id(scene_id)
-                    ))
+                # Flag to prefer download from AWS instead USGS
+                use_aws = activity_args.get('use_aws', False)
 
-                    file = download_from_aws(scene_id, digital_number_dir, productdir)
-                except BaseException:
-                    logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+                if strtobool(str(use_aws)):
+                    try:
+                        logging.info('Download Lansat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
+                        digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
+                            scene['collection_id'],
+                            yyyymm,
+                            self.get_tile_id(scene_id)
+                        ))
 
+                        file, provider_url = download_from_aws(scene_id, digital_number_dir, productdir)
+                        activity_args['provider'] = provider_url
+                    except BaseException:
+                        logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+                        # Ensure file is removed since it may be corrupted
+                        os.remove(str(digital_number_file))
+
+                # When file does not exist, use USGS
+                if not digital_number_file.exists():
+                    logging.info('Download Lansat {} from USGS...'.format(scene_id))
                     file = download_landsat_images(activity_args['link'], productdir)
+                    activity_args['provider'] = activity_args['link']
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 

@@ -12,7 +12,7 @@
 # 3rdparty
 from flask import request
 from flask_restplus import Namespace, Resource
-from werkzeug.exceptions import BadRequest, NotFound
+from werkzeug.exceptions import BadRequest, NotFound, RequestURITooLarge
 from bdc_core.decorators.auth import require_oauth_scopes
 from bdc_db.models.collection import Collection
 import requests
@@ -90,23 +90,58 @@ class RadcorRestartController(Resource):
     This route requires OAuth2 token to work properly.
     """
 
+    @staticmethod
+    def _restart(args: dict):
+        """Restart celery task execution.
+
+        It supports the following parameters:
+            - id : Restart activity by id
+            - ids : Restart a list of activity by ids
+            - activity_type : Restart all activities
+            - sceneid : A sceneid or list to filter. You must provide activity_type and collection_id
+            - collection_id : Collection to filter
+        """
+        if 'id' in args:
+            args['ids'] = str(args.pop('id'))
+
+        if 'ids' in args:
+            args['ids'] = args['ids'].split(',') if isinstance(args['ids'], str) else args['ids']
+
+        args.setdefault('action', None)
+        args.setdefault('use_aws', False)
+
+        activities = RadcorBusiness.restart(**args)
+
+        return dict(
+            action='PREVIEW' if args['action'] is None else args['action'],
+            total=len(activities),
+            activities=activities
+        )
+
+        return activities
+
     @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
         """Restart Task.
 
         curl localhost:5000/api/radcor/restart?ids=13
         """
+        # Limit request query string to 4KB on GET
+        if len(request.query_string) > 4096:
+            raise RequestURITooLarge('Query is too long. Use the method POST instead.')
+
         args = request.args.to_dict()
 
-        if 'id' in args:
-            args['ids'] = args['id']
+        return self._restart(args)
 
-        if 'ids' in args:
-            args['ids'] = args['ids'].split(',')
+    @require_oauth_scopes(scope="collection_builder:activities:POST")
+    def post(self):
+        """Restart task using POST.
 
-        RadcorBusiness.restart(**args)
-
-        return dict()
+        Used when user may need to restart several tasks.
+        """
+        args = request.get_json()
+        return self._restart(args)
 
 
 @api.route('/stats/active')

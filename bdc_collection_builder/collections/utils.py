@@ -546,6 +546,10 @@ def remove_file(file_path: str):
 
 def refresh_assets_view(refresh_on_aws=True):
     """Update the Brazil Data Cube Assets View."""
+    if not Config.ENABLE_REFRESH_VIEW:
+        logging.info('Skipping refresh view.')
+        return
+
     refresh_materialized_view(db.session, AssetMV.__table__)
     commit(db)
 

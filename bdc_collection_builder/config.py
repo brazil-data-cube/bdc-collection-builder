@@ -10,6 +10,7 @@
 
 import os
 import tempfile
+from distutils.util import strtobool
 
 CURRENT_DIR = os.path.dirname(__file__)
 
@@ -24,6 +25,8 @@ class Config:
 
     DEBUG = False
     TESTING = False
+    ENABLE_REFRESH_VIEW = strtobool(str(os.environ.get('ENABLE_REFRESH_VIEW', False)))
+
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',

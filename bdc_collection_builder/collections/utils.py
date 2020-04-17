@@ -30,7 +30,7 @@ from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
-from ..db import db_aws
+from ..db import db_aws, commit
 from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
 
@@ -547,8 +547,10 @@ def remove_file(file_path: str):
 def refresh_assets_view(refresh_on_aws=True):
     """Update the Brazil Data Cube Assets View."""
     refresh_materialized_view(db.session, AssetMV.__table__)
+    commit(db)
 
     if refresh_on_aws:
         refresh_materialized_view(db_aws.session, AssetMV.__table__)
+        commit(db)
 
     logging.info('View refreshed.')

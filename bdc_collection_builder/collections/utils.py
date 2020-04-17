@@ -17,8 +17,11 @@ from zipfile import BadZipfile, ZipFile
 import datetime
 import json
 import logging
-# 3rdparty
+
+#BDC DB
 from bdc_db.models import Collection, db
+
+# 3rdparty
 from botocore.exceptions import ClientError
 from celery import chain, current_task, group
 from landsatxplore.api import API
@@ -28,10 +31,12 @@ import boto3
 import numpy
 import rasterio
 import requests
+
 # Builder
 from ..config import CURRENT_DIR, Config
 from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
+
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
     """Get or create Brazil Data Cube model.

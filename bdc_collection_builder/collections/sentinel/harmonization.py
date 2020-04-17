@@ -191,22 +191,22 @@ def resample_anglebands(ang_matrix, imgref, filename):
     rasterOrigin = (geotrans[0],geotrans[3])
 
     # Now, we create an in-memory raster
-    mem_drv = gdal.GetDriverByName( 'MEM' )
+    mem_drv = gdal.GetDriverByName('MEM')
     tmp_ds = mem_drv.Create('', len(ang_matrix[0]), len(ang_matrix), 1, gdal.GDT_Float32)
 
     # Set the geotransform
-    tmp_ds.SetGeoTransform( (rasterOrigin[0], 5000, 0, rasterOrigin[1], 0, -5000) )
-    tmp_ds.SetProjection ( proj )
+    tmp_ds.SetGeoTransform((rasterOrigin[0], 5000, 0, rasterOrigin[1], 0, -5000))
+    tmp_ds.SetProjection (proj)
     tmp_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
     tmp_ds.GetRasterBand(1).WriteArray(ang_matrix)
 
     driver = gdal.GetDriverByName('GTiff')
     dst_ds = driver.Create(filename, cols, rows, 1, gdal.GDT_Float32)
-    dst_ds.SetGeoTransform( geotrans )
-    dst_ds.SetProjection( proj )
+    dst_ds.SetGeoTransform(geotrans)
+    dst_ds.SetProjection(proj)
 
     resampling = gdal.GRA_Bilinear
-    gdal.ReprojectImage( tmp_ds, dst_ds, tmp_ds.GetProjection(), dst_ds.GetProjection(), resampling)
+    gdal.ReprojectImage(tmp_ds, dst_ds, tmp_ds.GetProjection(), dst_ds.GetProjection(), resampling)
 
     del src_ds
     del tmp_ds

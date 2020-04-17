@@ -18,15 +18,16 @@ import datetime
 import json
 import logging
 # 3rdparty
-from bdc_db.models import Collection, db
-from botocore.exceptions import ClientError
-from celery import chain, current_task, group
-from landsatxplore.api import API
-from osgeo import gdal
-from skimage.transform import resize
 import boto3
 import numpy
 import requests
+import gdal
+from bdc_db.models import AssetMV, Collection, db
+from botocore.exceptions import ClientError
+from celery import chain, current_task, group
+from landsatxplore.api import API
+from skimage.transform import resize
+from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
 from .models import RadcorActivityHistory
@@ -540,3 +541,8 @@ def remove_file(file_path: str):
     """
     if resource_path.exists(file_path):
         resource_remove(file_path)
+
+
+def refresh_assets_view():
+    """Update the Brazil Data Cube Assets View."""
+    refresh_materialized_view(db.session, AssetMV.__table__)

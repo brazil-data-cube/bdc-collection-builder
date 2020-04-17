@@ -22,7 +22,7 @@ from ...celery.cache import lock_handler
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import extractall, is_valid, upload_file
+from ..utils import extractall, is_valid, refresh_assets_view, upload_file
 from .clients import sentinel_clients
 from .download import download_sentinel_images, download_sentinel_from_creodias
 from .publish import publish
@@ -253,6 +253,9 @@ class SentinelTask(RadcorTask):
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
         scene['args']['assets'] = assets
+
+        if scene.get('collection_id') == 'S2SR_SEN28':
+            refresh_assets_view()
 
         logging.debug('Done Publish Sentinel.')
 

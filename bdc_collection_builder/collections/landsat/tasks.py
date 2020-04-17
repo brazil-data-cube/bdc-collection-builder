@@ -26,7 +26,7 @@ from ...celery import celery_app
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import upload_file
+from ..utils import refresh_assets_view, upload_file
 from .download import download_landsat_images, download_from_aws
 from .harmonization import landsat_harmonize
 from .publish import publish
@@ -172,6 +172,9 @@ class LandsatTask(RadcorTask):
 
         scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
+
+        if scene.get('collection_id') == 'LC8SR':
+            refresh_assets_view()
 
         return scene
 

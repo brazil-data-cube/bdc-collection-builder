@@ -546,3 +546,5 @@ def remove_file(file_path: str):
 def refresh_assets_view():
     """Update the Brazil Data Cube Assets View."""
     refresh_materialized_view(db.session, AssetMV.__table__)
+
+    logging.info('View refreshed.')

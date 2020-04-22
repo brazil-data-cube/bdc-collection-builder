@@ -456,8 +456,8 @@ def generate_cogs(input_data_set_path, file_path):
     return file_path
 
 
-def is_valid(file):
-    """Check tar gz is valid."""
+def is_valid_compressed(file):
+    """Check tar gz or zip is valid."""
     try:
         archive = ZipFile(file, 'r')
         try:
@@ -469,6 +469,24 @@ def is_valid(file):
         corrupt = True
 
     return not corrupt
+
+
+def extract_and_get_internal_name(zip_file_name):
+    """Extract zipfile and return internal folder path."""
+    # Check if file is valid
+    valid = is_valid_compressed(zip_file_name)
+
+    if not valid:
+        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+    else:
+        extractall(zip_file_name)
+
+        # Get extracted zip folder name
+        with ZipFile(zip_file_name) as zipObj:
+            listOfiles = zipObj.namelist()
+            extracted_file_path = listOfiles[0]
+
+        return extracted_file_path
 
 
 def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):

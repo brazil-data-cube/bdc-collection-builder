@@ -12,7 +12,7 @@ from bdc_collection_builder.collections.models import RadcorActivity
 
 
 def get_jp2_files(scene: RadcorActivity):
-    """Get all jp2 files in L2A SAFE"""
+    """Find all jp2 files in L2A SAFE"""
     sentinel_folder_data = scene.args.get('file', '')
     template = "T*.jp2"
     jp2files = [os.path.join(dirpath, f)
@@ -32,7 +32,7 @@ def get_jp2_files(scene: RadcorActivity):
 
 
 def get_tif_files(scene: RadcorActivity):
-    """Get all tif files in L2A SAFE"""
+    """Find all tif files in L2A SAFE"""
     sentinel_folder_data = scene.args.get('file', '')
     template = "T*.tif"
     tiffiles = [os.path.join(dirpath, f)

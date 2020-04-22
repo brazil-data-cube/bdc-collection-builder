@@ -292,6 +292,7 @@ def sentinel_harmonize(SAFEL1C, dir_published_L2, target_dir=None):
     logging.info('Generating Angles from {} ...'.format(SAFEL1C))
     sz_path, sa_path, vz_path, va_path = gen_s2_ang(SAFEL1C)
 
+    ### if target_dir is not given create HARMONIZED_DATA folder inside GRANULE folder
     if target_dir is None:
         target_dir = os.path.join(dir_published_L2, '/HARMONIZED_DATA/')
     os.makedirs(target_dir, exist_ok=True)

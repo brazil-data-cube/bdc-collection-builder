@@ -11,9 +11,9 @@ from bdc_db.models import CollectionItem
 
 # BDC Scripts
 from ...config import Config
+from ..models import RadcorActivity
 from ..nbar import process_NBAR
 from ..utils import load_img
-from ..models import RadcorActivity
 
 
 def load_landsat_angles(productdir):

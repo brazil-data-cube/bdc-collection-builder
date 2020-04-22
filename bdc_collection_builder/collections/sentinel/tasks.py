@@ -24,7 +24,7 @@ from ...celery.cache import lock_handler
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import extractall, is_valid, upload_file
+from ..utils import extract_and_get_internal_name, is_valid_compressed, upload_file
 from .clients import sentinel_clients
 from .download import download_sentinel_images, download_sentinel_from_creodias
 from .harmonization import sentinel_harmonize
@@ -116,11 +116,9 @@ class SentinelTask(RadcorTask):
                 collection_item.cloud_cover = cloud
 
             try:
-                valid = True
-
                 if os.path.exists(zip_file_name):
                     logging.debug('zip file exists')
-                    valid = is_valid(zip_file_name)
+                    valid = is_valid_compressed(zip_file_name)
 
                 if not os.path.exists(zip_file_name) or not valid:
                     try:
@@ -142,18 +140,8 @@ class SentinelTask(RadcorTask):
                                 # Ignore errors from external provider
                                 raise e
 
-                    # Check if file is valid
-                    valid = is_valid(zip_file_name)
-
-                if not valid:
-                    raise IOError('Invalid zip file "{}"'.format(zip_file_name))
-                else:
-                    extractall(zip_file_name)
-
-                # Get extracted zip folder name
-                with ZipFile(zip_file_name) as zipObj:
-                    listOfiles = zipObj.namelist()
-                    extracted_file_path = os.path.join(product_dir, '{}'.format(listOfiles[0]))[:-1]
+                internal_folder_name = extract_and_get_internal_name(zip_file_name)
+                extracted_file_path = os.path.join(product_dir, internal_folder_name)
 
                 logging.debug('Done download.')
                 activity_args['file'] = extracted_file_path
@@ -314,24 +302,13 @@ class SentinelTask(RadcorTask):
             mgrs = parts[5]
 
             dir_published_L2 = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}/'.format('S2SR_SEN28', yyyymm, os.path.basename(SAFEL2A)))
+
             L1_dir = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/'.format('S2_MSI', yyyymm))
             zip_pattern = '.*_MSIL1C_{}{}{}.*_{}_.*.zip$'.format(y,m,d,mgrs)
             zip_file_name = [os.path.join(L1_dir,d) for d in os.listdir(L1_dir) if re.match('{}'.format(zip_pattern), d)][0]
 
-            # Check if file is valid
-            valid = is_valid(zip_file_name)
-
-            if not valid:
-                raise IOError('Invalid zip file "{}"'.format(zip_file_name))
-            else:
-                # Get extracted zip folder name
-                with ZipFile(zip_file_name) as zipObj:
-                    listOfiles = zipObj.namelist()
-                    SAFEL1C = os.path.join(L1_dir, '{}'.format(listOfiles[0]))[:-1]
-
-                #Check if folder is extracted
-                if not os.path.exists(SAFEL1C):
-                    extractall(zip_file_name)
+            internal_folder_name = extract_and_get_internal_name(zip_file_name)
+            SAFEL1C = os.path.join(L1_dir, internal_folder_name)
 
             target_dir = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}'.format('S2_MSI', yyyymm, os.path.basename(SAFEL2A)[:-5]))
             os.makedirs(target_dir, exist_ok=True)

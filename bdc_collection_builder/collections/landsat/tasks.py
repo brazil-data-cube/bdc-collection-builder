@@ -92,12 +92,15 @@ class LandsatTask(RadcorTask):
                 file = str(digital_number_file)
 
             if not valid:
+                # Ensure file is removed since it may be corrupted
+                os.remove(str(digital_number_file))
+
                 # Flag to prefer download from AWS instead USGS
                 use_aws = activity_args.get('use_aws', False)
 
                 if strtobool(str(use_aws)):
                     try:
-                        logging.info('Download Lansat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
+                        logging.info('Download Landsat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
                         digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
                             scene['collection_id'],
                             yyyymm,
@@ -113,7 +116,7 @@ class LandsatTask(RadcorTask):
 
                 # When file does not exist, use USGS
                 if not digital_number_file.exists():
-                    logging.info('Download Lansat {} from USGS...'.format(scene_id))
+                    logging.info('Download Landsat {} from USGS...'.format(scene_id))
                     file = download_landsat_images(activity_args['link'], productdir)
                     activity_args['provider'] = activity_args['link']
             else:

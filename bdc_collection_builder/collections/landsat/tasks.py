@@ -26,7 +26,7 @@ from ...celery import celery_app
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import refresh_assets_view, upload_file
+from ..utils import refresh_assets_view, remove_file, upload_file
 from .download import download_landsat_images, download_from_aws
 from .harmonization import landsat_harmonize
 from .publish import publish
@@ -93,7 +93,7 @@ class LandsatTask(RadcorTask):
 
             if not valid:
                 # Ensure file is removed since it may be corrupted
-                os.remove(str(digital_number_file))
+                remove_file(str(digital_number_file))
 
                 # Flag to prefer download from AWS instead USGS
                 use_aws = activity_args.get('use_aws', False)
@@ -112,7 +112,7 @@ class LandsatTask(RadcorTask):
                     except BaseException:
                         logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
                         # Ensure file is removed since it may be corrupted
-                        os.remove(str(digital_number_file))
+                        remove_file(str(digital_number_file))
 
                 # When file does not exist, use USGS
                 if not digital_number_file.exists():

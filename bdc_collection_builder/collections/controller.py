@@ -124,7 +124,7 @@ class RadcorRestartController(Resource):
     def get(self):
         """Restart Task.
 
-        curl localhost:5000/api/radcor/restart?ids=13
+        curl "localhost:5000/api/radcor/restart?ids=13,17&action=start"
         """
         # Limit request query string to 4KB on GET
         if len(request.query_string) > 4096:

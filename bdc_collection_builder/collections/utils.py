@@ -31,6 +31,7 @@ from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
+from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
 
 

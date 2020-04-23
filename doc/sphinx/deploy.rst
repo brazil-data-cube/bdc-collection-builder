@@ -5,4 +5,4 @@
     under the terms of the MIT License; see LICENSE file for more details.
 
 
-.. include:: ../../RUNNING.rst
+.. include:: ../../DEPLOY.rst

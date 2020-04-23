@@ -59,12 +59,12 @@ BAND_MAP_DN = {
 }
 
 BAND_MAP_NBAR = {
-    'blue': 'sr_band2_NBAR',
-    'green': 'sr_band3_NBAR',
-    'red': 'sr_band4_NBAR',
-    'nir': 'sr_band5_NBAR',
-    'swir1': 'sr_band6_NBAR',
-    'swir2': 'sr_band7_NBAR',
+    'blue': 'sr_band2',
+    'green': 'sr_band3',
+    'red': 'sr_band4',
+    'nir': 'sr_band5',
+    'swir1': 'sr_band6',
+    'swir2': 'sr_band7',
     'quality': 'pixel_qa'
 }
 

@@ -133,7 +133,7 @@ def bandpassHLS_1_4(img, band, satsen):
         elif (band == 'B04'): #Red
             slope = 0.9765
             offset = 0.0009
-        elif (band == 'B8A'): # Narrow Nir
+        elif (band == 'B08' or band == 'B8A'): # Narrow Nir
             slope = 0.9983
             offset = -0.0001
         elif (band == 'B11'): #Swir 1
@@ -157,7 +157,7 @@ def bandpassHLS_1_4(img, band, satsen):
         elif (band == 'B04'): #Red
             slope = 0.9761
             offset = 0.001
-        elif (band == 'B8A'): # Narrow Nir
+        elif (band == 'B08' or band == 'B8A'): # Narrow Nir
             slope = 0.9966
             offset = 0.000
         elif (band == 'B11'): #Swir 1
@@ -218,9 +218,9 @@ def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, par
 
     for b in bands:
         logging.debug('Harmonization band {}'.format(b))
-        r = re.compile('.*_{}.*tif$'.format(b))
+        r = re.compile('.*_{}.*tif$|.*_{}.*jp2$'.format(b,b))
         input_file = list(filter(r.match, imgs))[0]
-        output_file = out_dir + '/' + input_file[0:-4] + '_NBAR.tif'
+        output_file = out_dir + '/' + input_file[0:-4] + '.tif'
 
         logging.debug('Reading input data ...')
         with rasterio.open(img_dir + '/' + input_file) as dataset:

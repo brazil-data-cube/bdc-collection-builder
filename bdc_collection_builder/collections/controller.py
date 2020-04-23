@@ -10,16 +10,13 @@
 
 
 # 3rdparty
+from bdc_core.decorators.auth import require_oauth_scopes
 from flask import request
 from flask_restplus import Namespace, Resource
-from werkzeug.exceptions import BadRequest, NotFound, RequestURITooLarge
-from bdc_core.decorators.auth import require_oauth_scopes
-from bdc_db.models.collection import Collection
-import requests
+from werkzeug.exceptions import BadRequest, RequestURITooLarge
 # Builder
-from bdc_collection_builder.celery.utils import list_pending_tasks, list_running_tasks
+from ..celery.utils import list_pending_tasks, list_running_tasks
 from .forms import RadcorActivityForm
-from .models import RadcorActivity
 from .business import RadcorBusiness
 
 
@@ -118,13 +115,13 @@ class RadcorRestartController(Resource):
             activities=activities
         )
 
-        return activities
-
     @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
         """Restart Task.
 
-        curl localhost:5000/api/radcor/restart?ids=13
+        The request is limited to 4Kb.
+
+        curl "localhost:5000/api/radcor/restart?ids=13,17&action=start"
         """
         # Limit request query string to 4KB on GET
         if len(request.query_string) > 4096:

@@ -20,17 +20,17 @@ import logging
 # 3rdparty
 import boto3
 import numpy
+import rasterio
 import requests
-import gdal
 from bdc_db.models import AssetMV, Collection, db
 from botocore.exceptions import ClientError
 from celery import chain, current_task, group
 from landsatxplore.api import API
+from osgeo import gdal
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
-from ..db import db_aws, commit
 from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
 
@@ -77,25 +77,30 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
-        # We are assuming that collection either TOA or DN
+        # We are assuming that collection TOA
         collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
 
         if collection_sr is None:
             raise RuntimeError('The collection "S2SR_SEN28" not found')
 
         # Raw chain represents TOA publish chain
-        raw_data_chain = sentinel_tasks.publish_sentinel.s()
+        publish_raw_data_chain = sentinel_tasks.publish_sentinel.s()
+        # Atm Correction chain
+        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
+        # Publish ATM Correction
+        upload_chain = sentinel_tasks.upload_sentinel.s()
 
-        atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
-            sentinel_tasks.upload_sentinel.s()
+        inner_group = upload_chain
 
-        task_chain = sentinel_tasks.download_sentinel.s(activity) | \
-            group([
-                # Publish raw data
-                raw_data_chain,
-                # ATM Correction
-                atm_chain
-            ])
+        if activity['args'].get('harmonize'):
+            # Harmonization chain
+            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | sentinel_tasks.publish_sentinel.s() | \
+                        sentinel_tasks.upload_sentinel.s()
+            inner_group = group(upload_chain, harmonize_chain)
+
+        inner_group = atm_corr_publish_chain | inner_group
+        outer_group = group(publish_raw_data_chain, inner_group)
+        task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \
@@ -109,6 +114,10 @@ def dispatch(activity: dict):
             tasks.append(sentinel_tasks.upload_sentinel.s())
 
         return chain(*tasks).apply_async()
+    elif app == 'harmonizeS2':
+        task_chain = sentinel_tasks.harmonization_sentinel.s(activity) | sentinel_tasks.publish_sentinel.s() | \
+                    sentinel_tasks.upload_sentinel.s()
+        return chain(task_chain).apply_async()
     elif app == 'uploadS2':
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
@@ -142,7 +151,7 @@ def dispatch(activity: dict):
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
         # Atm Correction chain
-        atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
+        atm_corr_chain = landsat_tasks.atm_correction_landsat.s(activity)
         # Publish ATM Correction
         publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
 
@@ -157,12 +166,12 @@ def dispatch(activity: dict):
 
         task_chain = atm_corr_chain | inner_group
         return chain(task_chain).apply_async()
-    elif app == 'harmonizationLC8':
-        task_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
-                    landsat_tasks.upload_landsat.s()
-        return chain(task_chain).apply_async()
     elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
+    elif app == 'harmonizeLC8':
+        task_chain = landsat_tasks.harmonization_landsat.s(activity) | landsat_tasks.publish_landsat.s() | \
+                    landsat_tasks.upload_landsat.s()
         return chain(task_chain).apply_async()
     elif app == 'uploadLC8':
         return landsat_tasks.upload_landsat.s(activity).apply_async()
@@ -373,10 +382,10 @@ def load_img(img_path):
     try:
         with rasterio.open(img_path) as dataset:
             img = dataset.read(1).flatten()
+        return img
     except:
         logging.error('Cannot find {}'.format(img_path))
-
-    return img
+        raise RuntimeError('Cannot find {}'.format(img_path))
 
 
 def extractall(file):
@@ -443,8 +452,8 @@ def generate_cogs(input_data_set_path, file_path):
     return file_path
 
 
-def is_valid(file):
-    """Check tar gz is valid."""
+def is_valid_compressed(file):
+    """Check tar gz or zip is valid."""
     try:
         archive = ZipFile(file, 'r')
         try:
@@ -456,6 +465,24 @@ def is_valid(file):
         corrupt = True
 
     return not corrupt
+
+
+def extract_and_get_internal_name(zip_file_name):
+    """Extract zipfile and return internal folder path."""
+    # Check if file is valid
+    valid = is_valid_compressed(zip_file_name)
+
+    if not valid:
+        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+    else:
+        extractall(zip_file_name)
+
+        # Get extracted zip folder name
+        with ZipFile(zip_file_name) as zipObj:
+            listOfiles = zipObj.namelist()
+            extracted_file_path = listOfiles[0]
+
+        return extracted_file_path
 
 
 def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):

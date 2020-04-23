@@ -404,3 +404,13 @@ def upload_sentinel(scene):
         scene (dict): Radcor Activity with "uploadS2" app context
     """
     upload_sentinel.upload(scene)
+
+
+@celery_app.task(base=SentinelTask, queue='harmonization')
+def harmonization_sentinel(scene):
+    """Represent a celery task definition for harmonizing Sentinel2.
+    This celery tasks listen only for queues 'harmonizeS2'.
+    Args:
+        scene (dict): Radcor Activity with "harmonizeS2" app context
+    """
+    return harmonization_sentinel.harmonize(scene)

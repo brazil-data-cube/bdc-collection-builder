@@ -24,15 +24,15 @@ import rasterio
 import requests
 from bdc_db.models import AssetMV, Collection, db
 from botocore.exceptions import ClientError
-from celery import chain, current_task, group
+from celery import chain, group
 from landsatxplore.api import API
 from osgeo import gdal
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
-from .models import RadcorActivityHistory
 from .sentinel.clients import sentinel_clients
+
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
     """Get or create Brazil Data Cube model.

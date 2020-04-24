@@ -17,8 +17,9 @@ Documentation
    :caption: Contents:
 
    installation
-   api
+   config
    deploy
+   api
    license
 
 

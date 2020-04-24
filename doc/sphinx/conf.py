@@ -75,4 +75,4 @@ html_static_path = []
 
 
 def setup(app):
-    app.add_stylesheet('bdc_collection_builder.min.css')
+    app.add_css_file('bdc_collection_builder.min.css')

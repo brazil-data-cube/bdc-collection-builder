@@ -13,7 +13,7 @@ Changes
 Version 0.2.0
 -------------
 
-Released 2020-03-09
+Released 2020-04-24
 
 - First experimental version.
 - Metadata ingestion of Image Collections.
@@ -30,4 +30,4 @@ Released 2020-03-09
 - Installation and deploy instructions.
 - Schema versioning through Flask-Migrate.
 - Source code versioning based on `Semantic Versioning 2.0.0 <https://semver.org/>`_.
-- License: `MIT <https://raw.githubusercontent.com/brazil-data-cube/bdc-collection-builder/b-0.2/LICENSE>`_.
+- License: `MIT <https://raw.githubusercontent.com/brazil-data-cube/bdc-collection-builder/v0.2.0/LICENSE>`_.

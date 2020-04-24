@@ -53,13 +53,43 @@ Install in development mode:
 
 .. note::
 
-    If you have problems during the GDAL package installation, please, make sure to have the GDAL library installed in your system with its command tools installed. You can check the GDAL version with: ``gdal-config --version``.
+    If you have problems during the GDAL Python package installation, please, make sure to have the GDAL library support installed in your system with its command line tools.
+
+
+    You can check the GDAL version with:
+
+    .. code-block:: shell
+
+        $ gdal-config --version
+
+
+    Then, if you want to install a specific version (example: 2.4.2), try:
+
+    .. code-block:: shell
+
+        $ pip install "gdal==2.4.2"
+
+
+    If you still having problems with GDAL installation, you can generate a log in order to check what is happening with your installation. Use the following pip command:
+
+    .. code-block:: shell
+
+        $ pip install --verbose --log my.log "gdal==2.4.2"
+
+
+    For more information, please, see [#f1]_ e [#f2]_.
 
 
 .. note::
 
-    If you have problems during the ``librabbitmq`` install with ``autoreconf``, please, install the ``autoconf`` build system. In Debian based systems (Ubuntu), you can install ``autoconf`` with: ``sudo apt install autoconf``.
+    If you have problems during the ``librabbitmq`` install with ``autoreconf``, please, install the ``autoconf`` build system. In Debian based systems (Ubuntu), you can install ``autoconf`` with:
 
+    .. code-block:: shell
+
+        $ sudo apt install autoconf
+
+
+    For more information, please, see [#f3]_.
 
 
 Generate the documentation:
@@ -93,7 +123,7 @@ Let's take a look at each parameter in the above command:
 
     - ``up``: tells docker-compose to launch the containers.
 
-    - ``-d``: tells docker-compose that containers will run in detach mode (as deamon).
+    - ``-d``: tells docker-compose that containers will run in detach mode (as a deamon).
 
     - ``redis``: the name of a service in the ``docker-compose.yml`` file with all information to prepare a Redis container.
 
@@ -110,6 +140,21 @@ Let's take a look at each parameter in the above command:
 .. note::
 
     If you have a PostgreSQL DBMS you can ommit the ``postgres`` service in the above command.
+
+
+.. note::
+
+    After launching the containers, check if they are up and running:
+
+    .. code-block:: shell
+
+        $ docker container ls
+
+        CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS              PORTS                                                                                        NAMES
+        8c94877e7017        rabbitmq:3-management   "docker-entrypoint.s…"   34 seconds ago      Up 26 seconds       4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, 15671/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp   bdc-collection-builder-rabbitmq
+        acc51ff02295        mdillon/postgis         "docker-entrypoint.s…"   34 seconds ago      Up 24 seconds       0.0.0.0:5432->5432/tcp                                                                       bdc-collection-builder-pg
+        84bae6370fbb        redis                   "docker-entrypoint.s…"   34 seconds ago      Up 27 seconds       0.0.0.0:6379->6379/tcp                                                                       bdc-collection-builder-redis
+
 
 
 Prepare the Database System
@@ -148,3 +193,110 @@ Once the database is updated, we have prepared a command utility on Brazil Data 
 
         SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
         bdc-db fixtures init
+
+
+.. rubric:: Footnotes
+
+.. [#f1]
+
+    During GDAL installation, if you have a build message such as the one showed below:
+
+    .. code-block:: shell
+
+        Skipping optional fixer: ws_comma
+        running build_ext
+        building 'osgeo._gdal' extension
+        creating build/temp.linux-x86_64-3.7
+        creating build/temp.linux-x86_64-3.7/extensions
+        x86_64-linux-gnu-gcc -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -g -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -fPIC -I../../port -I../../gcore -I../../alg -I../../ogr/ -I../../ogr/ogrsf_frmts -I../../gnm -I../../apps -I/home/gribeiro/Devel/github/brazil-data-cube/wtss/venv/include -I/usr/include/python3.7m -I. -I/usr/include -c extensions/gdal_wrap.cpp -o build/temp.linux-x86_64-3.7/extensions/gdal_wrap.o
+        extensions/gdal_wrap.cpp:3168:10: fatal error: cpl_port.h: No such file or directory
+         #include "cpl_port.h"
+                  ^~~~~~~~~~~~
+        compilation terminated.
+        error: command 'x86_64-linux-gnu-gcc' failed with exit status 1
+        Running setup.py install for gdal ... error
+        Cleaning up...
+
+    You can instruct ``pip`` to look at the right place for header files when building GDAL:
+
+    .. code-block:: shell
+
+        $ C_INCLUDE_PATH="/usr/include/gdal" \
+          CPLUS_INCLUDE_PATH="/usr/include/gdal" \
+          pip install "gdal==2.4.2"
+
+
+.. [#f2]
+
+    On Linux Ubuntu 18.04 LTS you can install GDAL 2.4.2 from the UbuntuGIS repository:
+
+    1. Create a file named ``/etc/apt/sources.list.d/ubuntugis-ubuntu-ppa-bionic.list`` and add the following content:
+
+    .. code-block:: shell
+
+        deb http://ppa.launchpad.net/ubuntugis/ppa/ubuntu bionic main
+        deb-src http://ppa.launchpad.net/ubuntugis/ppa/ubuntu bionic main
+
+
+    2. Then add the following key:
+
+    .. code-block:: shell
+
+        $ sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B827C12C2D425E227EDCA75089EBE08314DF160
+
+
+    3. Then, update your repository index:
+
+    .. code-block:: shell
+
+        $ sudo apt-get update
+
+
+    4. Finally, install GDAL:
+
+    .. code-block:: shell
+
+        $ sudo apt-get install libgdal-dev=2.4.2+dfsg-1~bionic0
+
+
+.. [#f3]
+
+    During ``librabbitmq`` installation, if you have a build message such as the one showed below:
+
+    .. code-block::
+
+        ...
+        Running setup.py install for SQLAlchemy-Utils ... done
+        Running setup.py install for bdc-db ... done
+        Running setup.py install for librabbitmq ... error
+        ERROR: Command errored out with exit status 1:
+         command: /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/bin/python3.7 -u -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"'; __file__='"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' install --record /tmp/pip-record-m9lm5kjn/install-record.txt --single-version-externally-managed --compile --install-headers /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/include/site/python3.7/librabbitmq
+             cwd: /tmp/pip-install-1i7mp5js/librabbitmq/
+        Complete output (107 lines):
+        /tmp/pip-install-1i7mp5js/librabbitmq/setup.py:167: DeprecationWarning: 'U' mode is deprecated
+          long_description = open(os.path.join(BASE_PATH, 'README.rst'), 'U').read()
+        running build
+        - pull submodule rabbitmq-c...
+        Cloning into 'rabbitmq-c'...
+        Note: checking out 'caad0ef1533783729c7644a226c989c79b4c497b'.
+
+        You are in 'detached HEAD' state. You can look around, make experimental
+        changes and commit them, and you can discard any commits you make in this
+        state without impacting any branches by performing another checkout.
+
+        If you want to create a new branch to retain commits you create, you may
+        do so (now or later) by using -b with the checkout command again. Example:
+
+          git checkout -b <new-branch-name>
+
+        - autoreconf
+        sh: 1: autoreconf: not found
+        - configure rabbitmq-c...
+        /bin/sh: 0: Can't open configure
+
+
+    You will need to install ``autoconf``:
+
+    .. code-block:: shell
+
+        $ sudo apt install autoconf

@@ -9,31 +9,6 @@
 Deploying
 =========
 
-Setting up Sentinel
--------------------
-
-Account Creation
-~~~~~~~~~~~~~~~~
-
-
-
-
-
-
-
-
-
-Setting up Landsat
-------------------
-
-Account Creation
-~~~~~~~~~~~~~~~~
-
-
-
-
-
-
 Docker Installation
 -------------------
 

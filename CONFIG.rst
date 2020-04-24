@@ -19,7 +19,7 @@ Copernicus (Sentinel 2A and 2B)
 
 In order to search and obtain images from Copernicus SciHub (e.g. Sentinel-2A and 2B images), users must have a registered account at: `<https://scihub.copernicus.eu/dhus/#/self-registration>`_ and confirm validation through email. This account may take a few days to be operational when using it in scripts.
 
-The credentials should be inserted into ``secrets.json`` file as showned below:
+The credentials should be inserted into ``secrets.json`` file as showed below:
 
 .. code-block:: shell
 
@@ -101,12 +101,14 @@ Sen2Cor
 
 Download *ESACCIC-LC for Sen2cor data package* auxiliary files from `<http://maps.elie.ucl.ac.be/CCI/viewer/download.php>`_.
 
-
 Create a directory named ``/gfs/ds_data`` and extract the Sen2cor Auxiliary Data to the following directory.
 
 .. code-block:: shell
 
         sudo mdkir -p /gfs/ds_data
+        cd /gfs/ds_data
+        sudo wget ftp://geo10.elie.ucl.ac.be/v207/ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
+        sudo unzip ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
 
 
 The extracted files should be similar to:
@@ -133,18 +135,26 @@ The extracted files should be similar to:
     ``sen2cor`` in the file ``docker-compose.yml``.
 
 
-LasRC
-+++++
+LaSRC 1.3.0
++++++++++++
 
 Create a *auxiliaries* directory containing two folders: *L8* and *land_water_polygon*
 
 .. code-block:: shell
 
         sudo mkdir -p /gfs/ds_data/auxiliaries/{L8,land_water_polygon}
+        cd /gfs/ds_data/auxiliaries
 
 
 Download the static land/water polygon from `<http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz>`_
 into the *land_water_polygon* folder (for more details check `<https://github.com/USGS-EROS/espa-product-formatter>`_)
+
+.. code-block:: shell
+
+        cd /gfs/ds_data/auxiliaries/land_water_polygon
+        wget http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz
+        gunzip land_no_buf.ply.gz
+
 
 The folder ``land_water_polygon`` should be similar to:
 
@@ -157,14 +167,29 @@ The folder ``land_water_polygon`` should be similar to:
         -rw-rw-rw- 1 user user 171M Nov 26  2018 land_no_buf.ply
 
 
-    Download the `<https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/>`_ into *L8*.
+Download the `<https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/>`_ into *L8*.
+
+.. code-block:: shell
+
+        cd /gfs/ds_data/auxiliaries/L8
+        wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/CMGDEM.hdf
+        wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/ratiomapndwiexp.hdf
+
+
+You have to download the folders ``LDCMLUT`` and ``LADS``:
+
+.. code-block:: shell
+
+        wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LDCMLUT/
+        wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LADS/
+
 
 .. note::
 
     The LADS folder can contain only data from dates which are going to be processed, instead of all the files.
 
 
-The folder ``L8`` should be similar to:
+After that, the folder ``L8`` should be similar to:
 
 .. code-block:: shell
 
@@ -173,8 +198,6 @@ The folder ``L8`` should be similar to:
         drwxrwxrwx  4 user user 4.0K Mar 19 03:41 .
         drwxrwxrwx  4 user user 4.0K Mar 19 03:41 ..
         -rw-rw-rw-  1 user user 124M Nov 26  2018 CMGDEM.hdf
-        -rw-rw-rw-  1 user user 4.0K Nov 26  2018 ._.DS_Store
-        -rw-rw-rw-  1 user user 8.1K Jul 15  2019 .DS_Store
         drwxrwxrwx 10 user user 4.0K Mar 19 03:41 LADS
         drwxrwxrwx  2 user user 4.0K Mar 19 04:45 LDCMLUT
         -rw-rw-rw-  1 user user 1.5G Nov 26  2018 ratiomapndwiexp.hdf

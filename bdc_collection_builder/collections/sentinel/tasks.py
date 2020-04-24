@@ -24,7 +24,7 @@ from ...celery.cache import lock_handler
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import extract_and_get_internal_name, is_valid_compressed, upload_file
+from ..utils import extract_and_get_internal_name, refresh_assets_view, is_valid_compressed, upload_file
 from .clients import sentinel_clients
 from .download import download_sentinel_images, download_sentinel_from_creodias
 from .harmonization import sentinel_harmonize
@@ -116,6 +116,8 @@ class SentinelTask(RadcorTask):
                 collection_item.cloud_cover = cloud
 
             try:
+                valid = True
+
                 if os.path.exists(zip_file_name):
                     logging.debug('zip file exists')
                     valid = is_valid_compressed(zip_file_name)
@@ -244,6 +246,9 @@ class SentinelTask(RadcorTask):
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
         scene['args']['assets'] = assets
+
+        if scene.get('collection_id') == 'S2SR_SEN28':
+            refresh_assets_view()
 
         logging.debug('Done Publish Sentinel.')
 
@@ -404,9 +409,7 @@ def upload_sentinel(scene):
 @celery_app.task(base=SentinelTask, queue='harmonization')
 def harmonization_sentinel(scene):
     """Represent a celery task definition for harmonizing Sentinel2.
-
     This celery tasks listen only for queues 'harmonizeS2'.
-
     Args:
         scene (dict): Radcor Activity with "harmonizeS2" app context
     """

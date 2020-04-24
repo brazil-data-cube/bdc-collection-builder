@@ -17,24 +17,21 @@ from zipfile import BadZipfile, ZipFile
 import datetime
 import json
 import logging
-
-#BDC DB
-from bdc_db.models import Collection, db
-
 # 3rdparty
-from botocore.exceptions import ClientError
-from celery import chain, current_task, group
-from landsatxplore.api import API
-from osgeo import gdal
-from skimage.transform import resize
 import boto3
 import numpy
 import rasterio
 import requests
-
+from bdc_db.models import AssetMV, Collection, db
+from botocore.exceptions import ClientError
+from celery import chain, group
+from landsatxplore.api import API
+from osgeo import gdal
+from skimage.transform import resize
+from sqlalchemy_utils import refresh_materialized_view
 # Builder
 from ..config import CURRENT_DIR, Config
-from .models import RadcorActivityHistory
+from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
 
 
@@ -96,7 +93,7 @@ def dispatch(activity: dict):
 
         inner_group = upload_chain
 
-        if activity['args']['harmonize']:
+        if activity['args'].get('harmonize'):
             # Harmonization chain
             harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | sentinel_tasks.publish_sentinel.s() | \
                         sentinel_tasks.upload_sentinel.s()
@@ -155,7 +152,7 @@ def dispatch(activity: dict):
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
         # Atm Correction chain
-        atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
+        atm_corr_chain = landsat_tasks.atm_correction_landsat.s(activity)
         # Publish ATM Correction
         publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
 
@@ -573,3 +570,19 @@ def remove_file(file_path: str):
     """
     if resource_path.exists(file_path):
         resource_remove(file_path)
+
+
+def refresh_assets_view(refresh_on_aws=True):
+    """Update the Brazil Data Cube Assets View."""
+    if not Config.ENABLE_REFRESH_VIEW:
+        logging.info('Skipping refresh view.')
+        return
+
+    refresh_materialized_view(db.session, AssetMV.__table__)
+    commit(db)
+
+    if refresh_on_aws:
+        refresh_materialized_view(db_aws.session, AssetMV.__table__)
+        commit(db)
+
+    logging.info('View refreshed.')

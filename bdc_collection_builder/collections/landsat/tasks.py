@@ -28,7 +28,7 @@ from ...celery import celery_app
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import upload_file
+from ..utils import refresh_assets_view, remove_file, upload_file
 from .download import download_landsat_images, download_from_aws
 from .harmonization import landsat_harmonize
 from .publish import publish
@@ -94,12 +94,15 @@ class LandsatTask(RadcorTask):
                 file = str(digital_number_file)
 
             if not valid:
+                # Ensure file is removed since it may be corrupted
+                remove_file(str(digital_number_file))
+
                 # Flag to prefer download from AWS instead USGS
                 use_aws = activity_args.get('use_aws', False)
 
                 if strtobool(str(use_aws)):
                     try:
-                        logging.info('Download Lansat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
+                        logging.info('Download Landsat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
                         digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
                             scene['collection_id'],
                             yyyymm,
@@ -111,11 +114,11 @@ class LandsatTask(RadcorTask):
                     except BaseException:
                         logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
                         # Ensure file is removed since it may be corrupted
-                        os.remove(str(digital_number_file))
+                        remove_file(str(digital_number_file))
 
                 # When file does not exist, use USGS
                 if not digital_number_file.exists():
-                    logging.info('Download Lansat {} from USGS...'.format(scene_id))
+                    logging.info('Download Landsat {} from USGS...'.format(scene_id))
                     file = download_landsat_images(activity_args['link'], productdir)
                     activity_args['provider'] = activity_args['link']
             else:
@@ -174,6 +177,9 @@ class LandsatTask(RadcorTask):
 
         scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
+
+        if scene.get('collection_id') == 'LC8SR':
+            refresh_assets_view()
 
         return scene
 

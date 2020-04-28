@@ -99,7 +99,7 @@ Setting up Auxiliary Data for Surface Reflectance Processors
 Sen2Cor
 +++++++
 
-Download *ESACCIC-LC for Sen2cor data package* auxiliary files from `<http://maps.elie.ucl.ac.be/CCI/viewer/download.php>`_.
+Download **ESACCIC-LC for Sen2cor data package** (``ESACCI-LC-L4-ALL-FOR-SEN2COR.zip``) auxiliary files from `<http://maps.elie.ucl.ac.be/CCI/viewer/download.php>`_.
 
 Create a directory named ``/gfs/ds_data`` and extract the Sen2cor Auxiliary Data to the following directory.
 
@@ -109,6 +109,12 @@ Create a directory named ``/gfs/ds_data`` and extract the Sen2cor Auxiliary Data
         cd /gfs/ds_data
         sudo wget ftp://geo10.elie.ucl.ac.be/v207/ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
         sudo unzip ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
+        sudo wget https://storage.googleapis.com/cci-lc-v207/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.zip
+        sudo unzip ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.zip
+        sudo mv product/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif CCI4SEN2COR/
+        cd CCI4SEN2COR
+        sudo wget ftp://geo10.elie.ucl.ac.be/CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.tif
+
 
 
 The extracted files should be similar to:
@@ -119,14 +125,10 @@ The extracted files should be similar to:
         total 7.2G
         drwxrwxrwx 2 user user 4.0K Jan 14 13:41 .
         drwxrwxrwx 5 user user 4.0K Feb 28 08:15 ..
-        -rwxrwxrwx 1 user user 4.0K Nov 23  2018 ._ESACCI-LC-L4-ALL-FOR-SEN2COR.tar
         -rwxrwxrwx 1 user user 6.0G Nov 23  2018 ESACCI-LC-L4-ALL-FOR-SEN2COR.tar
         -rw-r--r-- 1 user user 299M Dec 20  2017 ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif
-        -rwxrwxrwx 1 user user 4.0K Nov 23  2018 ._ESACCI-LC-L4-LCCS-WB-FOR-SEN2COR.tar
         -rwxrwxrwx 1 user user 595M Nov 23  2018 ESACCI-LC-L4-LCCS-WB-FOR-SEN2COR.tar
         -rw-r--r-- 1 user user 297M Dec 20  2017 ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.tif
-        -rw-rw-r-- 1 user user 2.6M Nov 22 16:57 GlobalSnowMap.tar.gz
-        -rw-rw-r-- 1 user user  25M Nov 22 16:58 GlobalSnowMap.tiff
 
 
 .. note::
@@ -138,7 +140,7 @@ The extracted files should be similar to:
 LaSRC 1.3.0
 +++++++++++
 
-Create a *auxiliaries* directory containing two folders: *L8* and *land_water_polygon*
+Create a *auxiliaries* directory containing two folders: *L8* and *land_water_polygon*:
 
 .. code-block:: shell
 
@@ -152,8 +154,8 @@ into the *land_water_polygon* folder (for more details check `<https://github.co
 .. code-block:: shell
 
         cd /gfs/ds_data/auxiliaries/land_water_polygon
-        wget http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz
-        gunzip land_no_buf.ply.gz
+        sudo wget http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz
+        sudo gunzip land_no_buf.ply.gz
 
 
 The folder ``land_water_polygon`` should be similar to:

@@ -35,21 +35,21 @@ Clone the software repository:
 
 .. code-block:: shell
 
-        $ git clone https://github.com/brazil-data-cube/bdc-collection-builder.git
+    $ git clone https://github.com/brazil-data-cube/bdc-collection-builder.git
 
 
 Go to the source code folder:
 
 .. code-block:: shell
 
-        $ cd bdc-collection-builder
+    $ cd bdc-collection-builder
 
 
 Install in development mode:
 
 .. code-block:: shell
 
-        $ pip3 install -e .[all]
+    $ pip3 install -e .[all]
 
 .. note::
 
@@ -96,7 +96,7 @@ Generate the documentation:
 
 .. code-block:: shell
 
-        $ python setup.py build_sphinx
+    $ python setup.py build_sphinx
 
 
 The above command will generate the documentation in HTML and it will place it under:
@@ -109,14 +109,14 @@ The above command will generate the documentation in HTML and it will place it u
 Running in Development Mode
 ---------------------------
 
-Launch Redis and RabbitMQ Containers
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Launch Redis, RabbitMQ and PostgreSQL Containers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``docker-compose`` command can be used to launch the Redis and RabbitMQ containers:
 
 .. code-block:: shell
 
-        $ docker-compose up -d redis mq postgres
+    $ docker-compose up -d redis mq postgres
 
 
 Let's take a look at each parameter in the above command:
@@ -170,20 +170,20 @@ The following steps will show how to prepare the data model:
 
 .. code-block:: shell
 
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db create-db
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-collection-builder db create-db
 
 
 **2.** After that, run Flask-Migrate command to prepare the Collection Builder data model:
 
 .. code-block:: shell
 
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db upgrade
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-collection-builder db upgrade
 
 
 Loading Demo Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Load default fixtures of Brazil Data Cube data model:
 
@@ -191,8 +191,84 @@ Once the database is updated, we have prepared a command utility on Brazil Data 
 
 .. code-block:: shell
 
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-db fixtures init
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-db fixtures init
+
+
+Launching Sen2Cor and LaSRC 1.3.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Before launching Sen2Cor and LaSRC processors, please, read the `CONFIG.rst <./CONFIG.rst>`_ documentation and make sure you have the right layout of auxiliary data in your filesystem.
+
+
+If you have all the auxiliary data, use ``docker-compose`` to launch the surface reflectance processors as Docker containers:
+
+.. code-block:: shell
+
+    docker-compose up -d sen2cor espa-science
+
+
+Then, check if all containers are up and running:
+
+.. code-block:: shell
+
+    $ docker container ls
+
+    CONTAINER ID   IMAGE                                   COMMAND                  CREATED              STATUS              PORTS                                                                                        NAMES
+    7af90085acd4   registry.dpi.inpe.br/rc_espa-science    "/entrypoint.sh pyth…"   About a minute ago   Up About a minute   0.0.0.0:5032->5032/tcp                                                                       bdc-collection-builder-espa-science
+    ab58e9f6a7a3   registry.dpi.inpe.br/rc_sen2cor:2.8.0   "python rc_sen2cor.py"   About a minute ago   Up About a minute   0.0.0.0:5031->5031/tcp, 9764/tcp                                                             bdc-collection-builder-sen2cor
+    8c94877e7017   rabbitmq:3-management                   "docker-entrypoint.s…"   4 days ago           Up 23 hours         4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, 15671/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp   bdc-collection-builder-rabbitmq
+    acc51ff02295   mdillon/postgis                         "docker-entrypoint.s…"   4 days ago           Up 23 hours         0.0.0.0:5432->5432/tcp                                                                       bdc-collection-builder-pg
+    84bae6370fbb   redis                                   "docker-entrypoint.s…"   4 days ago           Up 23 hours         0.0.0.0:6379->6379/tcp                                                                       bdc-collection-builder-redis
+
+
+Launching Collection Builder Workers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Worker for downloading data:
+
+.. code-block:: shell
+
+    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      REDIS_URL="redis://localhost:6379" \
+      RABBIT_MQ_URL="pyamqp://guest@localhost" \
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
+
+
+Worker for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8):
+.. code-block:: shell
+
+    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      REDIS_URL="redis://localhost:6379" \
+      RABBIT_MQ_URL="pyamqp://guest@localhost" \
+      ESPA_URL="http://localhost:5032" \
+      SEN2COR_URL="http://localhost:5031" \
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q atm-correction
+
+
+
+Launching Collection Builder
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: shell
+
+    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      REDIS_URL="redis://localhost:6379" \
+      RABBIT_MQ_URL="pyamqp://guest@localhost" \
+      bdc-collection-builder run
+
+
+Using the Collection Builder
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Please, refer to the document `USING.rst <./USING.rst>`_ for information on how to use the collection builder to download and generate surface reflectance data products.
+
 
 
 .. rubric:: Footnotes

@@ -86,7 +86,7 @@ Restart a task
 
 In order to restart a failed task in Collection Builder, you must get the activity identifier (``id``) on the table ``collection_builder.activities``.
 
-For example, if you need to restart a Sentinel 2 download task which sceneid is ``S2A_MSIL1C_20200110T132231_N0208_R038_T23LLF_20200110T145523`` you use the following commands:
+For example, if you need to restart a Sentinel 2 download task which sceneid is ``S2A_MSIL1C_20200110T132231_N0208_R038_T23LLF_20200110T145523``, use the following commands:
 
 Connect to database in docker:
 

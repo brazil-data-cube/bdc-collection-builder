@@ -34,6 +34,15 @@ BDC Collection Builder
 About
 =====
 
+BDC Collection Builder is a Python package for local server and AWS S3 bucket ingestion of satellite imagery, which contemplates:
+
+- ``Download`` of Landsat-8/OLI and Sentinel-2A/B/MSI Level-1 products, from several image providers (USGS, Copernicus Sci-hub, ONDA, CREODIAS, AWS).
+
+- ``Atmospheric correction`` processing of Level-1 products to generate surface reflectance (Level-2 products) through LaSRC and Sen2cor.
+
+- ``Vegetation index calculation`` (NDVI and EVI) for both Level-1 and Level-2 products.
+
+- ``Metadata publishing`` of Level-1 and Level-2 products on local or AWS database.
 
 
 Installation

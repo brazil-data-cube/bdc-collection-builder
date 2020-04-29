@@ -9,14 +9,14 @@
 Using Collection Builder
 ========================
 
-This section explains how to use the Collection Builder application to collect data from Sentinel and Landsat providers, and how to ....
+This section explains how to use the Collection Builder application to collect data from Sentinel and Landsat providers, how to use the surface reflectance processors, and how to publish the data sets.
 
 
 If you have not read yet how to install or deploy the system, please refer to `INSTALL.rst <./INSTALL.rst>`_ or `DEPLOY.rst <./DEPLOY.rst>`_ documentation.
 
 
-Dispatch Sentinel
------------------
+Collecting Sentinel 2A and 2B L1C Images
+----------------------------------------
 
 You can download a Sentinel 2 scene using the following example:
 
@@ -35,7 +35,8 @@ You can download a Sentinel 2 scene using the following example:
             }' \
             localhost:5000/api/radcor/
 
-Output:
+
+The output of the above request can be seen below:
 
 .. code-block:: js
 
@@ -58,6 +59,11 @@ Output:
     }
 
 
+.. note::
+
+    The parameter ``"action": "start"`` can be replaced by ``"action": "preview"`` in order to perform just a query in the provider. This option will not download the data but will show the found scenes in the provider.
+
+
 You can check the status download container:
 
 .. code-block:: shell
@@ -69,15 +75,24 @@ You can check the status download container:
     [2020-04-28 09:45:17,598: INFO/ForkPoolWorker-2] Downloading image https://scihub.copernicus.eu/apihub/odata/v1/Products('9e16c509-06d5-4387-81e6-8d4f08f2ad72')/$value in /home/gribeiro/data/bdc-collection-builder/Repository/Archive/S2_MSI/2020-01/S2A_MSIL1C_20200110T132231_N0208_R038_T23LLF_20200110T145523.zip, user AtomicUser(bdc020, released=False), size 813 MB
 
 
-Dispatch Landsat-8
-------------------
+Collecting Landsat-8 Level 1 Images
+-----------------------------------
 
 You can download a Landsat-8 scene using the following example:
 
 .. code-block:: shell
 
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-01-01", "end": "2019-01-16", "cloud": 90, "action": "start"}' \
+            --data '{
+                "w": -46.40,
+                "s": -13.1,
+                "n": -13,
+                "e": -46.3,
+                "satsen": "LC8",
+                "start": "2020-01-01", "end": "2020-01-20",
+                "cloud": 90,
+                "action": "preview"
+            }' \
             localhost:5000/api/radcor/
 
 
@@ -101,6 +116,13 @@ Use the following command to search by activity type ``downloadS2`` and sceneid 
     SELECT id, activity_type, collection_id, sceneid FROM collection_builder.activities
      WHERE activity_type = 'downloadS2'
        AND sceneid = 'S2A_MSIL1C_20200110T132231_N0208_R038_T23LLF_20200110T145523'
+
+
+    SELECT id, activity_type, collection_id, sceneid FROM collection_builder.activities
+     WHERE activity_type = 'publishS2'
+       AND sceneid = 'S2A_MSIL1C_20200110T132231_N0208_R038_T23LLF_20200110T145523'
+
+
 
 After that, use the ``id`` to restart a collection builder activity:
 

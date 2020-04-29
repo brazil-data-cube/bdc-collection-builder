@@ -250,6 +250,16 @@ Worker for surface reflection generation (L2A processor based on Sen2Cor or LaSR
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q atm-correction
 
 
+Worker for publishing the generated surface reflection data products:
+.. code-block:: shell
+
+    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+      REDIS_URL="redis://localhost:6379" \
+      RABBIT_MQ_URL="pyamqp://guest@localhost" \
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q publish
+
 
 Launching Collection Builder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

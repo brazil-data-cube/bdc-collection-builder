@@ -167,3 +167,6 @@ __pycache__/
 
 # Local
 volumes/
+
+# Sen2Cor
+sen2cor/root_280/sen2cor/2.8/log

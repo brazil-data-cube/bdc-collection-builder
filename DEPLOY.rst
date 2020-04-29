@@ -9,25 +9,25 @@
 Deploying
 =========
 
-Docker Installation
--------------------
-
-.. note::
-
-    Since docker will map the services to the default system
-    ports on localhost, make sure you are not running PostgreSQL,
-    Redis or RabbitMQ on those ports in your system.
-
-
-Use the following command to up local PostgreSQL + PostGIS, Redis and RabbitMQ instances:
-
-.. code-block:: shell
-
-        docker-compose up -d postgres mq redis
-
 
 Configuration
 -------------
+
+
+secrets.json
+~~~~~~~~~~~~
+
+Please, refer to the section "Setting up the Credentials for EO Data Providers" in the `CONFIG.rst <./CONFIG.rst>`_ documentation.
+
+
+Auxiliary Data for Atmospheric Correction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Please, refer to the section "Setting up Auxiliary Data for Surface Reflectance Processors" in the `CONFIG.rst <./CONFIG.rst>`_ documentation.
+
+
+docker-compose.yml
+~~~~~~~~~~~~~~~~~~
 
 Open and edit **docker-compose.yml** with the following variables:
 
@@ -51,89 +51,38 @@ The following variables consists in integration with AWS:
     related with surface reflectance products (SR): ``publish`` and ``upload``
 
 
-Creating the Brazil Data Cube Data Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Running the Docker Containers
+-----------------------------
 
-**1.** Create a PostgreSQL database and enable the PostGIS extension:
+.. note::
 
-.. code-block:: shell
-
-        # Local
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db create-db
-        # URI DB AWS
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
-        bdc-collection-builder db create-db
+    If you do not have a PostgreSQL instance with the Brazil Data Cube data model up and running, you will need to prepare one before following the rest of this documentation.
 
 
-**2.** After that, run Flask-Migrate command to prepare the Brazil Data Cube Collection Builder data model:
+    In order to launch a PostgreSQL container, you can rely on the docker-compose service file. The following command will start a new container with PostgreSQL:
 
-.. code-block:: shell
+    .. code-block:: shell
 
-        # Local
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db upgrade
-        # URI DB AWS
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
-        bdc-collection-builder db upgrade
-
-**3.** Once database is updated, we have prepared command utility on Brazil Data Cube Database module:
-
-.. code-block:: shell
-
-        # Local
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-db fixtures init
-        # URI DB AWS
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc_aws \
-        bdc-db fixtures init
+        $ docker-compose up -d postgres
 
 
-Updating an Existing Data Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: shell
-
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db upgrade
+    After launching the container, please, refer to the section "Prepare the Database System" in the `INSTALL.rst <./INSTALL.rst>`_ documentation. This will guide you in the preparation of the PostgreSQL setup.
 
 
-Updating the Migration Scripts
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. note::
 
-.. code-block:: shell
-
-        SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-        bdc-collection-builder db migrate
+    Since docker will map the services to the default system
+    ports on localhost, make sure you are not running PostgreSQL,
+    Redis or RabbitMQ on those ports in your system.
 
 
-
-HTTP Server and Workers
------------------------
-
-
-Once everything configured properly, use the following command to start HTTP server:
+Once everything is properly configured, use the following command to start all the services:
 
 .. code-block:: shell
 
         docker-compose up -d
 
 
-Dispatch Sentinel
-~~~~~~~~~~~~~~~~~
+.. note::
 
-.. code-block:: shell
-
-        curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05", "cloud": 90, "action": "start"}' \
-            localhost:5000/api/radcor/
-
-Dispatch Landsat-8
-~~~~~~~~~~~~~~~~~~
-
-
-.. code-block:: shell
-
-        curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-01-01", "end": "2019-01-16", "cloud": 90, "action": "start"}' \
-            localhost:5000/api/radcor/
+    Refer to the `USING.rst <./USING.rst>`_ documentation in order to use the collection builder services.

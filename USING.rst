@@ -59,9 +59,9 @@ The output of the above request can be seen below:
     }
 
 
-.. note::
+.. .. note::
 
-    The parameter ``"action": "start"`` can be replaced by ``"action": "preview"`` in order to perform just a query in the provider. This option will not download the data but will show the found scenes in the provider.
+..    The parameter ``"action": "start"`` can be replaced by ``"action": "preview"`` in order to perform just a query in the provider. This option will not download the data but will show the found scenes in the provider.
 
 
 You can check the status download container:
@@ -84,16 +84,42 @@ You can download a Landsat-8 scene using the following example:
 
         curl -XPOST -H "Content-Type: application/json" \
             --data '{
-                "w": -46.40,
-                "s": -13.1,
-                "n": -13,
-                "e": -46.3,
+                "w": -47.600,
+                "s": -13.109,
+                "e": -47.252,
+                "n": -12.910,
                 "satsen": "LC8",
-                "start": "2020-01-01", "end": "2020-01-20",
+                "start": "2020-01-01", "end": "2020-02-28",
                 "cloud": 90,
-                "action": "preview"
+                "action": "start"
             }' \
             localhost:5000/api/radcor/
+
+
+Output:
+
+.. code-block:: shell
+
+    {
+        "notile-2020-01-01-2020-02-28": {
+            "LC08_L1TP_221069_20200223_20200313_01_T1": {
+                "sceneid": "LC08_L1TP_221069_20200223_20200313_01_T1",
+                "scene_id": "LC82210692020054LGN00",
+                "cloud": 56,
+                "date": "2020-02-23",
+                "wlon": -48.33171,
+                "slat": -14.06716,
+                "elon": -46.21973,
+                "nlat": -11.95925,
+                "path": "221",
+                "row": "069",
+                "resolution": 30,
+                "link": "https://earthexplorer.usgs.gov/download/12864/LC82210692020054LGN00/STANDARD/EE",
+                "icon": "https://landsat-pds.s3.amazonaws.com/c1/L8/221/069/LC08_L1TP_221069_20200223_20200313_01_T1/LC08_L1TP_221069_20200223_20200313_01_T1_thumb_large.jpg"
+            }
+        },
+        "Results": 1
+    }
 
 
 Restart a task
@@ -134,4 +160,4 @@ After that, use the ``id`` to restart a collection builder activity:
 .. note::
 
     If activity does not exists on database, you must dispatch a execution as mentioned in
-    section `Dispatch Sentinel`_ and `Dispatch Landsat-8`_.
+    section `Collecting Sentinel 2A and 2B L1C Images`_ and `Collecting Landsat-8 Level 1 Images`_.

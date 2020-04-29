@@ -13,7 +13,7 @@ Changes
 Version 0.2.0
 -------------
 
-Released 2020-04-24
+Released 2020-04-29
 
 - First experimental version.
 - Metadata ingestion of Image Collections.

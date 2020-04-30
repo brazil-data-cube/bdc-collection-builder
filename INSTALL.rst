@@ -225,7 +225,7 @@ Then, check if all containers are up and running:
 Launching Collection Builder Workers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Worker for downloading data:
+**1.** In order to launch the worker responsible for downloading data, run the following ``Celery`` command:
 
 .. code-block:: shell
 
@@ -237,7 +237,44 @@ Worker for downloading data:
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
 
 
-Worker for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8):
+As soon as the worker is launched, it will present a message like:
+
+.. code-block:: shell
+
+     -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
+    --- ***** -----
+    -- ******* ---- Linux-5.3.0-46-generic-x86_64-with-Ubuntu-18.04-bionic 2020-04-30 08:51:18
+    - *** --- * ---
+    - ** ---------- [config]
+    - ** ---------- .> app:         bdc_collection_builder:0x7fa166e9a490
+    - ** ---------- .> transport:   amqp://guest:**@localhost:5672//
+    - ** ---------- .> results:     postgresql://postgres:**@localhost:5432/bdc
+    - *** --- * --- .> concurrency: 4 (prefork)
+    -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+    --- ***** -----
+     -------------- [queues]
+                    .> download         exchange=download(direct) key=download
+
+
+    [tasks]
+      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
+      . bdc_collection_builder.collections.landsat.tasks.download_landsat
+      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
+      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
+      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
+      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+
+    [2020-04-30 08:51:18,737: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
+    [2020-04-30 08:51:18,746: INFO/MainProcess] mingle: searching for neighbors
+    [2020-04-30 08:51:20,040: INFO/MainProcess] mingle: all alone
+    [2020-04-30 08:51:20,075: INFO/MainProcess] celery@enghaw-dell-note ready.
+
+
+
+**2.** To launch the worker responsible for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8), use the following ``Celery`` command:
+
 .. code-block:: shell
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
@@ -250,7 +287,50 @@ Worker for surface reflection generation (L2A processor based on Sen2Cor or LaSR
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q atm-correction
 
 
-Worker for publishing the generated surface reflection data products:
+As soon as the worker is launched, it will present a message like:
+
+.. code-block:: shell
+
+     -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
+    --- ***** -----
+    -- ******* ---- Linux-5.3.0-46-generic-x86_64-with-Ubuntu-18.04-bionic 2020-04-30 08:53:57
+    - *** --- * ---
+    - ** ---------- [config]
+    - ** ---------- .> app:         bdc_collection_builder:0x7ff25bff5390
+    - ** ---------- .> transport:   amqp://guest:**@localhost:5672//
+    - ** ---------- .> results:     postgresql://postgres:**@localhost:5432/bdc
+    - *** --- * --- .> concurrency: 4 (prefork)
+    -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+    --- ***** -----
+     -------------- [queues]
+                    .> atm-correction   exchange=atm-correction(direct) key=atm-correction
+
+
+    [tasks]
+      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
+      . bdc_collection_builder.collections.landsat.tasks.download_landsat
+      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
+      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
+      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
+      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+
+    [2020-04-30 08:53:57,977: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
+    [2020-04-30 08:53:58,055: INFO/MainProcess] mingle: searching for neighbors
+    [2020-04-30 08:53:59,389: INFO/MainProcess] mingle: all alone
+    [2020-04-30 08:53:59,455: WARNING/MainProcess] /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/lib/python3.7/site-packages/kombu/pidbox.py:74: UserWarning: A node named celery@enghaw-dell-note is already using this process mailbox!
+
+    Maybe you forgot to shutdown the other node or did not do so properly?
+    Or if you meant to start multiple nodes on the same host please make sure
+    you give each node a unique node name!
+
+      warnings.warn(W_PIDBOX_IN_USE.format(node=self))
+    [2020-04-30 08:53:59,457: INFO/MainProcess] celery@enghaw-dell-note ready.
+
+
+**3.** To launch the worker responsible for publishing the generated surface reflection data products, use the following ``Celery`` command:
+
 .. code-block:: shell
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
@@ -261,8 +341,52 @@ Worker for publishing the generated surface reflection data products:
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q publish
 
 
+As soon as the worker is launched, it will present a message like:
+
+.. code-block:: shell
+
+     -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
+    --- ***** -----
+    -- ******* ---- Linux-5.3.0-46-generic-x86_64-with-Ubuntu-18.04-bionic 2020-04-30 08:54:19
+    - *** --- * ---
+    - ** ---------- [config]
+    - ** ---------- .> app:         bdc_collection_builder:0x7f52d876e3d0
+    - ** ---------- .> transport:   amqp://guest:**@localhost:5672//
+    - ** ---------- .> results:     postgresql://postgres:**@localhost:5432/bdc
+    - *** --- * --- .> concurrency: 4 (prefork)
+    -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+    --- ***** -----
+     -------------- [queues]
+                    .> publish          exchange=publish(direct) key=publish
+
+
+    [tasks]
+      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
+      . bdc_collection_builder.collections.landsat.tasks.download_landsat
+      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
+      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
+      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
+      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
+      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+
+    [2020-04-30 08:54:19,361: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
+    [2020-04-30 08:54:19,400: INFO/MainProcess] mingle: searching for neighbors
+    [2020-04-30 08:54:20,504: INFO/MainProcess] mingle: all alone
+    [2020-04-30 08:54:20,595: WARNING/MainProcess] /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/lib/python3.7/site-packages/kombu/pidbox.py:74: UserWarning: A node named celery@enghaw-dell-note is already using this process mailbox!
+
+    Maybe you forgot to shutdown the other node or did not do so properly?
+    Or if you meant to start multiple nodes on the same host please make sure
+    you give each node a unique node name!
+
+      warnings.warn(W_PIDBOX_IN_USE.format(node=self))
+    [2020-04-30 08:54:20,602: INFO/MainProcess] celery@enghaw-dell-note ready.
+
+
 Launching Collection Builder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To launch the ``Flask`` application responsible for orchestrating the collection builder components, use the following command:
 
 .. code-block:: shell
 
@@ -272,6 +396,18 @@ Launching Collection Builder
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       bdc-collection-builder run
+
+
+As soon as the ``Flask`` application is up and running, it will present a message like:
+
+.. code-block:: shell
+
+     * Environment: production
+       WARNING: This is a development server. Do not use it in a production deployment.
+       Use a production WSGI server instead.
+     * Debug mode: off
+     * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+
 
 
 Using the Collection Builder

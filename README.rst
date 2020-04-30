@@ -11,11 +11,11 @@ BDC Collection Builder
 ======================
 
 .. image:: https://img.shields.io/badge/license-MIT-green
-        :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/master/LICENSE
+        :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/v0.2.0/LICENSE
         :alt: Software License
 
-.. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=latest
-        :target: https://bdc-collection-builder.readthedocs.io/en/latest/
+.. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=b-0.2
+        :target: https://bdc-collection-builder.readthedocs.io/en/b-0.2/
         :alt: Documentation Status
 
 .. image:: https://img.shields.io/badge/lifecycle-experimental-orange.svg
@@ -60,7 +60,7 @@ See `DEPLOY.rst <./DEPLOY.rst>`_.
 Developer Documentation
 =======================
 
-See https://bdc-collection-builder.readthedocs.io/en/latest.
+See https://bdc-collection-builder.readthedocs.io/en/b-0.2.
 
 
 License

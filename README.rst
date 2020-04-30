@@ -26,7 +26,7 @@ BDC Collection Builder
         :target: https://github.com/brazil-data-cube/bdc-collection-builder/releases
         :alt: Release
 
-.. image:: https://badges.gitter.im/brazil-data-cube/community.png
+.. image:: https://badges.gitter.im/brazil-data-cube/community.svg/
         :target: https://gitter.im/brazil-data-cube/community#
         :alt: Join the chat
 

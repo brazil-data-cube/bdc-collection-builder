@@ -32,6 +32,7 @@ from ..utils import refresh_assets_view, remove_file, upload_file
 from .download import download_landsat_images, download_from_aws
 from .harmonization import landsat_harmonize
 from .publish import publish
+from .utils import factory
 
 
 def is_valid_tar_gz(file_path: str):
@@ -71,15 +72,17 @@ class LandsatTask(RadcorTask):
 
         try:
             scene_id = scene['sceneid']
-            yyyymm = self.get_tile_date(scene_id).strftime('%Y-%m')
+            # Get Landsat collection handler
+            landsat_scene = factory.get_from_sceneid(scene_id, level=1)
+
             activity_args = scene.get('args', {})
 
             collection_item = self.get_collection_item(activity_history.activity)
 
             # Output product dir
-            productdir = os.path.join(activity_args.get('file'), '{}/{}'.format(yyyymm, self.get_tile_id(scene_id)))
+            productdir = Config.DATA_DIR / landsat_scene.path()
 
-            os.makedirs(productdir, exist_ok=True)
+            productdir.mkdir(parents=True, exist_ok=True)
 
             digital_number_file = Path(productdir) / '{}.tar.gz'.format(scene_id)
 

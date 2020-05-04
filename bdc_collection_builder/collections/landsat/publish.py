@@ -27,6 +27,7 @@ from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.collections.forms import CollectionItemForm
 from bdc_collection_builder.collections.utils import get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
+from .utils import factory
 
 
 # Get the product files
@@ -145,17 +146,21 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         scene - Current Activity
     """
     identifier = scene.sceneid
-    cc = identifier.split('_')
-    pathrow = cc[2]
-    date = cc[3]
-    yyyymm = '{}-{}'.format(date[0:4], date[4:6])
+
+    # Get collection level to publish. Default is l1
+    collection_level = scene.args.get('level') or 1
+
+    landsat_scene = factory.get_from_sceneid(identifier, level=collection_level)
+
+    pathrow = landsat_scene.tile_id()
+    yyyymm = landsat_scene.sensing_date().strftime('%Y-%m')
 
     productdir = scene.args.get('file')
 
     logging.warning('Publish {} - {} (id={})'.format(scene.collection_id, productdir, scene.id))
 
     if productdir and productdir.endswith('.gz'):
-        target_dir = Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}'.format(collection_item.collection_id, yyyymm, pathrow)
+        target_dir = Path(Config.DATA_DIR) / landsat_scene.path()
         makedirs(target_dir, exist_ok=True)
 
         productdir = uncompress(productdir, str(target_dir))
@@ -177,6 +182,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         template = productdir+'/LC08_*_{}_{}_*_{}.*'.format(pathrow, date, band)
         fs = glob.glob(template)
 
+        fs = landsat_scene.get_files(Config.DATA_DIR)
+
         if not fs:
             continue
 
@@ -186,10 +193,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 if gband in quicklook:
                     qlfiles[gband] = f
 
-    # Skip EVI/NDVI generation for Surface Reflectance
-    # since the espa-science already done
-    if collection.id == 'LC8DN' or collection.id == 'LC8NBAR':
-        generate_vi(productdir, files)
+    # Generate Vegetation Index files
+    generate_vi(productdir, files)
 
     # Apply valid range and Cog files
     for band, file_path in files.items():
@@ -248,7 +253,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         engine = engine_instance[instance]
 
         # Skip catalog on aws for digital number
-        if collection_item.collection_id == 'LC8DN' and instance == 'aws':
+        if landsat_scene.level == 1 and instance == 'aws':
             continue
 
         if instance == 'aws':

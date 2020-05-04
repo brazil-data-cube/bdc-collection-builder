@@ -150,20 +150,6 @@ class Landsat5SR(LandsatProduct):
     level = 2
 
 
-class Landsat4DN(LandsatProduct):
-    """Landsat 4 Digital Number."""
-
-    id = 'L4DN'
-    level = 1
-
-
-class Landsat4SR(LandsatProduct):
-    """Landsat 4 Surface Reflectance."""
-
-    id = 'L4SR'
-    level = 2
-
-
 class LandsatFactory:
     """Define a factory to identify a Landsat product based on scene identifier."""
 
@@ -177,8 +163,6 @@ class LandsatFactory:
 
     def register(self):
         """Initialize factory object."""
-        self._map['l1'][Landsat4DN.id] = Landsat4DN
-        self._map['l2'][Landsat4SR.id] = Landsat4SR
         self._map['l1'][Landsat5DN.id] = Landsat5DN
         self._map['l2'][Landsat5SR.id] = Landsat5SR
         self._map['l1'][Landsat7DN.id] = Landsat7DN

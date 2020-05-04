@@ -221,9 +221,12 @@ class LandsatTask(RadcorTask):
         Args:
             scene - Serialized Activity
         """
-        scene['collection_id'] = 'LC8SR'
         scene['activity_type'] = 'correctionLC8'
         scene_id = scene['sceneid']
+
+        # Get Resolver for Landsat scene level 2
+        landsat_scene = factory.get_from_sceneid(scene_id, level=2)
+        scene['collection_id'] = landsat_scene.id
 
         # Create/Update activity
         execution = self.create_execution(scene)
@@ -235,10 +238,13 @@ class LandsatTask(RadcorTask):
                 file=scene['args']['file']
             )
 
-            pathrow = self.get_tile_id(scene_id)
-            tile_date = self.get_tile_date(scene_id)
-            yyyymm = tile_date.strftime('%Y-%m')
-            date = tile_date.strftime('%Y%m%d')
+            pathrow = landsat_scene.tile_id()
+
+            sensing_date = landsat_scene.sensing_date
+
+            yyyymm = sensing_date().strftime('%Y-%m')
+
+            date = sensing_date.strftime('%Y%m%d')
 
             params['pathrow'] = pathrow
 
@@ -253,7 +259,7 @@ class LandsatTask(RadcorTask):
                 raise RuntimeError('Error in espa-science execution - {}'.format(scene_id))
 
             # Product dir
-            productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(scene['collection_id'], yyyymm, pathrow))
+            productdir = Config.DATA_DIR / landsat_scene.path()
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
 
@@ -268,6 +274,7 @@ class LandsatTask(RadcorTask):
             raise e
 
         scene['activity_type'] = 'publishLC8'
+        scene['args']['level'] = landsat_scene.level
 
         return scene
 

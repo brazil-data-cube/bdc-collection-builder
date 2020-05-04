@@ -166,12 +166,24 @@ class LandsatDigitalNumber07(LandsatProduct):
     id = 'L7DN'
     level = 1
 
+    def get_band_map(self) -> dict:
+        return dict(
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6',
+            swir2='B7', panchromatic='B8', quality='BQA'
+        )
+
 
 class LandsatSurfaceReflectance07(LandsatProduct):
     """Landsat 7 Surface Reflectance."""
 
     id = 'L7SR'
     level = 2
+
+    def get_band_map(self) -> dict:
+        return dict(
+            blue='sr_band1', green='sr_band2', red='sr_band3', nir='sr_band4', swir1='sr_band5',
+            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='pixel_qa'
+        )
 
 
 class LandsatDigitalNumber05(LandsatProduct):
@@ -182,7 +194,7 @@ class LandsatDigitalNumber05(LandsatProduct):
 
     def get_band_map(self) -> dict:
         return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', thermal='B6', swir2='B7',
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6', swir2='B7',
             quality='BQA'
         )
 

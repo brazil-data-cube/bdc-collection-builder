@@ -10,13 +10,13 @@
 
 
 # Python Native
+import datetime
+import json
+import logging
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
 from zlib import error as zlib_error
 from zipfile import BadZipfile, ZipFile
-import datetime
-import json
-import logging
 # 3rdparty
 import boto3
 import numpy
@@ -26,6 +26,7 @@ from bdc_db.models import AssetMV, Collection, db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
+from landsatxplore.earthexplorer import EE_DOWNLOAD_URL, EE_FOLDER
 from osgeo import gdal
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
@@ -207,20 +208,25 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
     return poly.ExportToWkt(),poly
 
 
-def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit):
+def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
     """List landsat scenes from USGS."""
     credentials = get_credentials()['landsat']
 
     api = API(credentials['username'], credentials['password'])
 
+    landsat_folder_id = EE_FOLDER.get(formal_name)
+
+    if landsat_folder_id is None:
+        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EE_FOLDER.keys()))
+
     # Request
     scenes_result = api.search(
-        dataset='LANDSAT_8_C1',
+        dataset=formal_name,
         bbox=(slat, wlon, nlat, elon),
         start_date=startdate,
         end_date=enddate,
         max_cloud_cover=cloud or 100,
-        max_results=10000
+        max_results=50000
     )
 
     scenes_output = {}
@@ -241,7 +247,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
         copy_scene['slat'] = float(ymin)
         copy_scene['elon'] = float(xmax)
         copy_scene['nlat'] = float(ymax)
-        copy_scene['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scene['entityId'])
+        copy_scene['link'] = EE_DOWNLOAD_URL.format(folder=landsat_folder_id, sid=scene['entityId'])
 
         pathrow = scene['displayId'].split('_')[2]
 

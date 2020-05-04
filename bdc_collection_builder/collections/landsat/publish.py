@@ -12,16 +12,15 @@
 from os import makedirs, path as resource_path
 from pathlib import Path
 from shutil import unpack_archive
-import glob
 import logging
 # 3rdparty
-from gdal import GA_ReadOnly, GA_Update, GetDriverByName, Open as GDALOpen
+from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
 from numpngw import write_png
 from skimage import exposure
 from skimage.transform import resize
 import numpy
 # Builder
-from bdc_db.models import Asset, Band, Collection, CollectionItem, CollectionTile, db
+from bdc_db.models import Asset, Band, Collection, CollectionItem, db
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
 from bdc_collection_builder.collections.forms import CollectionItemForm
@@ -74,7 +73,7 @@ DEFAULT_QUICK_LOOK_BANDS = ["swir2", "nir", "red"]
 
 def generate_vi(productdir, files):
     """Prepare and generate Vegetation Index of Landsat Products."""
-    fragments = Path(files['red']).stem.split('_')
+    fragments = Path(str(files['red'])).stem.split('_')
     pattern = "_".join(fragments[:-1])
 
     ndvi_name = resource_path.join(productdir, pattern[:-1] + '_ndvi.tif')
@@ -82,7 +81,7 @@ def generate_vi(productdir, files):
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
-    generate_evi_ndvi(files['red'], files['nir'], files['blue'], evi_name, ndvi_name)
+    generate_evi_ndvi(str(files['red']), str(files['nir']), str(files['blue']), evi_name, ndvi_name)
 
     if not is_valid_tif(ndvi_name) or not is_valid_tif(evi_name):
         raise RuntimeError('Not Valid Vegetation index file')
@@ -152,9 +151,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     landsat_scene = factory.get_from_sceneid(identifier, level=collection_level)
 
-    pathrow = landsat_scene.tile_id()
-    yyyymm = landsat_scene.sensing_date().strftime('%Y-%m')
-
     productdir = scene.args.get('file')
 
     logging.warning('Publish {} - {} (id={})'.format(scene.collection_id, productdir, scene.id))
@@ -171,40 +167,34 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     files = {}
     qlfiles = {}
 
-    if collection.id == 'LC8DN':
-        bands = BAND_MAP_DN
-    elif collection.id == 'LC8NBAR':
-        bands = BAND_MAP_NBAR
-    else:
-        bands = BAND_MAP_SR
+    bands = landsat_scene.get_band_map()
 
     for gband, band in bands.items():
-        template = productdir+'/LC08_*_{}_{}_*_{}.*'.format(pathrow, date, band)
-        fs = glob.glob(template)
-
-        fs = landsat_scene.get_files(Config.DATA_DIR)
+        fs = landsat_scene.get_files()
 
         if not fs:
             continue
 
         for f in fs:
-            if f.lower().endswith('.tif'):
+            if f.name.endswith('{}.tif'.format(band)):
                 files[gband] = f
                 if gband in quicklook:
-                    qlfiles[gband] = f
+                    qlfiles[gband] = str(f)
 
     # Generate Vegetation Index files
     generate_vi(productdir, files)
 
     # Apply valid range and Cog files
     for band, file_path in files.items():
-        if collection.id == 'LC8SR':
-            _ = apply_valid_range(file_path, file_path)
-        # Set destination of COG file
-        files[band] = generate_cogs(file_path, file_path)
-        if not is_valid_tif(file_path):
-            raise RuntimeError('Not Valid {}'.format(file_path))
+        tif_file = str(file_path)
 
+        if landsat_scene.level == 2:
+            _ = apply_valid_range(tif_file, tif_file)
+
+        # Set destination of COG file
+        files[band] = generate_cogs(tif_file, tif_file)
+        if not is_valid_tif(tif_file):
+            raise RuntimeError('Not Valid {}'.format(tif_file))
 
     # Extract basic scene information and build the quicklook
     pngname = productdir+'/{}.png'.format(identifier)
@@ -278,7 +268,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
                 collection_item.quicklook = pngname
 
-                collection_bands = engine.session.query(Band).filter(Band.collection_id == collection_item.collection_id).all()
+                collection_bands = engine.session.query(Band)\
+                    .filter(Band.collection_id == collection_item.collection_id)\
+                    .all()
 
                 # Inserting data into Product table
                 for band in files:
@@ -298,7 +290,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
                     defaults = dict(
                         url=template,
-                        source=cc[0],
+                        source=landsat_scene.source(),
                         raster_size_x=dataset.RasterXSize,
                         raster_size_y=dataset.RasterYSize,
                         raster_size_t=1,
@@ -324,7 +316,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                     # Add into scope of local and remote database
                     add_instance(engine, asset)
 
-            # Persist database
+        # Persist database
         commit(engine)
 
     return assets_to_upload

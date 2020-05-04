@@ -23,11 +23,12 @@ from bdc_db.models import db, Collection, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import db_aws
 from .forms import SimpleActivityForm
+from .landsat.utils import factory as landsat_factory
 from .models import RadcorActivity, RadcorActivityHistory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
 # Consts
-CLOUD_DEFAULT = 90
+CLOUD_DEFAULT = 100
 DESTINATION_DIR = Config.DATA_DIR
 
 
@@ -128,7 +129,7 @@ class RadcorBusiness:
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
-        args['satsen'] = args['satsen'].split(',') if 'satsen' in args else ['S2']
+        args['satsen'] = args['satsen']
         args['start'] = args.get('start')
         args['end'] = args.get('end')
 
@@ -150,27 +151,27 @@ class RadcorBusiness:
 
         extra_args = args.get('args', dict())
 
+        activities = []
+
         scenes = {}
-        if 'LC8' in sat or 'LC8SR' in sat:
-            # result = developmentSeed(w,n,e,s,rstart,rend,cloud,limit)
-            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, limit)
+        if 'landsat' in sat.lower():
+            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
             scenes.update(result)
             for id in result:
                 scene = result[id]
                 sceneid = scene['sceneid']
-                # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
-                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
+
+                landsat_scene_level_1 = landsat_factory.get_from_sceneid(sceneid)
+                landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
 
                 activity = dict(
-                    collection_id='LC8DN',
+                    collection_id=landsat_scene_level_1.id,
                     activity_type='downloadLC8',
                     tags=args.get('tags', []),
                     sceneid=sceneid,
                     scene_type='SCENE',
                     args=dict(
                         link=scene['link'],
-                        file=base_dir,
-                        satellite='LC8',
                         cloud=scene.get('cloud'),
                         harmonize=do_harmonization
                     )
@@ -183,15 +184,16 @@ class RadcorBusiness:
                 scene['status'] = 'NOTDONE'
 
                 tile = '{}{}'.format(scene['path'], scene['row'])
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
+                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_1.id, engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db_aws)
                 if do_harmonization:
-                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
-                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
+                    landsat_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
 
-                if action == 'start':
-                    cls.start(activity, **extra_args)
+                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db)
+                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db_aws)
+
+                activities.append(activity)
 
         if 'S2' in sat or 'S2SR_SEN28' in sat:
             result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
@@ -201,10 +203,8 @@ class RadcorBusiness:
                 sceneid = scene['sceneid']
                 # Check if this scene is already in Repository as Level 2A
                 cc = sceneid.split('_')
-                yyyymm = cc[2][:4]+'-'+cc[2][4:6]
                 # Output product dir
                 base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/S2_MSI')
-                productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
 
                 activity = dict(
                     collection_id='S2TOA',
@@ -236,8 +236,11 @@ class RadcorBusiness:
 
                 scenes[id] = scene
 
-                if action == 'start':
-                    cls.start(activity, **extra_args)
+                activities.append(activity)
+
+        if action == 'start':
+            for activity in activities:
+                cls.start(activity, **extra_args)
 
         return scenes
 

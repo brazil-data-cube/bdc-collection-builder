@@ -12,7 +12,6 @@
 import logging
 import subprocess
 from datetime import datetime
-from distutils.util import strtobool
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
@@ -26,6 +25,7 @@ from ...db import db_aws
 from ..base_task import RadcorTask
 from ..utils import refresh_assets_view, remove_file, upload_file
 from .download import download_landsat_images, download_from_aws
+from .google import download_from_google
 from .harmonization import landsat_harmonize
 from .publish import publish
 from .utils import LandsatProduct, factory
@@ -96,23 +96,14 @@ class LandsatTask(RadcorTask):
                 # Ensure file is removed since it may be corrupted
                 remove_file(str(digital_number_file))
 
-                # Flag to prefer download from AWS instead USGS
-                use_aws = activity_args.get('use_aws', False)
-
-                if strtobool(str(use_aws)):
-                    try:
-                        logging.info('Download Landsat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
-                        digital_number_dir = landsat_scene.path()
-
-                        file, provider_url = download_from_aws(scene_id, digital_number_dir, productdir)
-                        activity_args['provider'] = provider_url
-                    except BaseException:
-                        logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
-                        # Ensure file is removed since it may be corrupted
-                        remove_file(str(digital_number_file))
-
-                # When file does not exist, use USGS
-                if not digital_number_file.exists():
+                try:
+                    # Download from google
+                    logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
+                        scene_id, digital_number_file.exists(), valid)
+                    )
+                    file, link = download_from_google(scene_id, str(productdir))
+                    activity_args['provider'] = link
+                except BaseException:
                     logging.info('Download Landsat {} from USGS...'.format(scene_id))
                     file = download_landsat_images(activity_args['link'], productdir)
                     activity_args['provider'] = activity_args['link']
@@ -243,7 +234,11 @@ class LandsatTask(RadcorTask):
             output_path.mkdir(exist_ok=True, parents=True)
 
             compressed_file = tarfile.open(scene['args']['file'])
-            compressed_file.extractall(landsat_scene_level_1.path())
+
+            input_dir = landsat_scene_level_1.compressed_file().parent
+
+            # Extracting to temp directory
+            compressed_file.extractall(landsat_scene_level_1.compressed_file().parent)
 
             auxiliares_folder = '/data/ds_data/ledaps:/mnt/ledaps-aux:ro'
 
@@ -256,8 +251,8 @@ class LandsatTask(RadcorTask):
                         -v {}:/mnt/input-dir:rw \
                         -v {}:/mnt/output-dir:rw \
                         -v {} \
-                        -t lasrc-ledaps-fmask:0.1.0 {}'''.format(landsat_scene_level_1.path(),
-                                                                 output_path, auxiliares_folder, scene_id)
+                        -t lasrc-ledaps-fmask:latest {}'''.format(input_dir, output_path,
+                                                                  auxiliares_folder, scene_id)
 
             logging.warning('cmd {}'.format(cmd))
 
@@ -271,6 +266,10 @@ class LandsatTask(RadcorTask):
             productdir = landsat_scene.path()
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
+
+            # Remove extracted files
+            for f in landsat_scene_level_1.compressed_file_bands():
+                f.unlink()
 
             if not LandsatTask.espa_done(landsat_scene):
                 raise RuntimeError('Error in atmospheric correction')

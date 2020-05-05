@@ -9,8 +9,11 @@
 """Define the Collection Builder utilities for Landsat data products."""
 
 import logging
+import tarfile
 from datetime import datetime
 from pathlib import Path
+
+from bdc_core.decorators.utils import working_directory
 
 from ...config import Config
 
@@ -22,6 +25,12 @@ class LandsatProduct:
         """Build a Landsat class."""
         self.scene_id = scene_id
         self._fragments = LandsatProduct.parse_scene_id(scene_id)
+
+    @property
+    def scene_fragments(self):
+        if self._fragments is None:
+            self._fragments = LandsatProduct.parse_scene_id(self.scene_id)
+        return self._fragments
 
     @staticmethod
     def parse_scene_id(scene_id: str):
@@ -105,6 +114,18 @@ class LandsatProduct:
 
         return scene_path / '{}.tar.gz'.format(self.scene_id)
 
+    def compressed_file_bands(self):
+        relative_path = self.compressed_file().parent
+
+        files = [
+            relative_path / '{}_{}.TIF'.format(self.scene_id, band)
+            for band in self.get_band_map().values()
+        ]
+        files.append(relative_path / '{}_ANG.txt'.format(self.scene_id))
+        files.append(relative_path / '{}_MTL.txt'.format(self.scene_id))
+
+        return files
+
     def get_files(self):
         """Try to find of file names from Brazil Data Cube Cluster.
 
@@ -112,7 +133,7 @@ class LandsatProduct:
             The scene must be published in order to retrieve the file list.
 
         Example:
-            >>> scene = LandsatDigitalNumber08('LC08_L1TP_220069_20180618_20180703_01_T1/')
+            >>> scene = LandsatDigitalNumber08('LC08_L1TP_220069_20180618_20180703_01_T1')
             >>> print(str(scene.path()))
             ... ['/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B1.TIF',
             ...  '/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B2.TIF']
@@ -272,3 +293,35 @@ class LandsatFactory:
 
 
 factory = LandsatFactory()
+
+
+def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
+    """Compress the Landsat files to tar.gz.
+
+    Args:
+        scene - Landsat Product
+        data_dir - Path to search for files
+    """
+    try:
+        context_dir = Path(data_dir)
+
+        if not context_dir.exists() or not context_dir.is_dir():
+            raise IOError('Invalid directory to compress Landsat. "{}"'.format(data_dir))
+
+        compressed_file = scene.compressed_file()
+
+        files = scene.compressed_file_bands()
+
+        logging.debug('Compressing {}'.format(compressed_file))
+        # Create compressed file and make available
+        with tarfile.open(compressed_file, 'w:gz') as compressed_file:
+            with working_directory(str(context_dir)):
+                for f in files:
+                    compressed_file.add(f.name)
+
+    except BaseException:
+        logging.error('Could not compress {}.tar.gz'.format(scene.scene_id), exc_info=True)
+
+        raise
+
+    return compressed_file

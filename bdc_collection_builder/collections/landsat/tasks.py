@@ -245,12 +245,19 @@ class LandsatTask(RadcorTask):
             compressed_file = tarfile.open(scene['args']['file'])
             compressed_file.extractall(landsat_scene_level_1.path())
 
+            auxiliares_folder = '/data/ds_data/ledaps:/mnt/ledaps-aux:ro'
+
+            # For landsat 8+
+            if landsat_scene_level_1.satellite() not in ['04', '05', '07']:
+                auxiliares_folder = '/data/ds_data/L8:/mnt/lasrc-aux:ro'
+
             # TODO: Change it to webservice? Or add the ledaps/laSRC as base image of atm-correction worker
             cmd = '''docker run --rm \
                         -v {}:/mnt/input-dir:rw \
                         -v {}:/mnt/output-dir:rw \
-                        -v /data/ds_data/ledaps:/mnt/ledaps-aux:ro \
-                        -t lasrc-ledaps-fmask {}'''.format(landsat_scene_level_1.path(), output_path, scene_id)
+                        -v {} \
+                        -t lasrc-ledaps-fmask:0.1.0 {}'''.format(landsat_scene_level_1.path(),
+                                                                 output_path, auxiliares_folder, scene_id)
 
             logging.warning('cmd {}'.format(cmd))
 

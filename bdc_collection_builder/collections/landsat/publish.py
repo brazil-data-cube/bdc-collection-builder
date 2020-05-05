@@ -76,8 +76,8 @@ def generate_vi(productdir, files):
     fragments = Path(str(files['red'])).stem.split('_')
     pattern = "_".join(fragments[:-1])
 
-    ndvi_name = resource_path.join(productdir, pattern[:-1] + '_ndvi.tif')
-    evi_name = resource_path.join(productdir, pattern[:-1] + '_evi.tif')
+    ndvi_name = resource_path.join(productdir, pattern + '_ndvi.tif')
+    evi_name = resource_path.join(productdir, pattern + '_evi.tif')
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 
@@ -156,7 +156,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     logging.warning('Publish {} - {} (id={})'.format(scene.collection_id, productdir, scene.id))
 
     if productdir and productdir.endswith('.gz'):
-        target_dir = Path(Config.DATA_DIR) / landsat_scene.path()
+        target_dir = landsat_scene.path()
         makedirs(target_dir, exist_ok=True)
 
         productdir = uncompress(productdir, str(target_dir))
@@ -176,7 +176,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             continue
 
         for f in fs:
-            if f.name.endswith('{}.tif'.format(band)):
+            if f.stem.endswith(band) and f.suffix.lower().endswith('.tif'):
                 files[gband] = f
                 if gband in quicklook:
                     qlfiles[gband] = str(f)

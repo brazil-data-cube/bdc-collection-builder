@@ -43,6 +43,12 @@ class LandsatProduct:
         """Retrieve Landsat Collection Level."""
         raise NotImplementedError()
 
+    def satellite(self) -> str:
+        """Retrieve scene satellite."""
+        part = self._fragments[0]
+
+        return part[-2:]
+
     def tile_id(self) -> str:
         """Retrieve Landsat scene Path row."""
         return self._fragments[2]
@@ -62,7 +68,7 @@ class LandsatProduct:
         """Retrieve a formal path for Landsat on Google Provider.
 
         Example:
-            >>> scene = Landsat8DN('LC08_L1GT_044034_20130330_20170310_01_T2')
+            >>> scene = LandsatDigitalNumber08('LC08_L1GT_044034_20130330_20170310_01_T2')
             >>> print(str(scene.google_path()))
             ... 'LC08/01/044/034/LC08_L1GT_044034_20130330_20170310_01_T2'
         """
@@ -79,7 +85,7 @@ class LandsatProduct:
         """Retrieve relative path on Brazil Data Cube cluster.
 
         Example:
-            >>> scene = Landsat8DN('LC08_L1GT_044034_20130330_20170310_01_T2')
+            >>> scene = LandsatDigitalNumber08('LC08_L1GT_044034_20130330_20170310_01_T2')
             >>> print(str(scene.path()))
             ... '/gfs/Repository/Archive/LC8DN/2013-03/044034'
         """
@@ -93,7 +99,7 @@ class LandsatProduct:
         """Retrieve path to the compressed file (L1)."""
         year_month = self.sensing_date().strftime('%Y-%m')
 
-        collection = self.id[:-2]
+        collection = '{}{}'.format(self._fragments[0][:2], int(self._fragments[0][-2:]))
 
         scene_path = Path(Config.DATA_DIR) / 'Repository/Archive' / collection / year_month / self.tile_id()
 
@@ -106,7 +112,7 @@ class LandsatProduct:
             The scene must be published in order to retrieve the file list.
 
         Example:
-            >>> scene = Landsat8DN('LC08_L1TP_220069_20180618_20180703_01_T1/')
+            >>> scene = LandsatDigitalNumber08('LC08_L1TP_220069_20180618_20180703_01_T1/')
             >>> print(str(scene.path()))
             ... ['/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B1.TIF',
             ...  '/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B2.TIF']
@@ -194,8 +200,8 @@ class LandsatDigitalNumber05(LandsatProduct):
 
     def get_band_map(self) -> dict:
         return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6', swir2='B7',
-            quality='BQA'
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5',
+            tirs='B6', swir2='B7', quality='BQA'
         )
 
 

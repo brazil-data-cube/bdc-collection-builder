@@ -8,9 +8,6 @@
 
 """Define global functions used in Collection Builder."""
 
-import logging
-from json import loads as json_parser
-
 
 def initialize_factories():
     """Initialize Brazil Data Cube Collection Builder factories."""

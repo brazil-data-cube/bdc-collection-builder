@@ -10,8 +10,10 @@
 
 # Python Native
 import logging
+import os
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
@@ -233,30 +235,19 @@ class LandsatTask(RadcorTask):
             output_path = landsat_scene.path()
             output_path.mkdir(exist_ok=True, parents=True)
 
-            compressed_file = tarfile.open(scene['args']['file'])
-
             input_dir = landsat_scene_level_1.compressed_file().parent
 
-            # Extracting to temp directory
-            compressed_file.extractall(landsat_scene_level_1.compressed_file().parent)
+            with tarfile.open(scene['args']['file']) as compressed_file:
+                # Extracting to temp directory
+                compressed_file.extractall(landsat_scene_level_1.compressed_file().parent)
 
-            auxiliares_folder = '/data/ds_data/ledaps:/mnt/ledaps-aux:ro'
-
-            # For landsat 8+
-            if landsat_scene_level_1.satellite() not in ['04', '05', '07']:
-                auxiliares_folder = '/data/ds_data/L8:/mnt/lasrc-aux:ro'
-
-            # TODO: Change it to webservice? Or add the ledaps/laSRC as base image of atm-correction worker
-            cmd = '''docker run --rm \
-                        -v {}:/mnt/input-dir:rw \
-                        -v {}:/mnt/output-dir:rw \
-                        -v {} \
-                        -t lasrc-ledaps-fmask:latest {}'''.format(input_dir, output_path,
-                                                                  auxiliares_folder, scene_id)
+            cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(landsat_scene_level_1.scene_id)
 
             logging.warning('cmd {}'.format(cmd))
 
-            subprocess.call(cmd, shell=True)
+            env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_path))
+
+            subprocess.call(cmd, shell=True, env=env)
 
             pathrow = landsat_scene.tile_id()
 

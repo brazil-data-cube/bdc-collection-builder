@@ -275,6 +275,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
                 collection_bands = engine.session.query(Band).filter(Band.collection_id == collection_item.collection_id).all()
 
+                assets_json = dict()
+                assets_json['thumbnail'] = {'href': pngname}
+
                 # Inserting data into Product table
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
@@ -313,12 +316,12 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         collection_item_id=collection_item.id,
                     )
                     asset.url = defaults['url']
-
+                    assets_json[band] = {'href': asset.url}
                     assets_to_upload[band] = dict(file=files[band], asset=asset.url)
 
                     # Add into scope of local and remote database
                     add_instance(engine, asset)
-
+                engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).update({'assets_json': assets_json})
             # Persist database
         commit(engine)
 

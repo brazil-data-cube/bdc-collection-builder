@@ -181,6 +181,8 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         cloned_item = CollectionItem(**cloned_properties)
                         engine.session.add(cloned_item)
 
+                assets_json = dict()
+
                 # Convert original format to COG
                 for sband in bands:
                     # Set destination of COG file
@@ -220,7 +222,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         collection_item_id=collection_item.id,
                     )
                     asset.url = defaults['url']
-
+                    assets_json[sband] = {'href': asset.url}
                     assets_to_upload[sband] = (dict(file=cog_file_path, asset=asset.url))
 
                     del asset_dataset
@@ -229,8 +231,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 pngname = os.path.join(productdir, file_basename + '.png')
                 if not os.path.exists(pngname):
                     create_qlook_file(pngname, files['qlfile'])
-
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(asset_url, os.path.basename(pngname)))
+
+                assets_json['thumbnail'] = {'href': normalized_quicklook_path}
                 assets_to_upload['quicklook'] = dict(asset=normalized_quicklook_path, file=pngname)
 
                 c_item = engine.session.query(CollectionItem).filter(
@@ -239,7 +242,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 if c_item:
                     c_item.quicklook = normalized_quicklook_path
                     add_instance(engine, c_item)
-
+            engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).update({'assets_json': assets_json})
         commit(engine)
 
     return assets_to_upload

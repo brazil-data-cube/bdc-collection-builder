@@ -9,45 +9,23 @@
 """Describe Sentinel 2 publish generation."""
 
 # Python Native
-from datetime import datetime
 from pathlib import Path
 from shutil import copy
-import fnmatch
 import logging
 import os
 # 3rdparty
 import gdal
 import numpy
+from bdc_db.models import db, Asset, Band, CollectionItem
 from numpngw import write_png
 from skimage.transform import resize
 # Builder
-from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.db import add_instance, commit, db_aws
-from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif
-from bdc_collection_builder.collections.models import RadcorActivity
-from .utils import get_jp2_files, get_tif_files
-
-
-BAND_MAP = {
-    'B01': 'coastal',
-    'B02': 'blue',
-    'B03': 'green',
-    'B04': 'red',
-    'B05': 'redge1',
-    'B06': 'redge2',
-    'B07': 'redge3',
-    'B08': 'bnir',
-    'B8A': 'nir',
-    'B09': 'wvap',
-    'B10': 'cirrus',
-    'B11': 'swir1',
-    'B12': 'swir2',
-    'SCL': 'quality'
-}
-
-SENTINEL_BANDS = BAND_MAP.keys()
+from ...config import Config
+from ...db import add_instance, commit, db_aws
+from ..forms import CollectionItemForm
+from ..utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
+from ..models import RadcorActivity
+from .utils import get_jp2_files, get_tif_files, factory
 
 
 def publish(collection_item: CollectionItem, scene: RadcorActivity):
@@ -61,19 +39,15 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     """
     qlband = 'TCI'
 
-    # Retrieve .SAFE folder name
-    scene_file_path = Path(scene.args.get('file'))
-    safe_filename = scene_file_path.name  # .replace('MSIL1C', 'MSIL2A')
+    # Get collection level to publish. Default is l1
+    # TODO: Check in database the scenes level 2 already published. We must set to level 2
+    collection_level = scene.args.get('level') or 1
+    sentinel_scene = factory.get_from_sceneid(scene.sceneid, level=collection_level)
 
-    # Get year month from .SAFE folder
-    year_month_part = safe_filename.split('_')[2]
-    yyyymm = '{}-{}'.format(year_month_part[:4], year_month_part[4:6])
+    product_uri = sentinel_scene.path()
+    product_uri.mkdir(parents=True, exist_ok=True)
 
-    product_uri = '/Repository/Archive/{}/{}/{}'.format(
-        scene.collection_id, yyyymm, safe_filename)
-
-    productdir = os.path.join(Config.DATA_DIR, product_uri[1:])
-    os.makedirs(productdir, exist_ok=True)
+    band_map = sentinel_scene.get_band_map()
 
     if scene.collection_id == 'S2NBAR':
         # Retrieves all tif files from scene
@@ -86,10 +60,10 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         for tiffile in sorted(tiffiles):
             filename = os.path.basename(tiffile)
             parts = filename.split('_')
-            band = parts[2][:-4] #Select removing .tif extension
-            if band not in bands and band in SENTINEL_BANDS:
+            band = parts[2][:-4]  # Select removing .tif extension
+            if band not in bands and band in band_map.keys():
                 bands.append(band)
-                files[BAND_MAP[band]] = tiffile
+                files[band_map[band]] = tiffile
         logging.warning('Publish {} - {} (id={}, tiffiles={})'.format(scene.collection_id,
                                                             scene.args.get('file'),
                                                             scene.id,
@@ -98,53 +72,63 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         parts = os.path.basename(tiffiles[0]).split('_')
         file_basename = '_'.join(parts[:-1])
         pngname = os.path.join(scene.args.get('file'), file_basename + '.png')
-        copy(pngname, productdir)
+        copy(pngname, str(product_uri))
     else:
         # Retrieves all jp2 files from scene
-        jp2files = get_jp2_files(scene)
+
+        if sentinel_scene.level == 1:
+            files_list = get_jp2_files(scene)
+        else:
+            files_list = sentinel_scene.get_files()
 
         # Find the desired files to be published and put then in files
         bands = []
 
         files = {}
-        for jp2file in sorted(jp2files):
-            filename = os.path.basename(jp2file)
+        for file in sorted(files_list):
+            filename = Path(file).stem
             parts = filename.split('_')
-            band = parts[-2] if scene.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
 
-            if band not in bands and band in SENTINEL_BANDS:
+            if len(parts) in (3, 8):
+                band = parts[-1]
+            else:
+                band = '_'.join(parts[-2:])
+
+            if band not in bands and band in band_map.keys():
                 bands.append(band)
-                files[BAND_MAP[band]] = jp2file
+                files[band_map[band]] = str(file)
             elif band == qlband:
-                files['qlfile'] = jp2file
+                files['qlfile'] = str(file)
 
-        logging.warning('Publish {} - {} (id={}, jp2files={})'.format(scene.collection_id,
-                                                                    scene.args.get('file'),
-                                                                    scene.id,
-                                                                    len(jp2files)))
+        logging.warning('Publish {} - {} (id={}, files={})'.format(
+            scene.collection_id, scene.args.get('file'),
+            scene.id, len(files)
+        ))
 
-        # Define new filenames for products
-        parts = os.path.basename(files['qlfile']).split('_')
-        file_basename = '_'.join(parts[:-2])
+        if len(files.keys()) == 0:
+            raise RuntimeError('No files found for {} - {}'.format(scene.sceneid, str(product_uri)))
+
+        file_name = Path(files[list(files.keys())[0]]).name
+        file_basename = '_'.join(file_name.split('_')[:-1])
 
     # Create vegetation index
-    generate_vi(file_basename, productdir, files)
+    generate_vi(file_basename, str(product_uri), files)
 
     bands.append('NDVI')
     bands.append('EVI')
 
-    BAND_MAP['NDVI'] = 'ndvi'
-    BAND_MAP['EVI'] = 'evi'
+    band_map['NDVI'] = 'ndvi'
+    band_map['EVI'] = 'evi'
 
     for sband in bands:
-        band = BAND_MAP[sband]
+        band = band_map[sband]
         file = files[band]
 
         # Set destination of COG file
         cog_file_name = '{}_{}.tif'.format(file_basename, sband)
-        cog_file_path = os.path.join(productdir, cog_file_name)
+        cog_file_path = product_uri / cog_file_name
 
-        files[band] = generate_cogs(file, cog_file_path)
+        files[band] = generate_cogs(str(file), str(cog_file_path))
         if not is_valid_tif(cog_file_path):
             raise RuntimeError('Not Valid {}'.format(cog_file_path))
 
@@ -160,11 +144,11 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         engine = engine_instance[instance]
 
         # Skip catalog on aws for digital number
-        if collection_item.collection_id == 'S2TOA' and instance == 'aws':
+        if sentinel_scene.level == 1 and instance == 'aws':
             continue
 
         if instance == 'aws':
-            asset_url = product_uri.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
+            asset_url = Config.AWS_BUCKET_NAME / (product_uri.relative_to(Path(Config.DATA_DIR) / 'Repository/Archive'))
         else:
             asset_url = product_uri
 
@@ -185,9 +169,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                 for sband in bands:
                     # Set destination of COG file
                     cog_file_name = '{}_{}.tif'.format(file_basename, sband)
-                    cog_file_path = os.path.join(productdir, cog_file_name)
+                    cog_file_path = product_uri / cog_file_name
 
-                    asset_dataset = gdal.Open(cog_file_path)
+                    asset_dataset = gdal.Open(str(cog_file_path))
 
                     raster_band = asset_dataset.GetRasterBand(1)
 
@@ -201,7 +185,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
                     defaults = dict(
                         source=source,
-                        url='{}/{}'.format(asset_url, cog_file_name),
+                        url='{}/{}'.format(str(asset_url), cog_file_name),
                         raster_size_x=asset_dataset.RasterXSize,
                         raster_size_y=asset_dataset.RasterYSize,
                         raster_size_t=1,
@@ -226,12 +210,16 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                     del asset_dataset
 
                 # Create Qlook file
-                pngname = os.path.join(productdir, file_basename + '.png')
-                if not os.path.exists(pngname):
-                    create_qlook_file(pngname, files['qlfile'])
+                pngname = product_uri / '{}.png'.format(file_basename)
+                if not pngname.exists():
+                    # When TCI band found, use it to generate quicklook
+                    if files.get('qlfile'):
+                        create_qlook_file(str(pngname), files['qlfile'])
+                    else:
+                        create_quick_look(str(pngname), [files['red'], files['green'], files['blue']])
 
-                normalized_quicklook_path = os.path.normpath('{}/{}'.format(asset_url, os.path.basename(pngname)))
-                assets_to_upload['quicklook'] = dict(asset=normalized_quicklook_path, file=pngname)
+                normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
+                assets_to_upload['quicklook'] = dict(asset=normalized_quicklook_path, file=str(pngname))
 
                 c_item = engine.session.query(CollectionItem).filter(
                     CollectionItem.id == collection_item.id
@@ -248,7 +236,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 def create_qlook_file(pngname, qlfile):
     """Create sentinel 2 quicklook."""
     image = numpy.ones((768, 768, 3,), dtype=numpy.uint8)
-    dataset = gdal.Open(qlfile, gdal.GA_ReadOnly)
+    dataset = gdal.Open(str(qlfile), gdal.GA_ReadOnly)
     for nb in [0, 1, 2]:
         raster = dataset.GetRasterBand(nb + 1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
         image[:, :, nb] = resize(raster, (768, 768), order=1, preserve_range=True).astype(numpy.uint8)

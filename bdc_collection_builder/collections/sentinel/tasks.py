@@ -29,8 +29,9 @@ from .clients import sentinel_clients
 from .download import download_sentinel_images, download_sentinel_from_creodias
 from .harmonization import sentinel_harmonize
 from .publish import publish
-from .correction import correction_sen2cor255, correction_sen2cor280
+from .correction import correction_laSRC
 from .onda import download_from_onda
+from .utils import factory
 
 
 lock = lock_handler.lock('sentinel_download_lock_4')
@@ -80,7 +81,7 @@ class SentinelTask(RadcorTask):
         # Retrieve composite date of Collection Item
         return datetime.strptime(fragments[2][:8], '%Y%m%d')
 
-    def download(self, scene):
+    def download(self, scene, **kwargs):
         """Perform download sentinel images from copernicus.
 
         Args:
@@ -89,7 +90,8 @@ class SentinelTask(RadcorTask):
         Returns:
             dict Scene with sentinel file path
         """
-        scene['collection_id'] = 'S2TOA'
+        # Get Sentinel collection handler
+        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=1)
 
         # Create/update activity
         activity_history = self.create_execution(scene)
@@ -103,13 +105,14 @@ class SentinelTask(RadcorTask):
             year_month = fragments[2][:4] + '-' + fragments[2][4:6]
 
             # Output product dir
-            product_dir = os.path.join(activity_args.get('file'), year_month)
+            product_dir = sentinel_scene.compressed_file().parent
+
             link = activity_args['link']
             scene_id = scene['sceneid']
 
-            zip_file_name = os.path.join(product_dir, '{}.zip'.format(scene_id))
+            zip_file_name = sentinel_scene.compressed_file()
 
-            collection_item.compressed_file = zip_file_name.replace(Config.DATA_DIR, '')
+            collection_item.compressed_file = str(zip_file_name.relative_to(Config.DATA_DIR))
             cloud = activity_args.get('cloud')
 
             if cloud:
@@ -118,38 +121,38 @@ class SentinelTask(RadcorTask):
             try:
                 valid = True
 
-                if os.path.exists(zip_file_name):
+                if zip_file_name.exists():
                     logging.debug('zip file exists')
-                    valid = is_valid_compressed(zip_file_name)
+                    valid = is_valid_compressed(str(zip_file_name))
 
-                if not os.path.exists(zip_file_name) or not valid:
+                if not zip_file_name.exists() or not valid:
                     try:
                         # Acquire User to download
                         with self.get_user() as user:
                             logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
                             # Download from Copernicus
-                            download_sentinel_images(link, zip_file_name, user)
+                            download_sentinel_images(link, str(zip_file_name), user)
                     except (ConnectionError, HTTPError) as e:
                         try:
                             logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
 
-                            download_from_onda(scene_id, os.path.dirname(zip_file_name))
+                            download_from_onda(scene_id, os.path.dirname(str(zip_file_name)))
                         except:
                             try:
                                 logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
-                                download_sentinel_from_creodias(scene_id, zip_file_name)
+                                download_sentinel_from_creodias(scene_id, str(zip_file_name))
                             except:
                                 # Ignore errors from external provider
                                 raise e
 
-                internal_folder_name = extract_and_get_internal_name(zip_file_name)
-                extracted_file_path = os.path.join(product_dir, internal_folder_name)
+                internal_folder_name = extract_and_get_internal_name(str(zip_file_name))
+                extracted_file_path = os.path.join(str(product_dir), internal_folder_name)
 
                 logging.debug('Done download.')
                 activity_args['file'] = extracted_file_path
 
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
-                if os.path.exists(zip_file_name):
+                if zip_file_name.exists():
                     os.remove(zip_file_name)
 
                 # Retry when sentinel is offline
@@ -182,33 +185,28 @@ class SentinelTask(RadcorTask):
             scene - Serialized Activity
         """
         logging.debug('Starting Correction Sentinel...')
-        version = 'sen2cor280'
+
+        # Get Resolver for Landsat scene level 2
+        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=2)
 
         # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = 'S2SR_SEN28'
+        scene['collection_id'] = sentinel_scene.id
         scene['activity_type'] = 'correctionS2'
 
         # Create/update activity
         self.create_execution(scene)
 
         try:
-            params = dict(
-                app=scene['activity_type'],
-                sceneid=scene['sceneid'],
-                file=scene['args']['file']
-            )
+            output_dir = sentinel_scene.path()
 
-            if version == 'sen2cor280':
-                correction_result = correction_sen2cor280(params)
-            else:
-                correction_result = correction_sen2cor255(params)
-            if correction_result is not None:
-                scene['args']['file'] = correction_result
-
+            # TODO: Add the sen2cor again as optional processor
+            correction_result = correction_laSRC(scene['args']['file'], str(output_dir))
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
 
+        scene['args']['level'] = 2
+        scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
 
         return scene
@@ -221,6 +219,8 @@ class SentinelTask(RadcorTask):
         """
         scene['activity_type'] = 'publishS2'
 
+        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=scene['args'].get('level') or 1)
+
         # Create/update activity
         activity_history = self.create_execution(scene)
 
@@ -230,7 +230,8 @@ class SentinelTask(RadcorTask):
         ))
 
         try:
-            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+            item = self.get_collection_item(activity_history.activity)
+            assets = publish(item, activity_history.activity)
         except InvalidRequestError as e:
             # Error related with Transacion on AWS
             # TODO: Is it occurs on local instance?
@@ -247,7 +248,7 @@ class SentinelTask(RadcorTask):
         scene['activity_type'] = 'uploadS2'
         scene['args']['assets'] = assets
 
-        if scene.get('collection_id') == 'S2SR_SEN28':
+        if sentinel_scene.level > 1:
             refresh_assets_view()
 
         logging.debug('Done Publish Sentinel.')
@@ -306,7 +307,7 @@ class SentinelTask(RadcorTask):
             yyyymm = '{}-{}'.format(y, m)
             mgrs = parts[5]
 
-            dir_published_L2 = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}/'.format('S2SR_SEN28', yyyymm, os.path.basename(SAFEL2A)))
+            dir_published_L2 = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/{}/'.format('S2_MSI_L2_SR_LASRC', yyyymm, os.path.basename(SAFEL2A)))
 
             L1_dir = str(Path(Config.DATA_DIR) / 'Repository/Archive/{}/{}/'.format('S2_MSI', yyyymm))
             zip_pattern = '.*_MSIL1C_{}{}{}.*_{}_.*.zip$'.format(y,m,d,mgrs)
@@ -326,6 +327,7 @@ class SentinelTask(RadcorTask):
             raise e
 
         scene['args']['file'] = harmonized_dir
+        scene['args']['level'] = 3
         scene['activity_type'] = 'publishS2'
 
         return scene
@@ -339,7 +341,7 @@ class SentinelTask(RadcorTask):
                  max_retries=72,
                  autoretry_for=(HTTPError, MaxRetryError, NewConnectionError, ConnectionError),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def download_sentinel(scene):
+def download_sentinel(scene, **kwargs):
     """Represent a celery task definition for handling Sentinel Download files.
 
     This celery tasks listen only for queues 'download'.
@@ -350,11 +352,11 @@ def download_sentinel(scene):
     Returns:
         Returns processed activity
     """
-    return download_sentinel.download(scene)
+    return download_sentinel.download(scene, **kwargs)
 
 
 @celery_app.task(base=SentinelTask, queue='atm-correction', max_retries=3, default_retry_delay=Config.TASK_RETRY_DELAY)
-def atm_correction(scene):
+def atm_correction(scene, **kwargs):
     """Represent a celery task definition for handling Sentinel Atmospheric correction - sen2cor.
 
     This celery tasks listen only for queues 'atm-correction'.
@@ -368,7 +370,7 @@ def atm_correction(scene):
     Returns:
         Returns processed activity
     """
-    return atm_correction.correction(scene)
+    return atm_correction.correction(scene, **kwargs)
 
 
 @celery_app.task(base=SentinelTask,

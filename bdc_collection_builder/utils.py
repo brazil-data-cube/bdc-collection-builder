@@ -11,9 +11,11 @@
 
 def initialize_factories():
     """Initialize Brazil Data Cube Collection Builder factories."""
-    from .collections.landsat.utils import factory
+    from .collections.landsat.utils import factory as landsat_factory
+    from .collections.sentinel.utils import factory as sentinel_factory
 
-    factory.register()
+    landsat_factory.register()
+    sentinel_factory.register()
 
 
 def finalize_factories():

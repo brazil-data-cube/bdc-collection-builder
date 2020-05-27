@@ -22,7 +22,7 @@ import boto3
 import numpy
 import rasterio
 import requests
-from bdc_db.models import AssetMV, Collection, db
+from bdc_db.models import AssetMV, db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
@@ -66,11 +66,12 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
     return instance, True
 
 
-def dispatch(activity: dict):
+def dispatch(activity: dict, skip_l1=None, **kwargs):
     """Dispatches the activity to the respective celery task handler.
 
     Args:
         activity (RadcorActivity) - A not done activity
+        skip_l1 - Skip publish schedule for download tasks.
     """
     from .sentinel import tasks as sentinel_tasks
     from .landsat import tasks as landsat_tasks
@@ -79,14 +80,6 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
-        # We are assuming that collection TOA
-        collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
-
-        if collection_sr is None:
-            raise RuntimeError('The collection "S2SR_SEN28" not found')
-
-        # Raw chain represents TOA publish chain
-        publish_raw_data_chain = sentinel_tasks.publish_sentinel.s()
         # Atm Correction chain
         atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
         # Publish ATM Correction
@@ -101,7 +94,16 @@ def dispatch(activity: dict):
             inner_group = group(upload_chain, harmonize_chain)
 
         inner_group = atm_corr_publish_chain | inner_group
-        outer_group = group(publish_raw_data_chain, inner_group)
+
+        after_download_group = [
+            inner_group
+        ]
+
+        if not skip_l1:
+            # Publish L1
+            after_download_group.append(sentinel_tasks.publish_sentinel.s())
+
+        outer_group = group(*after_download_group)
         task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
@@ -124,12 +126,6 @@ def dispatch(activity: dict):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
     elif app == 'downloadLC8':
-        # We are assuming that collection DN
-        collection_lc8 = Collection.query().filter(Collection.id == 'LC8SR').first()
-
-        if collection_lc8 is None:
-            raise RuntimeError('The collection "LC8SR" not found')
-
         # Raw chain represents DN publish chain
         raw_data_chain = landsat_tasks.publish_landsat.s()
         # Atm Correction chain
@@ -368,7 +364,7 @@ def is_valid_tif(input_data_set_path):
     gdal.UseExceptions()
 
     try:
-        ds  = gdal.Open(input_data_set_path)
+        ds = gdal.Open(str(input_data_set_path))
         srcband = ds.GetRasterBand(1)
 
         array = srcband.ReadAsArray()
@@ -592,3 +588,27 @@ def refresh_assets_view(refresh_on_aws=True):
         commit(db)
 
     logging.info('View refreshed.')
+
+
+def create_quick_look(png_file: str, files, rows=768, cols=768):
+    from numpngw import write_png
+    from skimage import exposure
+
+    image = numpy.zeros((rows, cols, len(files),), dtype=numpy.uint8)
+
+    nb = 0
+    for band in files:
+        with rasterio.open(band) as data_set:
+            raster = data_set.read(1)
+
+        raster = resize(raster, (rows, cols), order=1, preserve_range=True)
+        nodata = raster == -9999
+        # Evaluate minimum and maximum values
+        a = numpy.array(raster.flatten())
+        p1, p99 = numpy.percentile(a[a>0], (1, 99))
+        # Convert minimum and maximum values to 1,255 - 0 is nodata
+        raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1, 255)).astype(numpy.uint8)
+        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
+        nb += 1
+
+    write_png(str(png_file), image, transparent=(0, 0, 0))

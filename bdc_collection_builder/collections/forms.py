@@ -66,11 +66,9 @@ class HistoryForm(ModelSchema):
         exclude = ('activity', )
 
 
-class RadcorActivityForm(ModelSchema):
+class SimpleActivityForm(ModelSchema):
     """Define schema for Brazil Data Cube Collection Builder Activity."""
 
-    # history = fields.Nested(HistoryForm, many=True)
-    last_execution = fields.Method('dump_last_execution')
     collection_id = fields.Str()
 
     class Meta:
@@ -79,6 +77,12 @@ class RadcorActivityForm(ModelSchema):
         model = RadcorActivity
         sqla_session = db.session
         exclude = ('collection', 'history')
+
+
+class RadcorActivityForm(SimpleActivityForm):
+    """Define schema for Brazil Data Cube Collection Builder Activity."""
+
+    last_execution = fields.Method('dump_last_execution')
 
     def dump_last_execution(self, obj):
         """Dump last task execution."""

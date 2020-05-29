@@ -11,21 +11,36 @@
 # Python Native
 import logging
 import os
+import subprocess
 from datetime import datetime
+from pathlib import Path
+from distutils.util import strtobool
+
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
 from glob import glob as resource_glob
 from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
 from urllib3.exceptions import NewConnectionError, MaxRetryError
+
 # Builder
-from bdc_collection_builder.celery import celery_app
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.core.utils import upload_file
-from bdc_collection_builder.collections.base_task import RadcorTask
-from bdc_collection_builder.collections.landsat.download import download_landsat_images
-from bdc_collection_builder.collections.landsat.publish import publish
-from bdc_collection_builder.db import db_aws
+from ...celery import celery_app
+from ...config import Config
+from ...db import db_aws
+from ..base_task import RadcorTask
+from ..utils import refresh_assets_view, remove_file, upload_file
+from .download import download_landsat_images, download_from_aws
+from .harmonization import landsat_harmonize
+from .publish import publish
+
+
+def is_valid_tar_gz(file_path: str):
+    """Check tar file integrity."""
+    try:
+        retcode = subprocess.call(['gunzip', '-t', file_path])
+        return retcode == 0
+    except BaseException:
+        return False
 
 
 class LandsatTask(RadcorTask):
@@ -64,10 +79,50 @@ class LandsatTask(RadcorTask):
             # Output product dir
             productdir = os.path.join(activity_args.get('file'), '{}/{}'.format(yyyymm, self.get_tile_id(scene_id)))
 
-            if not os.path.exists(productdir):
-                os.makedirs(productdir)
+            os.makedirs(productdir, exist_ok=True)
 
-            file = download_landsat_images(activity_args['link'], productdir)
+            digital_number_file = Path(productdir) / '{}.tar.gz'.format(scene_id)
+
+            valid = False
+
+            # When file exists, check persistence
+            if digital_number_file.exists() and digital_number_file.is_file():
+                logging.info('File {} downloaded. Checking file integrity...'.format(str(digital_number_file)))
+                # Check Landsat 8 tar gz is valid
+                valid = is_valid_tar_gz(str(digital_number_file))
+
+                file = str(digital_number_file)
+
+            if not valid:
+                # Ensure file is removed since it may be corrupted
+                remove_file(str(digital_number_file))
+
+                # Flag to prefer download from AWS instead USGS
+                use_aws = activity_args.get('use_aws', False)
+
+                if strtobool(str(use_aws)):
+                    try:
+                        logging.info('Download Landsat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
+                        digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
+                            scene['collection_id'],
+                            yyyymm,
+                            self.get_tile_id(scene_id)
+                        ))
+
+                        file, provider_url = download_from_aws(scene_id, digital_number_dir, productdir)
+                        activity_args['provider'] = provider_url
+                    except BaseException:
+                        logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
+                        # Ensure file is removed since it may be corrupted
+                        remove_file(str(digital_number_file))
+
+                # When file does not exist, use USGS
+                if not digital_number_file.exists():
+                    logging.info('Download Landsat {} from USGS...'.format(scene_id))
+                    file = download_landsat_images(activity_args['link'], productdir)
+                    activity_args['provider'] = activity_args['link']
+            else:
+                logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
             collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
 
@@ -87,7 +142,7 @@ class LandsatTask(RadcorTask):
 
         scene['args'] = activity_args
 
-        # Create new activity 'correctionS2' to continue task chain
+        # Create new activity 'correctionLC8' to continue task chain
         scene['activity_type'] = 'correctionLC8'
 
         return scene
@@ -122,6 +177,9 @@ class LandsatTask(RadcorTask):
 
         scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
+
+        if scene.get('collection_id') == 'LC8SR':
+            refresh_assets_view()
 
         return scene
 
@@ -210,6 +268,40 @@ class LandsatTask(RadcorTask):
 
         return scene
 
+    def harmonize(self, scene):
+        """Apply Harmonization on Landsat collection.
+
+        Args:
+            scene - Serialized Activity
+        """
+        # Set Collection to the Landsat NBAR (Nadir BRDF Adjusted Reflectance)
+        scene['collection_id'] = 'LC8NBAR'
+        scene['activity_type'] = 'harmonizeLC8'
+
+        # Create/Update activity
+        activity_history = self.create_execution(scene)
+
+        logging.debug('Starting Harmonization Landsat...')
+        logging.info('L8TASKS Harmonize Starting Harmonization Landsat...') #TODO REMOVE
+
+        activity_history.activity.activity_type = 'harmonizeLC8'
+        activity_history.start = datetime.utcnow()
+        activity_history.save()
+
+        try:
+            # Get ESPA output dir
+            harmonized_dir = landsat_harmonize(self.get_collection_item(activity_history.activity), activity_history.activity)
+            scene['args']['file'] = harmonized_dir
+
+        except BaseException as e:
+            logging.error('Error at Harmonize Landsat {}'.format(e))
+
+            raise e
+
+        scene['activity_type'] = 'publishLC8'
+
+        return scene
+
 
 @celery_app.task(base=LandsatTask,
                  queue='download',
@@ -284,3 +376,15 @@ def upload_landsat(scene):
         scene (dict): Radcor Activity with "uploadLC8" app context
     """
     upload_landsat.upload(scene)
+
+
+@celery_app.task(base=LandsatTask, queue='harmonization')
+def harmonization_landsat(scene):
+    """Represent a celery task definition for harmonizing Landsat8.
+
+    This celery tasks listen only for queues 'harmonizeLC8'.
+
+    Args:
+        scene (dict): Radcor Activity with "harmonizeLC8" app context
+    """
+    return harmonization_landsat.harmonize(scene)

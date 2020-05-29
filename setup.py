@@ -29,6 +29,7 @@ tests_require = [
     'isort>4.3',
 ]
 
+
 extras_require = {
     'docs': docs_require,
     "tests": tests_require
@@ -48,6 +49,7 @@ install_requires = [
     'Flask-Cors>=3.0,<4.0',
     'flask-restplus>=0.13.0',
     'Flask-SQLAlchemy>=2.4.1',
+    'landsatxplore>=0.6,<1',
     'marshmallow-sqlalchemy>=0.19.0',
     'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',
@@ -57,8 +59,8 @@ install_requires = [
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
-    'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git@v0.2.0#egg=bdc-core',
-    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@v0.2.1#egg=bdc-db',
+    'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
+    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@b-0.2#egg=bdc-db',
     'celery[librabbitmq]>=4.3.0',
     'Werkzeug>=0.16,<1.0'
 ]

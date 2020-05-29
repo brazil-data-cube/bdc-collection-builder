@@ -11,7 +11,6 @@
 
 # Python Native
 from datetime import datetime
-from os import environ
 # 3rdparty
 from celery import current_task
 from celery.backends.database import Task
@@ -59,7 +58,6 @@ class RadcorTask(celery_app.Task):
             model.task = task
             model.activity = activity_model
             model.start = datetime.utcnow()
-            model.env = dict(environ)
 
         # Ensure that args values is always updated
         model.activity.args = activity['args']

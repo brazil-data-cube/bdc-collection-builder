@@ -9,11 +9,12 @@
 """Describe Sentinel 2 publish generation."""
 
 # Python Native
+from datetime import datetime
+from pathlib import Path
+from shutil import copy
 import fnmatch
 import logging
 import os
-from datetime import datetime
-from pathlib import Path
 # 3rdparty
 import gdal
 import numpy
@@ -23,10 +24,10 @@ from skimage.transform import resize
 from bdc_db.models import db, Asset, Band, CollectionItem, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import add_instance, commit, db_aws
-from bdc_collection_builder.core.utils import generate_cogs, generate_evi_ndvi
 from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model, is_valid_tif
+from bdc_collection_builder.collections.utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif
 from bdc_collection_builder.collections.models import RadcorActivity
+from .utils import get_jp2_files, get_tif_files
 
 
 BAND_MAP = {
@@ -60,33 +61,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     """
     qlband = 'TCI'
 
-    # Retrieves all jp2 files from scene
-    jp2files = get_jp2_files(scene)
-
-    # Find the desired files to be published and put then in files
-    bands = []
-
-    files = {}
-    for jp2file in sorted(jp2files):
-        filename = os.path.basename(jp2file)
-        parts = filename.split('_')
-        band = parts[-2] if scene.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
-
-        if band not in bands and band in SENTINEL_BANDS:
-            bands.append(band)
-            files[BAND_MAP[band]] = jp2file
-        elif band == qlband:
-            files['qlfile'] = jp2file
-
-    logging.warning('Publish {} - {} (id={}, jp2files={})'.format(scene.collection_id,
-                                                                  scene.args.get('file'),
-                                                                  scene.id,
-                                                                  len(jp2files)))
-
-    # Define new filenames for products
-    parts = os.path.basename(files['qlfile']).split('_')
-    file_basename = '_'.join(parts[:-2])
-
     # Retrieve .SAFE folder name
     scene_file_path = Path(scene.args.get('file'))
     safe_filename = scene_file_path.name  # .replace('MSIL1C', 'MSIL2A')
@@ -99,9 +73,59 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         scene.collection_id, yyyymm, safe_filename)
 
     productdir = os.path.join(Config.DATA_DIR, product_uri[1:])
+    os.makedirs(productdir, exist_ok=True)
 
-    if not os.path.exists(productdir):
-        os.makedirs(productdir)
+    if scene.collection_id == 'S2NBAR':
+        # Retrieves all tif files from scene
+        tiffiles = get_tif_files(scene)
+
+        # Find the desired files to be published and put then in files
+        bands = []
+
+        files = {}
+        for tiffile in sorted(tiffiles):
+            filename = os.path.basename(tiffile)
+            parts = filename.split('_')
+            band = parts[2][:-4] #Select removing .tif extension
+            if band not in bands and band in SENTINEL_BANDS:
+                bands.append(band)
+                files[BAND_MAP[band]] = tiffile
+        logging.warning('Publish {} - {} (id={}, tiffiles={})'.format(scene.collection_id,
+                                                            scene.args.get('file'),
+                                                            scene.id,
+                                                            len(tiffiles)))
+        # Define filenames for products
+        parts = os.path.basename(tiffiles[0]).split('_')
+        file_basename = '_'.join(parts[:-1])
+        pngname = os.path.join(scene.args.get('file'), file_basename + '.png')
+        copy(pngname, productdir)
+    else:
+        # Retrieves all jp2 files from scene
+        jp2files = get_jp2_files(scene)
+
+        # Find the desired files to be published and put then in files
+        bands = []
+
+        files = {}
+        for jp2file in sorted(jp2files):
+            filename = os.path.basename(jp2file)
+            parts = filename.split('_')
+            band = parts[-2] if scene.collection_id == 'S2SR_SEN28' else parts[-1].replace('.jp2', '')
+
+            if band not in bands and band in SENTINEL_BANDS:
+                bands.append(band)
+                files[BAND_MAP[band]] = jp2file
+            elif band == qlband:
+                files['qlfile'] = jp2file
+
+        logging.warning('Publish {} - {} (id={}, jp2files={})'.format(scene.collection_id,
+                                                                    scene.args.get('file'),
+                                                                    scene.id,
+                                                                    len(jp2files)))
+
+        # Define new filenames for products
+        parts = os.path.basename(files['qlfile']).split('_')
+        file_basename = '_'.join(parts[:-2])
 
     # Create vegetation index
     generate_vi(file_basename, productdir, files)
@@ -195,6 +219,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         tile_id=collection_item.tile_id,
                         collection_item_id=collection_item.id,
                     )
+                    asset.url = defaults['url']
 
                     assets_to_upload[sband] = (dict(file=cog_file_path, asset=asset.url))
 
@@ -241,34 +266,6 @@ def generate_vi(identifier, productdir, files):
 
     if not is_valid_tif(ndvi_name) or not is_valid_tif(evi_name):
         raise RuntimeError('Not Valid Vegetation index file')
-
-
-def get_jp2_files(scene: RadcorActivity):
-    """Retrieve all .jp2 files from Sentinel using Activity.
-
-    Args:
-        activity - Scene activity
-
-    Returns:
-        List of matched .jp2 files.
-    """
-    # Find all jp2 files in L2A SAFE
-    sentinel_folder_data = scene.args.get('file', '')
-    template = "T*.jp2"
-    jp2files = [os.path.join(dirpath, f)
-                for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
-                for f in fnmatch.filter(files, template)]
-    if len(jp2files) <= 1:
-        template = "L2A_T*.jp2"
-        jp2files = [os.path.join(dirpath, f)
-                    for dirpath, dirnames, files in os.walk("{0}".format(sentinel_folder_data))
-                    for f in fnmatch.filter(files, template)]
-        if len(jp2files) <= 1:
-            msg = 'No {} files found in {}'.format(template, sentinel_folder_data)
-            logging.warning(msg)
-            raise FileNotFoundError(msg)
-
-    return jp2files
 
 
 def compute_cloud_cover(raster):

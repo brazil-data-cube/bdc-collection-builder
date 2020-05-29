@@ -10,16 +10,28 @@
 
 
 # Python Native
+from json import loads as json_parser
+from os import remove as resource_remove, path as resource_path
+from zlib import error as zlib_error
+from zipfile import BadZipfile, ZipFile
 import datetime
 import json
 import logging
 # 3rdparty
-from celery import chain, current_task, group
-from osgeo import gdal
+import boto3
+import numpy
+import rasterio
 import requests
+from bdc_db.models import AssetMV, Collection, db
+from botocore.exceptions import ClientError
+from celery import chain, group
+from landsatxplore.api import API
+from osgeo import gdal
+from skimage.transform import resize
+from sqlalchemy_utils import refresh_materialized_view
 # Builder
-from bdc_db.models import db, Collection
-from .models import RadcorActivityHistory
+from ..config import CURRENT_DIR, Config
+from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
 
 
@@ -66,25 +78,30 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
-        # We are assuming that collection either TOA or DN
+        # We are assuming that collection TOA
         collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
 
         if collection_sr is None:
             raise RuntimeError('The collection "S2SR_SEN28" not found')
 
         # Raw chain represents TOA publish chain
-        raw_data_chain = sentinel_tasks.publish_sentinel.s()
+        publish_raw_data_chain = sentinel_tasks.publish_sentinel.s()
+        # Atm Correction chain
+        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
+        # Publish ATM Correction
+        upload_chain = sentinel_tasks.upload_sentinel.s()
 
-        atm_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s() | \
-            sentinel_tasks.upload_sentinel.s()
+        inner_group = upload_chain
 
-        task_chain = sentinel_tasks.download_sentinel.s(activity) | \
-            group([
-                # Publish raw data
-                raw_data_chain,
-                # ATM Correction
-                atm_chain
-            ])
+        if activity['args'].get('harmonize'):
+            # Harmonization chain
+            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | sentinel_tasks.publish_sentinel.s() | \
+                        sentinel_tasks.upload_sentinel.s()
+            inner_group = group(upload_chain, harmonize_chain)
+
+        inner_group = atm_corr_publish_chain | inner_group
+        outer_group = group(publish_raw_data_chain, inner_group)
+        task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \
@@ -98,6 +115,13 @@ def dispatch(activity: dict):
             tasks.append(sentinel_tasks.upload_sentinel.s())
 
         return chain(*tasks).apply_async()
+    elif app == 'harmonizeS2':
+        task_chain = sentinel_tasks.harmonization_sentinel.s(activity) | sentinel_tasks.publish_sentinel.s() | \
+                    sentinel_tasks.upload_sentinel.s()
+        return chain(task_chain).apply_async()
+    elif app == 'uploadS2':
+        return sentinel_tasks.upload_sentinel.s(activity).apply_async()
+
     elif app == 'downloadLC8':
         # We are assuming that collection DN
         collection_lc8 = Collection.query().filter(Collection.id == 'LC8SR').first()
@@ -107,32 +131,51 @@ def dispatch(activity: dict):
 
         # Raw chain represents DN publish chain
         raw_data_chain = landsat_tasks.publish_landsat.s()
+        # Atm Correction chain
+        atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
+        # Publish ATM Correction
+        publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
 
-        atm_chain = landsat_tasks.atm_correction_landsat.s() | landsat_tasks.publish_landsat.s() | \
-            landsat_tasks.upload_landsat.s()
+        inner_group = publish_atm_chain
 
-        task_chain = landsat_tasks.download_landsat.s(activity) | \
-            group([
-                # Publish raw data
-                raw_data_chain,
-                # ATM Correction
-                atm_chain
-            ])
+        # Check if will add harmonization chain on group
+        if activity['args'].get('harmonize'):
+            # Harmonization chain
+            harmonize_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
+                        landsat_tasks.upload_landsat.s()
+            inner_group = group(publish_atm_chain, harmonize_chain)
+
+        atm_chain = atm_corr_chain | inner_group
+        outer_group = group(raw_data_chain, atm_chain)
+        task_chain = landsat_tasks.download_landsat.s(activity) | outer_group
+
         return chain(task_chain).apply_async()
     elif app == 'correctionLC8':
-        task_chain = landsat_tasks.atm_correction_landsat.s(activity) | \
-                        landsat_tasks.publish_landsat.s() | \
+        # Atm Correction chain
+        atm_corr_chain = landsat_tasks.atm_correction_landsat.s(activity)
+        # Publish ATM Correction
+        publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
+
+        inner_group = publish_atm_chain
+
+        # Check if will add harmonization chain on group
+        if activity['args'].get('harmonize'):
+            # Harmonization chain
+            harmonize_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
                         landsat_tasks.upload_landsat.s()
+            inner_group = group(publish_atm_chain, harmonize_chain)
+
+        task_chain = atm_corr_chain | inner_group
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
-        tasks = [landsat_tasks.publish_landsat.s(activity)]
-
-        if 'LC8SR' in activity['collection_id']:
-            tasks.append(landsat_tasks.upload_landsat.s())
-
-        return chain(*tasks).apply_async()
-    elif app == 'uploadS2':
-        return sentinel_tasks.upload_sentinel.s(activity).apply_async()
+        task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
+    elif app == 'harmonizeLC8':
+        task_chain = landsat_tasks.harmonization_landsat.s(activity) | landsat_tasks.publish_landsat.s() | \
+                    landsat_tasks.upload_landsat.s()
+        return chain(task_chain).apply_async()
+    elif app == 'uploadLC8':
+        return landsat_tasks.upload_landsat.s(activity).apply_async()
 
 
 def create_wkt(ullon, ullat, lrlon, lrlat):
@@ -166,62 +209,48 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
 
 def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit):
     """List landsat scenes from USGS."""
-    collection='landsat-8-l1'
+    credentials = get_credentials()['landsat']
 
-    if enddate is None:
-        enddate = datetime.datetime.now().strftime("%Y-%m-%d")
-    if limit is None:
-        limit = 299
+    api = API(credentials['username'], credentials['password'])
 
-    url = 'https://sat-api.developmentseed.org/stac/search'
-    params = {
-        "bbox": [
-            wlon,
-            slat,
-            elon,
-            nlat
-        ],
-        "time": "{}T00:00:00Z/{}T23:59:59Z".format(startdate, enddate),
-        "limit": "{}".format(limit),
-        "query": {
-            "eo:cloud_cover": {"lt": cloud},
-            "collection": {"eq": "{}".format(collection)}
-        }
-    }
-    r = requests.post(url, data= json.dumps(params))
-    r_dict = r.json()
+    # Request
+    scenes_result = api.search(
+        dataset='LANDSAT_8_C1',
+        bbox=(slat, wlon, nlat, elon),
+        start_date=startdate,
+        end_date=enddate,
+        max_cloud_cover=cloud or 100,
+        max_results=10000
+    )
 
-    scenes = {}
-    # Check if request obtained results
-    if r_dict['meta']['returned'] > 0:
-        for i in range(len(r_dict['features'])):
-            # This is performed due to BAD catalog, which includes box from -170 to +175 (instead of -)
-            if ( (r_dict['features'][i]['bbox'][0] - r_dict['features'][i]['bbox'][2]) > -3 ):
-                identifier = r_dict['features'][i]['properties']['landsat:product_id'] # CHECK L1TP L1GT
-                scenes[identifier] = {}
-                scenes[identifier]['sceneid'] = identifier
-                scenes[identifier]['scene_id'] = r_dict['features'][i]['id']
-                scenes[identifier]['cloud'] = int(r_dict['features'][i]['properties']['eo:cloud_cover'])
-                scenes[identifier]['date'] = r_dict['features'][i]['properties']['datetime'][:10]
-                scenes[identifier]['wlon'] = float(r_dict['features'][i]['bbox'][0])
-                scenes[identifier]['slat'] = float(r_dict['features'][i]['bbox'][1])
-                scenes[identifier]['elon'] = float(r_dict['features'][i]['bbox'][2])
-                scenes[identifier]['nlat'] = float(r_dict['features'][i]['bbox'][3])
-                scenes[identifier]['path'] = r_dict['features'][i]['properties']['eo:column']
-                scenes[identifier]['row'] = r_dict['features'][i]['properties']['eo:row']
-                scenes[identifier]['resolution'] = r_dict['features'][i]['properties']['eo:bands'][3]['gsd']
+    scenes_output = {}
 
-                if (str(r_dict['features'][i]['id']).find('LGN') != -1):
-                    scenes[identifier]['scene_id'] = r_dict['features'][i]['id']
-                else:
-                    feature = r_dict['features'][i]
-                    default_scene_id = '{}LGN00'.format(r_dict['features'][i]['id'])
-                    scene_id = feature['properties'].get('landsat:scene_id', default_scene_id)
-                    scenes[identifier]['scene_id'] = scene_id
+    for scene in scenes_result:
+        if scene['displayId'].endswith('RT'):
+            logging.warning('Skipping Real Time {}'.format(scene['displayId']))
+            continue
 
-                scenes[identifier]['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scenes[identifier]['scene_id'])
-                scenes[identifier]['icon'] = r_dict['features'][i]['assets']['thumbnail']['href']
-    return scenes
+        copy_scene = dict()
+        copy_scene['sceneid'] = scene['displayId']
+        copy_scene['scene_id'] = scene['entityId']
+        copy_scene['cloud'] = int(scene['cloudCover'])
+        copy_scene['date'] = scene['acquisitionDate']
+
+        xmin, ymin, xmax, ymax = scene['sceneBounds'].split(',')
+        copy_scene['wlon'] = float(xmin)
+        copy_scene['slat'] = float(ymin)
+        copy_scene['elon'] = float(xmax)
+        copy_scene['nlat'] = float(ymax)
+        copy_scene['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scene['entityId'])
+
+        pathrow = scene['displayId'].split('_')[2]
+
+        copy_scene['path'] = pathrow[:3]
+        copy_scene['row'] = pathrow[3:]
+
+        scenes_output[scene['displayId']] = copy_scene
+
+    return scenes_output
 
 
 def get_sentinel_scenes(wlon,nlat,elon,slat,startdate,enddate,cloud,limit,productType=None):
@@ -339,7 +368,7 @@ def is_valid_tif(input_data_set_path):
         array = srcband.ReadAsArray()
 
         # Check if min == max
-        if(array.min() == array.max()):
+        if array.min() == array.max() == 0:
             del ds
             return False
         del ds
@@ -347,3 +376,213 @@ def is_valid_tif(input_data_set_path):
     except RuntimeError as e:
         logging.error('Unable to open {} {}'.format(input_data_set_path, e))
         return False
+
+
+def load_img(img_path):
+    """Load an image."""
+    try:
+        with rasterio.open(img_path) as dataset:
+            img = dataset.read(1).flatten()
+        return img
+    except:
+        logging.error('Cannot find {}'.format(img_path))
+        raise RuntimeError('Cannot find {}'.format(img_path))
+
+
+def extractall(file):
+    """Extract zipfile."""
+    archive = ZipFile(file, 'r')
+    archive.extractall(resource_path.dirname(file))
+    archive.close()
+
+
+def get_credentials():
+    """Retrieve global secrets with credentials."""
+    file = resource_path.join(resource_path.dirname(CURRENT_DIR), 'secrets.json')
+
+    with open(file) as f:
+        return json_parser(f.read())
+
+
+def generate_cogs(input_data_set_path, file_path):
+    """Generate Cloud Optimized GeoTIFF files (COG).
+
+    Example:
+        >>> from bdc_collection_builder.collections.utils import generate_cogs
+        >>> import gdal
+        >>>
+        >>> tif_file = '/path/to/tif'
+        >>> generate_cogs(tif_file, '/tmp/cog.tif')
+
+    Args:
+        input_data_set_path (str) - Path to the input data set
+        file_path (str) - Target data set filename
+
+    Returns:
+        Path to COG.
+    """
+    src_ds = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
+
+    if src_ds is None:
+        raise ValueError('Could not open data set "{}"'.format(input_data_set_path))
+
+    driver = gdal.GetDriverByName('MEM')
+
+    src_band = src_ds.GetRasterBand(1)
+    data_set = driver.Create('', src_ds.RasterXSize, src_ds.RasterYSize, 1, src_band.DataType)
+    data_set.SetGeoTransform( src_ds.GetGeoTransform() )
+    data_set.SetProjection( src_ds.GetProjection() )
+
+    data_set_band = data_set.GetRasterBand(1)
+
+    dummy = src_band.GetNoDataValue()
+
+    if dummy is not None:
+        data_set_band.SetNoDataValue(dummy)
+
+    data_set_band.WriteArray( src_band.ReadAsArray() )
+    data_set.BuildOverviews("NEAREST", [2, 4, 8, 16, 32, 64])
+
+    driver = gdal.GetDriverByName('GTiff')
+    dst_ds = driver.CreateCopy(file_path, data_set, options=["COPY_SRC_OVERVIEWS=YES", "TILED=YES", "COMPRESS=LZW"])
+
+    del src_ds
+    del data_set
+    del dst_ds
+
+    return file_path
+
+
+def is_valid_compressed(file):
+    """Check tar gz or zip is valid."""
+    try:
+        archive = ZipFile(file, 'r')
+        try:
+            corrupt = archive.testzip()
+        except zlib_error:
+            corrupt = True
+        archive.close()
+    except BadZipfile:
+        corrupt = True
+
+    return not corrupt
+
+
+def extract_and_get_internal_name(zip_file_name):
+    """Extract zipfile and return internal folder path."""
+    # Check if file is valid
+    valid = is_valid_compressed(zip_file_name)
+
+    if not valid:
+        raise IOError('Invalid zip file "{}"'.format(zip_file_name))
+    else:
+        extractall(zip_file_name)
+
+        # Get extracted zip folder name
+        with ZipFile(zip_file_name) as zipObj:
+            listOfiles = zipObj.namelist()
+            extracted_file_path = listOfiles[0]
+
+        return extracted_file_path
+
+
+def upload_file(file_name, bucket='bdc-ds-datacube', object_name=None):
+    """Upload a file to an S3 bucket.
+
+    Adapted code from boto3 example.
+
+    Args:
+        file_name (str|_io.TextIO): File to upload
+        bucket (str): Bucket to upload to
+        object_name (str): S3 object name. If not specified then file_name is used
+    """
+    # If S3 object_name was not specified, use file_name
+    if object_name is None:
+        object_name = file_name
+
+    # Upload the file
+    s3_client = boto3.client('s3', region_name=Config.AWS_REGION_NAME, aws_access_key_id=Config.AWS_ACCESS_KEY_ID, aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
+    try:
+        s3_client.upload_file(file_name, bucket, object_name)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+
+def generate_evi_ndvi(red_band: str, nir_band: str, blue_bland: str, evi_name: str, ndvi_name: str):
+    """Generate Normalized Difference Vegetation Index (NDVI) and Enhanced Vegetation Index (EVI).
+
+    Args:
+        red_band: Path to the RED band
+        nir_band: Path to the NIR band
+        blue_bland: Path to the BLUE band
+        evi_name: Path to save EVI file
+        ndvi_name: Path to save NDVI file
+    """
+    data_set = gdal.Open(red_band, gdal.GA_ReadOnly)
+    raster_xsize = data_set.RasterXSize
+    raster_ysize = data_set.RasterYSize
+    red = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
+
+    # Close data_set
+    del data_set
+
+    data_set = gdal.Open(nir_band, gdal.GA_ReadOnly)
+    nir = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
+    nir = resize(nir, red.shape, order=1, preserve_range=True).astype(numpy.float32)
+
+    del data_set
+    data_set = gdal.Open(blue_bland, gdal.GA_ReadOnly)
+    blue = data_set.GetRasterBand(1).ReadAsArray(0, 0, data_set.RasterXSize, data_set.RasterYSize).astype(numpy.float32)/10000.
+
+    # Create the ndvi image data_set
+    remove_file(ndvi_name)
+
+    driver = gdal.GetDriverByName('GTiff')
+
+    raster_ndvi = (10000 * (nir - red) / (nir + red + 0.0001)).astype(numpy.int16)
+    ndvi_data_set = driver.Create(ndvi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
+                                                                                                        'TILED=YES'])
+    ndvi_data_set.SetGeoTransform(data_set.GetGeoTransform())
+    ndvi_data_set.SetProjection(data_set.GetProjection())
+    ndvi_data_set.GetRasterBand(1).WriteArray(raster_ndvi)
+    del ndvi_data_set
+
+    # Create the evi image data set
+    remove_file(evi_name)
+    evi_data_set = driver.Create(evi_name, raster_xsize, raster_ysize, 1, gdal.GDT_Int16, options=['COMPRESS=LZW',
+                                                                                                    'TILED=YES'])
+    raster_evi = (10000 * 2.5 * (nir - red)/(nir + 6. * red - 7.5 * blue + 1)).astype(numpy.int16)
+    evi_data_set.SetGeoTransform(data_set.GetGeoTransform())
+    evi_data_set.SetProjection(data_set.GetProjection())
+    evi_data_set.GetRasterBand(1).WriteArray(raster_evi)
+    del raster_evi
+    del evi_data_set
+
+    del data_set
+
+
+def remove_file(file_path: str):
+    """Remove file if exists.
+
+    Throws Error when user doesn't have access to the file at given path
+    """
+    if resource_path.exists(file_path):
+        resource_remove(file_path)
+
+
+def refresh_assets_view(refresh_on_aws=True):
+    """Update the Brazil Data Cube Assets View."""
+    if not Config.ENABLE_REFRESH_VIEW:
+        logging.info('Skipping refresh view.')
+        return
+
+    refresh_materialized_view(db.session, AssetMV.__table__)
+    commit(db)
+
+    if refresh_on_aws:
+        refresh_materialized_view(db_aws.session, AssetMV.__table__)
+        commit(db)
+
+    logging.info('View refreshed.')

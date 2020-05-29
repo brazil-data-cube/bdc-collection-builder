@@ -12,10 +12,11 @@
 # 3rdparty
 from flask import request
 from flask_restplus import Namespace, Resource
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, RequestURITooLarge
 # Builder
-from bdc_collection_builder.celery.utils import list_pending_tasks, list_running_tasks
+from ..celery.utils import list_pending_tasks, list_running_tasks
 from .forms import RadcorActivityForm
+from .models import RadcorActivity
 from .business import RadcorBusiness
 
 
@@ -78,19 +79,56 @@ class RadcorRestartController(Resource):
     This route requires OAuth2 token to work properly.
     """
 
-    def get(self):
-        """Restart Task."""
-        args = request.args.to_dict()
+    @staticmethod
+    def _restart(args: dict):
+        """Restart celery task execution.
 
+        It supports the following parameters:
+            - id : Restart activity by id
+            - ids : Restart a list of activity by ids
+            - activity_type : Restart all activities
+            - sceneid : A sceneid or list to filter. You must provide activity_type and collection_id
+            - collection_id : Collection to filter
+        """
         if 'id' in args:
-            args['ids'] = args['id']
+            args['ids'] = str(args.pop('id'))
 
         if 'ids' in args:
-            args['ids'] = args['ids'].split(',')
+            args['ids'] = args['ids'].split(',') if isinstance(args['ids'], str) else args['ids']
 
-        RadcorBusiness.restart(**args)
+        args.setdefault('action', None)
+        args.setdefault('use_aws', False)
 
-        return dict()
+        activities = RadcorBusiness.restart(**args)
+
+        return dict(
+            action='PREVIEW' if args['action'] is None else args['action'],
+            total=len(activities),
+            activities=activities
+        )
+
+    def get(self):
+        """Restart Task.
+
+        The request is limited to 4Kb.
+
+        curl "localhost:5000/api/radcor/restart?ids=13,17&action=start"
+        """
+        # Limit request query string to 4KB on GET
+        if len(request.query_string) > 4096:
+            raise RequestURITooLarge('Query is too long. Use the method POST instead.')
+
+        args = request.args.to_dict()
+
+        return self._restart(args)
+
+    def post(self):
+        """Restart task using POST.
+
+        Used when user may need to restart several tasks.
+        """
+        args = request.get_json()
+        return self._restart(args)
 
 
 @api.route('/stats/active')
@@ -150,7 +188,6 @@ class RadcorCollectionsController(Resource):
 
         result = RadcorBusiness.count_activities_with_date(args)
         return result
-
 
 @api.route('/utils/count-unsuccessfully-activities')
 class RadcorCollectionsController(Resource):

@@ -12,14 +12,14 @@ Creates a python click context and inject it to the global flask commands.
 """
 
 import click
+from bdc_db.cli import create_cli
+from bdc_db.cli import create_db as bdc_create_db
 from bdc_db.models import db
-from bdc_db.cli import create_db as bdc_create_db, create_cli
 from flask.cli import FlaskGroup, with_appcontext
 from flask_migrate.cli import db as flask_db
 
 from . import create_app
 from .config import Config
-
 
 # Create bdc-collection-builder cli from bdc-db
 cli = create_cli(create_app=create_app)
@@ -29,8 +29,7 @@ cli = create_cli(create_app=create_app)
 @with_appcontext
 @click.pass_context
 def create_db(ctx: click.Context):
-    """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
-
+    """Create database and schema. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
     # Forward context to bdc-db createdb command in order to create database
     ctx.forward(bdc_create_db)
 

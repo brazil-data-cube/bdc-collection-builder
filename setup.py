@@ -1,8 +1,22 @@
 #!/usr/bin/env python
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
 
 import os
 from setuptools import find_packages, setup
 
+readme = open('README.rst').read()
+
+history = open('CHANGES.rst').read()
+
+docs_require = [
+    'Sphinx>=2.1',
+]
 
 tests_require = [
     'check-manifest>=0.40',
@@ -17,14 +31,15 @@ tests_require = [
 
 
 extras_require = {
-    'docs': [
-        'bdc-readthedocs-theme @ git+git://github.com/brazil-data-cube/bdc-readthedocs-theme.git#egg=bdc-readthedocs-theme',
-        'Sphinx>=2.1.2',
-    ],
+    'docs': docs_require,
     "tests": tests_require
 }
 
 extras_require['all'] = [req for exts, reqs in extras_require.items() for req in reqs]
+
+setup_requires = [
+    'pytest-runner>=5.2',
+]
 
 install_requires = [
     'beautifulsoup4>=4.8.1',
@@ -43,14 +58,15 @@ install_requires = [
     'requests>=2.22.0',
     'GDAL>=2.3.3',
     'numpy>=1.17.2',
-    'numpngw>=0.0.8',  # TODO: Review this dependency
+    'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@b-0.2#egg=bdc-db',
     'celery[librabbitmq]>=4.3.0',
-    # TODO: Remove werkzeug dependency when https://github.com/noirbizarre/flask-restplus/issues/777 is fixed
     'Werkzeug>=0.16,<1.0'
 ]
+
+packages = find_packages()
 
 g = {}
 with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
@@ -60,20 +76,26 @@ with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
 setup(
     name='bdc-collection-builder',
     version=version,
-    description='Brazil Data Cube for Collection Generation',
-    author='Admin',
-    author_email='admin@admin.com',
-    url='https://github.com/brazil-data-cube/bdc-collection-builder.git',
-    packages=find_packages(),
-    install_requires=install_requires,
+    description=__doc__,
+    long_description=readme + '\n\n' + history,
+    keywords='Brazil Data Cube Collection Builder Module',
+    license='MIT',
+    author='INPE',
+    author_email='brazildatacube@dpi.inpe.br',
+    url='https://github.com/brazil-data-cube/bdc-collection-builder',
+    packages=packages,
+    zip_safe=False,
+    include_package_data=True,
+    platforms='any',
     entry_points={
         'console_scripts': [
             'bdc-collection-builder = bdc_collection_builder.cli:cli'
         ]
     },
     extras_require=extras_require,
+    install_requires=install_requires,
+    setup_requires=setup_requires,
     tests_require=tests_require,
-    include_package_data=True,
     classifiers=[
         'Development Status :: 1 - Planning',
         'Environment :: Web Environment',

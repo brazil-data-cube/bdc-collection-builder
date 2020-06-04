@@ -10,13 +10,13 @@
 
 
 # 3rdparty
-from bdc_core.decorators.auth import require_oauth_scopes
 from flask import request
 from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest, RequestURITooLarge
 # Builder
 from ..celery.utils import list_pending_tasks, list_running_tasks
 from .forms import RadcorActivityForm
+from .models import RadcorActivity
 from .business import RadcorBusiness
 
 
@@ -27,7 +27,6 @@ api = Namespace('radcor', description='radcor')
 class RadcorController(Resource):
     """Define controller to dispatch activity and celery execution."""
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """Retrieve all radcor activities from database."""
         args = request.args
@@ -45,18 +44,11 @@ class RadcorController(Resource):
             "items": RadcorActivityForm().dump(activities.items, many=True)
         }
 
-    @require_oauth_scopes(scope="collection_builder:activities:POST")
     def post(self):
         """Dispatch task execution of collection.
 
         curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "e": -46.3, "n": -13, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-05",
-            "cloud": 100, "limit": 500000, "action": "start"}' \
-            localhost:5000/api/radcor/
-
-        curl -XPOST -H "Content-Type: application/json" \
-            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "LC8", "start": "2019-03-01", "end": "2019-03-05",
-            "cloud": 100, "harmonize": "True", "action": "start"}' \
+            --data '{"w": -46.40, "s": -13.1, "n": -13, "e": -46.3, "satsen": "S2", "start": "2019-01-01", "end": "2019-01-30", "cloud": 90, "action": "start"}' \
             localhost:5000/api/radcor/
         """
         args = request.get_json()
@@ -115,7 +107,6 @@ class RadcorRestartController(Resource):
             activities=activities
         )
 
-    @require_oauth_scopes(scope="collection_builder:activities:POST")
     def get(self):
         """Restart Task.
 
@@ -131,7 +122,6 @@ class RadcorRestartController(Resource):
 
         return self._restart(args)
 
-    @require_oauth_scopes(scope="collection_builder:activities:POST")
     def post(self):
         """Restart task using POST.
 
@@ -148,7 +138,6 @@ class RadcorActiveTasksController(Resource):
     List active tasks on celery worker.
     """
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """Retrieve running tasks on workers."""
         return list_running_tasks()
@@ -161,7 +150,6 @@ class RadcorPendingTasksController(Resource):
     List pending tasks on celery worker.
     """
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """List pending tasks on workers."""
         return list_pending_tasks()
@@ -171,7 +159,6 @@ class RadcorPendingTasksController(Resource):
 class RadcorCollectionsController(Resource):
     """Define flask resource to list distinct activities based on history."""
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """List distinct activities."""
         return {
@@ -183,7 +170,6 @@ class RadcorCollectionsController(Resource):
 class RadcorCollectionsController(Resource):
     """Define flask resource to count activities."""
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """List total activities."""
         args = request.args
@@ -196,7 +182,6 @@ class RadcorCollectionsController(Resource):
 class RadcorCollectionsController(Resource):
     """Define flask resource to count all activities by date."""
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """List activities grouped by date."""
         args = request.args
@@ -208,7 +193,6 @@ class RadcorCollectionsController(Resource):
 class RadcorCollectionsController(Resource):
     """Define flask resource to count all failed tasks."""
 
-    @require_oauth_scopes(scope="collection_builder:activities:GET")
     def get(self):
         """List count of failed tasks."""
         result = RadcorBusiness.get_unsuccessfully_activities()

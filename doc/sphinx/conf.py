@@ -73,22 +73,6 @@ html_theme = 'alabaster'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = []
 
-#
-# BDC theme configuration
-#
-
-import bdc_readthedocs_theme
-
-html_theme_path = bdc_readthedocs_theme.html_theme_path()
-html_theme = 'bdc_theme'
-
-extensions.append("bdc_readthedocs_theme")
-
-html_theme_options = {
-    # Set the name of the project to appear in the sidebar
-    "project_nav_name": project,
-    "github_project": "brazil-data-cube/bdc-collection-builder"
-}
 
 def setup(app):
-    app.add_stylesheet('bdc_collection_builder.min.css')
+    app.add_css_file('bdc_collection_builder.min.css')

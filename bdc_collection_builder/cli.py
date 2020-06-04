@@ -12,6 +12,8 @@ Creates a python click context and inject it to the global flask commands.
 """
 
 import click
+from bdc_db.cli import create_cli
+from bdc_db.cli import create_db as bdc_create_db
 from bdc_db.models import Band, Collection, db
 from bdc_db.cli import create_db as bdc_create_db, create_cli
 from flask.cli import with_appcontext

@@ -43,13 +43,14 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     # TODO: Check in database the scenes level 2 already published. We must set to level 2
     collection_level = scene.args.get('level') or 1
     sentinel_scene = factory.get_from_sceneid(scene.sceneid, level=collection_level)
+    harmonized_scene = factory.get_from_sceneid(scene.sceneid, level=3)
 
     product_uri = sentinel_scene.path()
     product_uri.mkdir(parents=True, exist_ok=True)
 
     band_map = sentinel_scene.get_band_map()
 
-    if scene.collection_id == 'S2NBAR':
+    if scene.collection_id == harmonized_scene.id:
         # Retrieves all tif files from scene
         tiffiles = get_tif_files(scene)
 
@@ -108,7 +109,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         if len(files.keys()) == 0:
             raise RuntimeError('No files found for {} - {}'.format(scene.sceneid, str(product_uri)))
 
-        file_name = Path(files[list(files.keys())[0]]).name
+        # Retrieve a file name and use as reference for the Vegetation Index files
+        file_name = Path(files.get('quality', list(files.values())[0])).name
+
         file_basename = '_'.join(file_name.split('_')[:-1])
 
     # Create vegetation index
@@ -150,7 +153,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         if instance == 'aws':
             asset_url = Config.AWS_BUCKET_NAME / (product_uri.relative_to(Path(Config.DATA_DIR) / 'Repository/Archive'))
         else:
-            asset_url = product_uri
+            asset_url = '/' / product_uri.relative_to(Config.DATA_DIR)
 
         collection_bands = engine.session.query(Band).filter(Band.collection_id == scene.collection_id).all()
 
@@ -205,7 +208,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                     )
                     asset.url = defaults['url']
 
-                    assets_to_upload[sband] = (dict(file=cog_file_path, asset=asset.url))
+                    assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=asset.url))
 
                     del asset_dataset
 
@@ -219,7 +222,7 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         create_quick_look(str(pngname), [files['red'], files['green'], files['blue']])
 
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
-                assets_to_upload['quicklook'] = dict(asset=normalized_quicklook_path, file=str(pngname))
+                assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
                 c_item = engine.session.query(CollectionItem).filter(
                     CollectionItem.id == collection_item.id

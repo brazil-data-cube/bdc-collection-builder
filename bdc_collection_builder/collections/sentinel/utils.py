@@ -255,7 +255,7 @@ class Sentinel2SR(SentinelProduct):
         return dict(
             sr_band1='coastal', sr_band2='blue', sr_band3='green', sr_band4='red', sr_band5='redge1',
             sr_band6='redge2', sr_band7='redge3', sr_band8='bnir', sr_band8a='nir', sr_band11='swir1',
-            sr_band12='swir2', Fmask41='quality'
+            sr_band12='swir2', Fmask4='quality'
         )
 
 

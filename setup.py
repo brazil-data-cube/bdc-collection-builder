@@ -46,7 +46,6 @@ install_requires = [
     'boto3>=1.11',
     'docutils>=0.10,<0.15'
     'Flask>=1.1.1',
-    'Flask-Cors>=3.0,<4.0',
     'flask-restplus>=0.13.0',
     'Flask-SQLAlchemy>=2.4.1',
     'google-cloud-storage>=1.28,<2',
@@ -62,7 +61,7 @@ install_requires = [
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@b-0.2#egg=bdc-db',
-    'celery[librabbitmq]>=4.3.0',
+    'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0'
 ]
 

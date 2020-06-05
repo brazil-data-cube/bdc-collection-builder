@@ -1,4 +1,4 @@
-FROM registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:0.1.0
+FROM registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask42:2.0.1
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8

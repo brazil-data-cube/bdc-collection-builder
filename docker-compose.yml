@@ -47,7 +47,7 @@ services:
     ports:
       - "5432:5432"
 
-  bdc-collection-builder:
+  api:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
@@ -55,8 +55,6 @@ services:
     image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
     restart: "always"
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
@@ -70,7 +68,7 @@ services:
       - ./secrets.json:/app/secrets.json
       - /gfs:/gfs
     command: >
-      bash -c "bdc-collection-builder db create-db && bdc-collection-builder db upgrade && bdc-collection-builder run --host 0.0.0.0"
+      bash -c "bdc-collection-builder run --host 0.0.0.0"
     depends_on:
       - mq
       - redis
@@ -83,7 +81,7 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
@@ -107,22 +105,20 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
       - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
-      - "ESPA_URL=http://bdc-collection-builder-espa-science:5032"
-      - "SEN2COR_URL=http://bdc-collection-builder-sen2cor:5031"
       # The following variables are related to laSRC and ledaps execution.
       - "L8_AUX_DIR=/mnt/auxiliaries/L8"
       - "LASRC_AUX_DIR=/mnt/auxiliaries/L8"
       - "LEDAPS_AUX_DIR=/mnt/auxiliaries/ledaps"
     volumes:
       - /gfs:/gfs
-      - /gfs/ds_data:/mnt/auxiliaries
+      - /gfs/ds_data/auxiliaries:/mnt/auxiliaries
       - ./secrets.json:/app/secrets.json
     entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "atm-correction"]
     networks:
@@ -134,7 +130,7 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     volumes:
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
@@ -155,7 +151,7 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
@@ -176,7 +172,7 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     volumes:
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json

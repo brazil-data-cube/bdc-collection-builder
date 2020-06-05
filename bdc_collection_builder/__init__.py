@@ -10,7 +10,6 @@
 
 from bdc_db.ext import BDCDatabase
 from flask import Flask
-from flask_cors import CORS
 
 from . import celery, config
 from .config import get_settings
@@ -30,8 +29,6 @@ def create_app(config_name='DevelopmentConfig'):
     app.config.from_object(conf)
 
     with app.app_context():
-        CORS(app, resources={r"/*": {"origins": "*"}})
-
         # Initialize Flask SQLAlchemy
         BDCDatabase(app)
 
@@ -52,6 +49,13 @@ def create_app(config_name='DevelopmentConfig'):
         def register_factories_on_init(*args):
             """Load Brazil Data Cube factories on init."""
             initialize_factories()
+
+        @app.after_request
+        def after_request(response):
+            """Enable CORS."""
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
+            return response
 
     return app
 

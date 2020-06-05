@@ -16,7 +16,6 @@ from werkzeug.exceptions import BadRequest, RequestURITooLarge
 # Builder
 from ..celery.utils import list_pending_tasks, list_running_tasks
 from .forms import RadcorActivityForm
-from .models import RadcorActivity
 from .business import RadcorBusiness
 
 

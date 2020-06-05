@@ -36,6 +36,7 @@ class Config:
         'SQLALCHEMY_DATABASE_URI_AWS',
         'postgresql://postgres:postgres@localhost:5433/bdc_collection_builder'
     )
+    GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-arquive')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'CHANGE_ME')
@@ -44,11 +45,13 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
+    AUXILIARIES_DIR = os.environ.get('AUXILIARIES_DIR', os.path.join(DATA_DIR, 'auxiliaries'))
     ESPA_URL = os.environ.get('ESPA_URL', 'http://127.0.0.1:5032')
     SEN2COR_URL = os.environ.get('SEN2COR_URL', 'http://127.0.0.1:5031')
     CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
     CLIENT_AUDIENCE = os.environ.get('CLIENT_AUDIENCE', 'CHANGE_ME')
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
+
     CELERYD_PREFETCH_MULTIPLIER = 1  # disable
 
 

@@ -11,23 +11,23 @@
 
 # Python Native
 from datetime import datetime
-from os import path as resource_path
-import glob
 import logging
 # 3rdparty
 from celery.backends.database import Task
-from sqlalchemy import or_, func, cast, Date
+from sqlalchemy import func, Date
 from werkzeug.exceptions import BadRequest
 # Builder
-from bdc_db.models import db, Collection, CollectionTile
+from bdc_db.models import db, CollectionTile
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.db import db_aws
 from .forms import SimpleActivityForm
+from .landsat.utils import factory as landsat_factory
 from .models import RadcorActivity, RadcorActivityHistory
+from .sentinel.utils import factory as sentinel_factory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
 # Consts
-CLOUD_DEFAULT = 90
+CLOUD_DEFAULT = 100
 DESTINATION_DIR = Config.DATA_DIR
 
 
@@ -35,10 +35,10 @@ class RadcorBusiness:
     """Define an interface for handling entire module business."""
 
     @classmethod
-    def start(cls, activity, **kwargs):
+    def start(cls, activity, skip_l1=None, **kwargs):
         """Dispatch the celery tasks."""
         activity['args'].update(kwargs)
-        return dispatch(activity)
+        return dispatch(activity, skip_l1)
 
     @classmethod
     def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None, **kwargs):
@@ -128,7 +128,7 @@ class RadcorBusiness:
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
         args['tileid'] = 'notile'
-        args['satsen'] = args['satsen'].split(',') if 'satsen' in args else ['S2']
+        args['satsen'] = args['satsen']
         args['start'] = args.get('start')
         args['end'] = args.get('end')
 
@@ -150,27 +150,30 @@ class RadcorBusiness:
 
         extra_args = args.get('args', dict())
 
+        activities = []
+
+        skip_l1 = extra_args.get('skip_l1', False)
+
         scenes = {}
-        if 'LC8' in sat or 'LC8SR' in sat:
-            # result = developmentSeed(w,n,e,s,rstart,rend,cloud,limit)
-            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, limit)
+        if 'landsat' in sat.lower():
+            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
             scenes.update(result)
             for id in result:
                 scene = result[id]
                 sceneid = scene['sceneid']
-                # Find LC08_L1TP_218069_20180706_20180717_01_T1.png
-                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/LC8')
 
+                landsat_scene_level_1 = landsat_factory.get_from_sceneid(sceneid)
+                landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
+
+                # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
                 activity = dict(
-                    collection_id='LC8DN',
+                    collection_id=landsat_scene_level_1.id if not skip_l1 else landsat_scene_level_2.id,
                     activity_type='downloadLC8',
                     tags=args.get('tags', []),
                     sceneid=sceneid,
                     scene_type='SCENE',
                     args=dict(
                         link=scene['link'],
-                        file=base_dir,
-                        satellite='LC8',
                         cloud=scene.get('cloud'),
                         harmonize=do_harmonization
                     )
@@ -183,39 +186,40 @@ class RadcorBusiness:
                 scene['status'] = 'NOTDONE'
 
                 tile = '{}{}'.format(scene['path'], scene['row'])
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8DN', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, 'LC8SR', engine=db_aws)
+                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_1.id, engine=db)
+                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db)
+
+                if not skip_l1:
+                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db_aws)
+
                 if do_harmonization:
-                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db)
-                    RadcorBusiness.create_tile('WRS2', tile, 'LC8NBAR', engine=db_aws)
+                    landsat_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
 
-                if action == 'start':
-                    cls.start(activity, **extra_args)
+                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db)
 
-        if 'S2' in sat or 'S2SR_SEN28' in sat:
-            result = get_sentinel_scenes(w,n,e,s,rstart,rend,cloud,limit)
+                    if not skip_l1:
+                        RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db_aws)
+
+                activities.append(activity)
+
+        if 'S2' in sat:
+            result = get_sentinel_scenes(w, n, e, s, rstart, rend, cloud, limit)
             scenes.update(result)
             for id in result:
                 scene = result[id]
                 sceneid = scene['sceneid']
-                # Check if this scene is already in Repository as Level 2A
-                cc = sceneid.split('_')
-                yyyymm = cc[2][:4]+'-'+cc[2][4:6]
-                # Output product dir
-                base_dir = resource_path.join(DESTINATION_DIR, 'Repository/Archive/S2_MSI')
-                productdir = resource_path.join(base_dir, '{}/'.format(yyyymm))
+
+                sentinel_scene_level_1 = sentinel_factory.get_from_sceneid(sceneid)
+                sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
 
                 activity = dict(
-                    collection_id='S2TOA',
+                    collection_id=sentinel_scene_level_1.id,
                     activity_type='downloadS2',
                     tags=args.get('tags', []),
                     sceneid=sceneid,
                     scene_type='SCENE',
                     args=dict(
                         link=scene['link'],
-                        file=base_dir,
-                        satellite='S2',
                         cloud=scene.get('cloud'),
                         harmonize=do_harmonization
                     )
@@ -225,19 +229,26 @@ class RadcorBusiness:
                     logging.warning('radcor - activity already done {}'.format(sceneid))
                     continue
 
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2TOA', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db)
-                RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2SR_SEN28', engine=db_aws)
+                tile_id = scene.get('pathrow', scene.get('tileid'))
+
+                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_1.id, engine=db)
+                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db)
+                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db_aws)
                 if do_harmonization:
-                    RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2NBAR', engine=db)
-                    RadcorBusiness.create_tile('MGRS', scene.get('pathrow', scene.get('tileid')), 'S2NBAR', engine=db_aws)
+                    sentinel_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
+
+                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db)
+                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db_aws)
 
                 scene['status'] = 'NOTDONE'
 
                 scenes[id] = scene
 
-                if action == 'start':
-                    cls.start(activity, **extra_args)
+                activities.append(activity)
+
+        if action == 'start':
+            for activity in activities:
+                cls.start(activity, **extra_args)
 
         return scenes
 

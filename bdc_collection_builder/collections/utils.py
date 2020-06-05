@@ -10,25 +10,31 @@
 
 
 # Python Native
-from json import loads as json_parser
-from os import remove as resource_remove, path as resource_path
-from zlib import error as zlib_error
-from zipfile import BadZipfile, ZipFile
 import datetime
 import json
 import logging
+from json import loads as json_parser
+from os import remove as resource_remove, path as resource_path
+from typing import List
+from zipfile import BadZipfile, ZipFile
+from zlib import error as zlib_error
+
 # 3rdparty
 import boto3
 import numpy
 import rasterio
 import requests
-from bdc_db.models import AssetMV, Collection, db
+from bdc_db.models import AssetMV, db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
+from landsatxplore.earthexplorer import EE_DOWNLOAD_URL, EE_FOLDER
+from numpngw import write_png
 from osgeo import gdal
+from skimage import exposure
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
+
 # Builder
 from ..config import CURRENT_DIR, Config
 from ..db import commit, db_aws
@@ -65,11 +71,12 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
     return instance, True
 
 
-def dispatch(activity: dict):
+def dispatch(activity: dict, skip_l1=None, **kwargs):
     """Dispatches the activity to the respective celery task handler.
 
     Args:
         activity (RadcorActivity) - A not done activity
+        skip_l1 - Skip publish schedule for download tasks.
     """
     from .sentinel import tasks as sentinel_tasks
     from .landsat import tasks as landsat_tasks
@@ -78,14 +85,6 @@ def dispatch(activity: dict):
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
-        # We are assuming that collection TOA
-        collection_sr = Collection.query().filter(Collection.id == 'S2SR_SEN28').first()
-
-        if collection_sr is None:
-            raise RuntimeError('The collection "S2SR_SEN28" not found')
-
-        # Raw chain represents TOA publish chain
-        publish_raw_data_chain = sentinel_tasks.publish_sentinel.s()
         # Atm Correction chain
         atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
         # Publish ATM Correction
@@ -100,7 +99,16 @@ def dispatch(activity: dict):
             inner_group = group(upload_chain, harmonize_chain)
 
         inner_group = atm_corr_publish_chain | inner_group
-        outer_group = group(publish_raw_data_chain, inner_group)
+
+        after_download_group = [
+            inner_group
+        ]
+
+        if not skip_l1:
+            # Publish L1
+            after_download_group.append(sentinel_tasks.publish_sentinel.s())
+
+        outer_group = group(*after_download_group)
         task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
     elif app == 'correctionS2':
@@ -123,12 +131,6 @@ def dispatch(activity: dict):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
     elif app == 'downloadLC8':
-        # We are assuming that collection DN
-        collection_lc8 = Collection.query().filter(Collection.id == 'LC8SR').first()
-
-        if collection_lc8 is None:
-            raise RuntimeError('The collection "LC8SR" not found')
-
         # Raw chain represents DN publish chain
         raw_data_chain = landsat_tasks.publish_landsat.s()
         # Atm Correction chain
@@ -207,20 +209,25 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
     return poly.ExportToWkt(),poly
 
 
-def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit):
+def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
     """List landsat scenes from USGS."""
     credentials = get_credentials()['landsat']
 
     api = API(credentials['username'], credentials['password'])
 
+    landsat_folder_id = EE_FOLDER.get(formal_name)
+
+    if landsat_folder_id is None:
+        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EE_FOLDER.keys()))
+
     # Request
     scenes_result = api.search(
-        dataset='LANDSAT_8_C1',
+        dataset=formal_name,
         bbox=(slat, wlon, nlat, elon),
         start_date=startdate,
         end_date=enddate,
         max_cloud_cover=cloud or 100,
-        max_results=10000
+        max_results=50000
     )
 
     scenes_output = {}
@@ -241,7 +248,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, limit)
         copy_scene['slat'] = float(ymin)
         copy_scene['elon'] = float(xmax)
         copy_scene['nlat'] = float(ymax)
-        copy_scene['link'] = 'https://earthexplorer.usgs.gov/download/12864/{}/STANDARD/EE'.format(scene['entityId'])
+        copy_scene['link'] = EE_DOWNLOAD_URL.format(folder=landsat_folder_id, sid=scene['entityId'])
 
         pathrow = scene['displayId'].split('_')[2]
 
@@ -362,7 +369,7 @@ def is_valid_tif(input_data_set_path):
     gdal.UseExceptions()
 
     try:
-        ds  = gdal.Open(input_data_set_path)
+        ds = gdal.Open(str(input_data_set_path))
         srcband = ds.GetRasterBand(1)
 
         array = srcband.ReadAsArray()
@@ -586,3 +593,38 @@ def refresh_assets_view(refresh_on_aws=True):
         commit(db)
 
     logging.info('View refreshed.')
+
+
+def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
+    """Generate a Quick Look file (PNG based) from a list of files.
+
+    Note:
+        The file order in ``files`` represents the bands Red, Green and Blue, respectively.
+
+    Exceptions:
+        RasterIOError when could not open a raster file band
+
+    Args:
+        png_file: Path to store the quicklook file.
+        files: List of file paths to open and read the Raster files.
+        rows: Image height. Default is 768.
+        cols: Image width. Default is 768.
+    """
+    image = numpy.zeros((rows, cols, len(files),), dtype=numpy.uint8)
+
+    nb = 0
+    for band in files:
+        with rasterio.open(band) as data_set:
+            raster = data_set.read(1)
+
+        raster = resize(raster, (rows, cols), order=1, preserve_range=True)
+        nodata = raster == -9999
+        # Evaluate minimum and maximum values
+        a = numpy.array(raster.flatten())
+        p1, p99 = numpy.percentile(a[a>0], (1, 99))
+        # Convert minimum and maximum values to 1,255 - 0 is nodata
+        raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1, 255)).astype(numpy.uint8)
+        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
+        nb += 1
+
+    write_png(str(png_file), image, transparent=(0, 0, 0))

@@ -47,7 +47,7 @@ services:
     ports:
       - "5432:5432"
 
-  bdc-collection-builder:
+  api:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
@@ -55,8 +55,6 @@ services:
     image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
     restart: "always"
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
@@ -70,44 +68,11 @@ services:
       - ./secrets.json:/app/secrets.json
       - /gfs:/gfs
     command: >
-      bash -c "bdc-collection-builder db create-db && bdc-collection-builder db upgrade && bdc-collection-builder run --host 0.0.0.0"
+      bash -c "bdc-collection-builder run --host 0.0.0.0"
     depends_on:
       - mq
       - redis
       - postgres
-
-  espa-science:
-    container_name: bdc-collection-builder-espa-science
-    image: registry.dpi.inpe.br/rc_espa-science
-    restart: always
-    ports:
-      - 5032:5032
-    volumes:
-      - ./espa-science:/app
-      - ./tmp:/tmp
-      - ./:/home/espa/work-dir:rw
-      - /gfs/Repository/Archive/LC8SR:/home/espa/output-data:rw
-      - /:/home/espa/input-data:ro
-      - /gfs/ds_data/auxiliaries:/usr/local/auxiliaries:rw
-      - ./espa-science/.usgs:/home/espa/.usgs:ro
-    environment:
-      L8_AUX_DIR: /usr/local/auxiliaries/L8
-    networks:
-      - bdc_net
-
-  sen2cor:
-    container_name : bdc-collection-builder-sen2cor
-    image: registry.dpi.inpe.br/rc_sen2cor:2.8.0
-    restart: always
-    ports:
-      - 5031:5031
-    volumes:
-      - ./sen2cor:/app
-      - ./sen2cor/root_280:/root
-      - /:/dados
-      - /gfs/ds_data/CCI4SEN2COR:/home/lib/python2.7/site-packages/sen2cor/aux_data
-    networks:
-      - bdc_net
 
 #  Celery
   worker-download:
@@ -116,10 +81,8 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
@@ -134,27 +97,30 @@ services:
       - bdc_net
 
   worker-atm-correction:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.atm
     container_name: bdc-collection-builder-worker-atm-correction
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder-atm:latest
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
       - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
       - "DATA_DIR=/gfs"
-      - "ESPA_URL=http://bdc-collection-builder-espa-science:5032"
-      - "SEN2COR_URL=http://bdc-collection-builder-sen2cor:5031"
+      # The following variables are related to laSRC and ledaps execution.
+      - "L8_AUX_DIR=/mnt/auxiliaries/L8"
+      - "LASRC_AUX_DIR=/mnt/auxiliaries/L8"
+      - "LEDAPS_AUX_DIR=/mnt/auxiliaries/ledaps"
     volumes:
       - /gfs:/gfs
+      - /gfs/ds_data/auxiliaries:/mnt/auxiliaries
       - ./secrets.json:/app/secrets.json
-    command: >
-      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 2 -Q atm-correction
+    entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "atm-correction"]
     networks:
       - bdc_net
 
@@ -164,13 +130,11 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     volumes:
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "DATA_DIR=/gfs"
@@ -187,10 +151,8 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
@@ -210,13 +172,11 @@ services:
     restart: "always"
     depends_on:
       - mq
-      - bdc-collection-builder
+      - api
     volumes:
       - /gfs:/gfs
       - ./secrets.json:/app/secrets.json
     environment:
-      - "LC_ALL=C.UTF-8"
-      - "LANG=C.UTF-8"
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
       - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"

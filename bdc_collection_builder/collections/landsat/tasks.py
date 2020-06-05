@@ -13,13 +13,9 @@ import logging
 import os
 import subprocess
 from datetime import datetime
-from pathlib import Path
-from distutils.util import strtobool
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
-from glob import glob as resource_glob
-from requests import get as resource_get
 from sqlalchemy.exc import InvalidRequestError
 from urllib3.exceptions import NewConnectionError, MaxRetryError
 
@@ -29,9 +25,11 @@ from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
 from ..utils import refresh_assets_view, remove_file, upload_file
-from .download import download_landsat_images, download_from_aws
+from .download import download_landsat_images
+from .google import download_from_google
 from .harmonization import landsat_harmonize
 from .publish import publish
+from .utils import LandsatProduct, factory
 
 
 def is_valid_tar_gz(file_path: str):
@@ -71,17 +69,19 @@ class LandsatTask(RadcorTask):
 
         try:
             scene_id = scene['sceneid']
-            yyyymm = self.get_tile_date(scene_id).strftime('%Y-%m')
+            # Get Landsat collection handler
+            landsat_scene = factory.get_from_sceneid(scene_id, level=1)
+
             activity_args = scene.get('args', {})
 
             collection_item = self.get_collection_item(activity_history.activity)
 
             # Output product dir
-            productdir = os.path.join(activity_args.get('file'), '{}/{}'.format(yyyymm, self.get_tile_id(scene_id)))
+            productdir = landsat_scene.compressed_file().parent
 
-            os.makedirs(productdir, exist_ok=True)
+            productdir.mkdir(parents=True, exist_ok=True)
 
-            digital_number_file = Path(productdir) / '{}.tar.gz'.format(scene_id)
+            digital_number_file = landsat_scene.compressed_file()
 
             valid = False
 
@@ -97,27 +97,14 @@ class LandsatTask(RadcorTask):
                 # Ensure file is removed since it may be corrupted
                 remove_file(str(digital_number_file))
 
-                # Flag to prefer download from AWS instead USGS
-                use_aws = activity_args.get('use_aws', False)
-
-                if strtobool(str(use_aws)):
-                    try:
-                        logging.info('Download Landsat {} -> e={} v={} from AWS...'.format(scene_id, digital_number_file.exists(), valid))
-                        digital_number_dir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(
-                            scene['collection_id'],
-                            yyyymm,
-                            self.get_tile_id(scene_id)
-                        ))
-
-                        file, provider_url = download_from_aws(scene_id, digital_number_dir, productdir)
-                        activity_args['provider'] = provider_url
-                    except BaseException:
-                        logging.warning('Could not download {} from AWS. Using USGS...'.format(scene_id))
-                        # Ensure file is removed since it may be corrupted
-                        remove_file(str(digital_number_file))
-
-                # When file does not exist, use USGS
-                if not digital_number_file.exists():
+                try:
+                    # Download from google
+                    logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
+                        scene_id, digital_number_file.exists(), valid)
+                    )
+                    file, link = download_from_google(scene_id, str(productdir))
+                    activity_args['provider'] = link
+                except BaseException:
                     logging.info('Download Landsat {} from USGS...'.format(scene_id))
                     file = download_landsat_images(activity_args['link'], productdir)
                     activity_args['provider'] = activity_args['link']
@@ -158,6 +145,12 @@ class LandsatTask(RadcorTask):
         # Create/Update activity
         activity_history = self.create_execution(scene)
 
+        # Get collection level to publish. Default is l1
+        # TODO: Check in database the scenes level 2 already published. We must set to level 2
+        collection_level = scene['args'].get('level') or 1
+
+        landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=collection_level)
+
         try:
             assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
         except InvalidRequestError as e:
@@ -178,7 +171,8 @@ class LandsatTask(RadcorTask):
         scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
 
-        if scene.get('collection_id') == 'LC8SR':
+        # Refresh for everything except for L1
+        if landsat_scene.level > 1:
             refresh_assets_view()
 
         return scene
@@ -204,11 +198,9 @@ class LandsatTask(RadcorTask):
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
 
     @staticmethod
-    def espa_done(productdir, pathrow, date):
+    def espa_done(scene: LandsatProduct):
         """Check espa-science has executed successfully."""
-        template = os.path.join(productdir, 'LC08_*_{}_{}_*.tif'.format(pathrow, date))
-
-        fs = resource_glob(template)
+        fs = scene.get_files()
 
         return len(fs) > 0
 
@@ -218,9 +210,16 @@ class LandsatTask(RadcorTask):
         Args:
             scene - Serialized Activity
         """
-        scene['collection_id'] = 'LC8SR'
+        import subprocess
+        import tarfile
+
         scene['activity_type'] = 'correctionLC8'
         scene_id = scene['sceneid']
+
+        # Get Resolver for Landsat scene level 2
+        landsat_scene = factory.get_from_sceneid(scene_id, level=2)
+        landsat_scene_level_1 = factory.get_from_sceneid(scene_id, level=1)
+        scene['collection_id'] = landsat_scene.id
 
         # Create/Update activity
         execution = self.create_execution(scene)
@@ -232,39 +231,51 @@ class LandsatTask(RadcorTask):
                 file=scene['args']['file']
             )
 
-            pathrow = self.get_tile_id(scene_id)
-            tile_date = self.get_tile_date(scene_id)
-            yyyymm = tile_date.strftime('%Y-%m')
-            date = tile_date.strftime('%Y%m%d')
+            output_path = landsat_scene.path()
+            output_path.mkdir(exist_ok=True, parents=True)
+
+            input_dir = landsat_scene_level_1.compressed_file().parent
+
+            with tarfile.open(scene['args']['file']) as compressed_file:
+                # Extracting to temp directory
+                compressed_file.extractall(landsat_scene_level_1.compressed_file().parent)
+
+            cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(landsat_scene_level_1.scene_id)
+
+            logging.warning('cmd {}'.format(cmd))
+
+            env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_path))
+            process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
+            process.wait()
+
+            assert process.returncode == 0
+
+            pathrow = landsat_scene.tile_id()
 
             params['pathrow'] = pathrow
 
-            # Send scene to the ESPA service
-            req = resource_get('{}/espa'.format(Config.ESPA_URL), params=params)
-            # Ensure the request has been successfully
-            assert req.status_code == 200
-
-            result = req.json()
-
-            if result and result.get('status') == 'ERROR':
-                raise RuntimeError('Error in espa-science execution - {}'.format(scene_id))
-
             # Product dir
-            productdir = os.path.join(Config.DATA_DIR, 'Repository/Archive/{}/{}/{}'.format(scene['collection_id'], yyyymm, pathrow))
+            productdir = landsat_scene.path()
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
 
-            if not LandsatTask.espa_done(productdir, pathrow, date):
+            if not LandsatTask.espa_done(landsat_scene):
                 raise RuntimeError('Error in atmospheric correction')
 
-            scene['args']['file'] = productdir
+            scene['args']['file'] = str(productdir)
 
         except BaseException as e:
             logging.error('Error at correction Landsat {}, id={} - {}'.format(scene_id, execution.activity_id, str(e)))
 
             raise e
+        finally:
+            # Remove extracted files
+            for f in landsat_scene_level_1.compressed_file_bands():
+                if f.exists():
+                    f.unlink()
 
         scene['activity_type'] = 'publishLC8'
+        scene['args']['level'] = landsat_scene.level
 
         return scene
 
@@ -274,15 +285,19 @@ class LandsatTask(RadcorTask):
         Args:
             scene - Serialized Activity
         """
+        # Set Collection Level 3 - BDC
+        scene['args']['level'] = 3
+
+        landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=scene['args']['level'])
+
         # Set Collection to the Landsat NBAR (Nadir BRDF Adjusted Reflectance)
-        scene['collection_id'] = 'LC8NBAR'
+        scene['collection_id'] = landsat_scene.id
         scene['activity_type'] = 'harmonizeLC8'
 
         # Create/Update activity
         activity_history = self.create_execution(scene)
 
         logging.debug('Starting Harmonization Landsat...')
-        logging.info('L8TASKS Harmonize Starting Harmonization Landsat...') #TODO REMOVE
 
         activity_history.activity.activity_type = 'harmonizeLC8'
         activity_history.start = datetime.utcnow()

@@ -43,7 +43,7 @@ CREODIAS (Sentinel 2A and 2B)
 
 .. note::
 
-        This section is optional. It is an alternative to avoid the `Copernicus Long Term Archive <https://scihub.copernicus.eu/userguide/LongTermArchive>`_.
+    This section is optional. It is an alternative to avoid the `Copernicus Long Term Archive <https://scihub.copernicus.eu/userguide/LongTermArchive>`_.
 
 Due the `Copernicus Long Term Archive <https://scihub.copernicus.eu/userguide/LongTermArchive>`_, you may face issues while
 requesting for download period higher than a year due Retention Policy. In this way, you can set a credential
@@ -92,60 +92,40 @@ This information should be inserted into secrets.json
     }
 
 
+Google Cloud Storage
+++++++++++++++++++++
+
+.. note::
+
+    This section is optional. But we strongly recommend the configuration due data availability.
+
+
+You must have a Google Account in order to use any ``Google Cloud Services``. In this way, you can create a new one in `Create a new Google Account <https://accounts.google.com/signup/v2>`_.
+
+After that, you must also register an service account key in `Create a Service Account Key <https://console.cloud.google.com/apis/credentials/serviceaccountkey>`_ and download the service key.
+
+You must set the environment variable ``GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account_key.json`` in order to enable the Google Provider in ``Collection Builder`` application.
+
+
 Setting up Auxiliary Data for Surface Reflectance Processors
 ------------------------------------------------------------
 
 
-Sen2Cor
+LaSRC 2
 +++++++
-
-Download **ESACCIC-LC for Sen2cor data package** (``ESACCI-LC-L4-ALL-FOR-SEN2COR.zip``) auxiliary files from `<http://maps.elie.ucl.ac.be/CCI/viewer/download.php>`_.
-
-Create a directory named ``/gfs/ds_data`` and extract the Sen2cor Auxiliary Data to the following directory.
-
-.. code-block:: shell
-
-        sudo mdkir -p /gfs/ds_data
-        cd /gfs/ds_data
-        sudo wget ftp://geo10.elie.ucl.ac.be/v207/ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
-        sudo unzip ESACCI-LC-L4-ALL-FOR-SEN2COR.zip
-        sudo wget https://storage.googleapis.com/cci-lc-v207/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.zip
-        sudo unzip ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.zip
-        sudo mv product/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif CCI4SEN2COR/
-        cd CCI4SEN2COR
-        sudo wget ftp://geo10.elie.ucl.ac.be/CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.tif
-
-
-
-The extracted files should be similar to:
-
-.. code-block:: shell
-
-        $ ls -lah /gfs/ds_data/CCI4SEN2COR/
-        total 7.2G
-        drwxrwxrwx 2 user user 4.0K Jan 14 13:41 .
-        drwxrwxrwx 5 user user 4.0K Feb 28 08:15 ..
-        -rwxrwxrwx 1 user user 6.0G Nov 23  2018 ESACCI-LC-L4-ALL-FOR-SEN2COR.tar
-        -rw-r--r-- 1 user user 299M Dec 20  2017 ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif
-        -rwxrwxrwx 1 user user 595M Nov 23  2018 ESACCI-LC-L4-LCCS-WB-FOR-SEN2COR.tar
-        -rw-r--r-- 1 user user 297M Dec 20  2017 ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.tif
-
 
 .. note::
 
-    You can change ``/gfs/ds_data`` to your preference folder. Just keep in mind that you must edit the section
-    ``sen2cor`` in the file ``docker-compose.yml``.
+    The ``LaSRC 2`` is used to generate Surface Reflectance both ``Sentinel 2A/2B and Landsat-8`` collections.
+    See more details `here <https://github.com/USGS-EROS/espa-surface-reflectance/releases/tag/surface_reflectance_dec2019>`_
 
 
-LaSRC 1.3.0
-+++++++++++
-
-Create a *auxiliaries* directory containing two folders: *L8* and *land_water_polygon*:
+Create a *ds_data* to store the *auxiliaries* data used by the processor LaSRC:
 
 .. code-block:: shell
 
-        sudo mkdir -p /gfs/ds_data/auxiliaries/{L8,land_water_polygon}
-        cd /gfs/ds_data/auxiliaries
+    sudo mkdir -p /gfs/ds_data/auxiliaries/{L8,land_water_polygon}
+    cd /gfs/ds_data/auxiliaries
 
 
 Download the static land/water polygon from `<http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz>`_
@@ -153,37 +133,38 @@ into the *land_water_polygon* folder (for more details check `<https://github.co
 
 .. code-block:: shell
 
-        cd /gfs/ds_data/auxiliaries/land_water_polygon
-        sudo wget http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz
-        sudo gunzip land_no_buf.ply.gz
+    cd /gfs/ds_data/auxiliaries/land_water_polygon
+    sudo wget http://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/land_water_poly/land_no_buf.ply.gz
+    sudo gunzip land_no_buf.ply.gz
 
 
 The folder ``land_water_polygon`` should be similar to:
 
 .. code-block:: shell
 
-        ls -lah /gfs/ds_data/auxiliaries/land_water_polygon/
-        total 171M
-        drwxrwxrwx 2 user user 4.0K Mar 26 00:21 .
-        drwxrwxrwx 4 user user 4.0K Mar 19 03:41 ..
-        -rw-rw-rw- 1 user user 171M Nov 26  2018 land_no_buf.ply
+    ls -lah /gfs/ds_data/auxiliaries/land_water_polygon/
+    total 171M
+    drwxrwxrwx 2 user user 4.0K Mar 26 00:21 .
+    drwxrwxrwx 4 user user 4.0K Mar 19 03:41 ..
+    -rw-rw-rw- 1 user user 171M Nov 26  2018 land_no_buf.ply
 
 
 Download the `<https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/>`_ into *L8*.
 
 .. code-block:: shell
 
-        cd /gfs/ds_data/auxiliaries/L8
-        wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/CMGDEM.hdf
-        wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/ratiomapndwiexp.hdf
+    cd /gfs/ds_data/auxiliaries/L8
+    wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/CMGDEM.hdf
+    wget https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/ratiomapndwiexp.hdf
 
 
-You have to download the folders ``LDCMLUT`` and ``LADS``:
+You have to download the folders ``LDCMLUT``, ``MSILUT`` and ``LADS``:
 
 .. code-block:: shell
 
-        wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LDCMLUT/
-        wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LADS/
+    wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LDCMLUT/
+    wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/MSILUT/
+    wget -r --no-parent -nH --cut-dirs=4 https://edclpdsftp.cr.usgs.gov/downloads/auxiliaries/lasrc_auxiliary/L8/LADS/
 
 
 .. note::
@@ -195,11 +176,12 @@ After that, the folder ``L8`` should be similar to:
 
 .. code-block:: shell
 
-        $ ls -lah /gfs/ds_data/auxiliaries/L8
-        total 1.6G
-        drwxrwxrwx  4 user user 4.0K Mar 19 03:41 .
-        drwxrwxrwx  4 user user 4.0K Mar 19 03:41 ..
-        -rw-rw-rw-  1 user user 124M Nov 26  2018 CMGDEM.hdf
-        drwxrwxrwx 10 user user 4.0K Mar 19 03:41 LADS
-        drwxrwxrwx  2 user user 4.0K Mar 19 04:45 LDCMLUT
-        -rw-rw-rw-  1 user user 1.5G Nov 26  2018 ratiomapndwiexp.hdf
+    $ ls -lah /gfs/ds_data/auxiliaries/L8
+    total 1.6G
+    drwxrwxrwx  4 user user 4.0K Mar 19 03:41 .
+    drwxrwxrwx  4 user user 4.0K Mar 19 03:41 ..
+    -rw-rw-rw-  1 user user 124M Nov 26  2018 CMGDEM.hdf
+    drwxrwxrwx 10 user user 4.0K Mar 19 03:41 LADS
+    drwxrwxrwx  2 user user 4.0K Mar 19 04:45 LDCMLUT
+    drwxrwxrwx  2 user user 4.0K Mar 19 04:45 MSILUT
+    -rw-rw-rw-  1 user user 1.5G Nov 26  2018 ratiomapndwiexp.hdf

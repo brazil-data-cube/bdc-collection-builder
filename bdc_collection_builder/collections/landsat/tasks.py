@@ -13,7 +13,6 @@ import logging
 import os
 import subprocess
 from datetime import datetime
-from pathlib import Path
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
@@ -26,7 +25,7 @@ from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
 from ..utils import refresh_assets_view, remove_file, upload_file
-from .download import download_landsat_images, download_from_aws
+from .download import download_landsat_images
 from .google import download_from_google
 from .harmonization import landsat_harmonize
 from .publish import publish
@@ -246,8 +245,10 @@ class LandsatTask(RadcorTask):
             logging.warning('cmd {}'.format(cmd))
 
             env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_path))
+            process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
+            process.wait()
 
-            subprocess.call(cmd, shell=True, env=env)
+            assert process.returncode == 0
 
             pathrow = landsat_scene.tile_id()
 
@@ -258,10 +259,6 @@ class LandsatTask(RadcorTask):
 
             logging.info('Checking for the ESPA generated files in {}'.format(productdir))
 
-            # Remove extracted files
-            for f in landsat_scene_level_1.compressed_file_bands():
-                f.unlink()
-
             if not LandsatTask.espa_done(landsat_scene):
                 raise RuntimeError('Error in atmospheric correction')
 
@@ -271,6 +268,11 @@ class LandsatTask(RadcorTask):
             logging.error('Error at correction Landsat {}, id={} - {}'.format(scene_id, execution.activity_id, str(e)))
 
             raise e
+        finally:
+            # Remove extracted files
+            for f in landsat_scene_level_1.compressed_file_bands():
+                if f.exists():
+                    f.unlink()
 
         scene['activity_type'] = 'publishLC8'
         scene['args']['level'] = landsat_scene.level

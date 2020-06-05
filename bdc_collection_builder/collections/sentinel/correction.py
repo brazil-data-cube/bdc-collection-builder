@@ -103,11 +103,14 @@ def correction_laSRC(input_dir: str, output_dir: str) -> str:
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    # "input_dir" usually already points to .SAFE. We need the dir name
+    base_input_dir = str(Path(input_dir).parent)
+
     cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(scene_id_safe)
 
     logging.warning('cmd {}'.format(cmd))
 
-    env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_dir))
+    env = dict(**os.environ, INDIR=base_input_dir, OUTDIR=str(output_dir))
 
     process = subprocess.Popen(cmd, shell=True, env=env)
     process.wait()

@@ -209,7 +209,7 @@ class LandsatSurfaceReflectance07(LandsatProduct):
     def get_band_map(self) -> dict:
         return dict(
             blue='sr_band1', green='sr_band2', red='sr_band3', nir='sr_band4', swir1='sr_band5',
-            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='pixel_qa'
+            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
         )
 
 
@@ -235,7 +235,7 @@ class LandsatSurfaceReflectance05(LandsatProduct):
     def get_band_map(self) -> dict:
         return dict(
             blue='sr_band1', green='sr_band2', red='sr_band3', nir='sr_band4', swir1='sr_band5',
-            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='pixel_qa'
+            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
         )
 
 

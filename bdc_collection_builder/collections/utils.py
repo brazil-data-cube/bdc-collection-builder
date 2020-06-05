@@ -15,8 +15,10 @@ import json
 import logging
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
-from zlib import error as zlib_error
+from typing import List
 from zipfile import BadZipfile, ZipFile
+from zlib import error as zlib_error
+
 # 3rdparty
 import boto3
 import numpy
@@ -27,9 +29,12 @@ from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
 from landsatxplore.earthexplorer import EE_DOWNLOAD_URL, EE_FOLDER
+from numpngw import write_png
 from osgeo import gdal
+from skimage import exposure
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
+
 # Builder
 from ..config import CURRENT_DIR, Config
 from ..db import commit, db_aws
@@ -590,10 +595,21 @@ def refresh_assets_view(refresh_on_aws=True):
     logging.info('View refreshed.')
 
 
-def create_quick_look(png_file: str, files, rows=768, cols=768):
-    from numpngw import write_png
-    from skimage import exposure
+def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
+    """Generate a Quick Look file (PNG based) from a list of files.
 
+    Note:
+        The file order in ``files`` represents the bands Red, Green and Blue, respectively.
+
+    Exceptions:
+        RasterIOError when could not open a raster file band
+
+    Args:
+        png_file: Path to store the quicklook file.
+        files: List of file paths to open and read the Raster files.
+        rows: Image height. Default is 768.
+        cols: Image width. Default is 768.
+    """
     image = numpy.zeros((rows, cols, len(files),), dtype=numpy.uint8)
 
     nb = 0

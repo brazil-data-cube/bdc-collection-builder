@@ -9,64 +9,23 @@
 """Describe Landsat 8 publish generation."""
 
 # Python Native
+import logging
 from os import makedirs, path as resource_path
 from pathlib import Path
 from shutil import unpack_archive
-import logging
+
 # 3rdparty
-from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
-from numpngw import write_png
-from skimage import exposure
-from skimage.transform import resize
-import numpy
-# Builder
 from bdc_db.models import Asset, Band, Collection, CollectionItem, db
-from bdc_collection_builder.config import Config
-from bdc_collection_builder.db import add_instance, commit, db_aws
-from bdc_collection_builder.collections.forms import CollectionItemForm
-from bdc_collection_builder.collections.utils import get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
-from bdc_collection_builder.collections.models import RadcorActivity
+from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
+
+# Builder
+from ...config import Config
+from ...db import add_instance, commit, db_aws
+from ..forms import CollectionItemForm
+from ..models import RadcorActivity
+from ..utils import create_quick_look, get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
 from .utils import factory
 
-
-# Get the product files
-BAND_MAP_SR = {
-    'coastal': 'sr_band1',
-    'blue': 'sr_band2',
-    'green': 'sr_band3',
-    'red': 'sr_band4',
-    'nir': 'sr_band5',
-    'swir1': 'sr_band6',
-    'swir2': 'sr_band7',
-    'evi': 'sr_evi',
-    'ndvi': 'sr_ndvi',
-    'quality': 'pixel_qa'
-}
-
-BAND_MAP_DN = {
-    'coastal': 'B1',
-    'blue': 'B2',
-    'green': 'B3',
-    'red': 'B4',
-    'nir': 'B5',
-    'swir1': 'B6',
-    'swir2': 'B7',
-    'quality': 'BQA',
-    'panchromatic': 'B8',
-    'cirrus': 'B9',
-    'tirs1': 'B10',
-    'tirs2': 'B11'
-}
-
-BAND_MAP_NBAR = {
-    'blue': 'sr_band2',
-    'green': 'sr_band3',
-    'red': 'sr_band4',
-    'nir': 'sr_band5',
-    'swir1': 'sr_band6',
-    'swir2': 'sr_band7',
-    'quality': 'pixel_qa'
-}
 
 DEFAULT_QUICK_LOOK_BANDS = ["swir2", "nir", "red"]
 
@@ -202,29 +161,9 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     dataset = GDALOpen(qlfiles['nir'], GA_ReadOnly)
     numlin = 768
     numcol = int(float(dataset.RasterXSize)/float(dataset.RasterYSize)*numlin)
-    image = numpy.zeros((numlin, numcol, len(qlfiles),), dtype=numpy.uint8)
-
     del dataset
 
-    nb = 0
-    for band in quicklook:
-        template = qlfiles[band]
-        dataset = GDALOpen(template, GA_ReadOnly)
-        raster = dataset.GetRasterBand(1).ReadAsArray(0, 0, dataset.RasterXSize, dataset.RasterYSize)
-
-        del dataset
-
-        raster = resize(raster,(numlin,numcol), order=1, preserve_range=True)
-        nodata = raster == -9999
-        # Evaluate minimum and maximum values
-        a = numpy.array(raster.flatten())
-        p1, p99 = numpy.percentile(a[a>0], (1, 99))
-        # Convert minimum and maximum values to 1,255 - 0 is nodata
-        raster = exposure.rescale_intensity(raster, in_range=(p1, p99),out_range=(1, 255)).astype(numpy.uint8)
-        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata)
-        nb += 1
-
-    write_png(pngname, image, transparent=(0, 0, 0))
+    create_quick_look(pngname, [qlfiles[band] for band in quicklook if band in qlfiles], rows=numlin, cols=numcol)
 
     productdir = productdir.replace(Config.DATA_DIR, '')
 

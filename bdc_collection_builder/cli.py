@@ -66,6 +66,9 @@ def load_collections():
 
         bands = Sentinel2SR.get_band_map(None)
 
+        bands['EVI'] = 'evi'
+        bands['NDVI'] = 'ndvi'
+
         for band_name, common_name in bands.items():
             where = dict(
                 name=band_name, common_name=common_name, collection_id=collection.id

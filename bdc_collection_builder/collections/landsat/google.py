@@ -60,4 +60,4 @@ def download_from_google(scene_id: str, destination: str, bucket_name: str = 'gc
     for temp_file in downloaded_files:
         os.remove(str(temp_file))
 
-    return compressed_file, '{}/{}'.format(bucket_name, blob_name)
+    return str(compressed_file), '{}/{}'.format(bucket_name, blob_name)

@@ -111,14 +111,14 @@ class LandsatTask(RadcorTask):
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
-            collection_item.compressed_file = file.replace(Config.DATA_DIR, '')
+            collection_item.compressed_file = str(file).replace(Config.DATA_DIR, '')
 
             cloud = activity_args.get('cloud')
 
             if cloud:
                 collection_item.cloud_cover = cloud
 
-            activity_args['file'] = file
+            activity_args['file'] = str(file)
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id),
                           exc_info=True)

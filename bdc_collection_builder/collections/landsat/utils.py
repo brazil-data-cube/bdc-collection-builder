@@ -171,7 +171,7 @@ class LandsatSurfaceReflectance08(LandsatProduct):
     def get_band_map(self) -> dict:
         return dict(
             coastal='sr_band1', blue='sr_band2', green='sr_band3', red='sr_band4', nir='sr_band5',
-            swir1='sr_band6', swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='pixel_qa'
+            swir1='sr_band6', swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
         )
 
 
@@ -308,13 +308,13 @@ def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
         if not context_dir.exists() or not context_dir.is_dir():
             raise IOError('Invalid directory to compress Landsat. "{}"'.format(data_dir))
 
-        compressed_file = scene.compressed_file()
+        compressed_file_path = scene.compressed_file()
 
         files = scene.compressed_file_bands()
 
-        logging.debug('Compressing {}'.format(compressed_file))
+        logging.debug('Compressing {}'.format(str(compressed_file_path)))
         # Create compressed file and make available
-        with tarfile.open(compressed_file, 'w:gz') as compressed_file:
+        with tarfile.open(compressed_file_path, 'w:gz') as compressed_file:
             with working_directory(str(context_dir)):
                 for f in files:
                     compressed_file.add(f.name)
@@ -324,4 +324,4 @@ def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
 
         raise
 
-    return compressed_file
+    return compressed_file_path

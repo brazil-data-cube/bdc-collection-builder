@@ -258,6 +258,12 @@ class Sentinel2SR(SentinelProduct):
             sr_band12='swir2', Fmask4='quality'
         )
 
+    def path(self, prefix=Config.DATA_DIR):
+        """Overwrite Sentinel Path generator and remove .SAFE."""
+        scene_path = super(Sentinel2SR, self).path(prefix=prefix)
+
+        return scene_path.parent / self.scene_id
+
 
 class Sentinel2NBAR(Sentinel2SR):
     id = 'S2NBAR'

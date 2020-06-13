@@ -200,4 +200,4 @@ def download_landsat_images(link, destination):
         for chunk in req.iter_content(chunk_size=block_size):
             fs.write(chunk)
 
-    return outtar
+    return str(outtar)

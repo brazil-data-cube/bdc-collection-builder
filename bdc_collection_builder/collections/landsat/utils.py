@@ -108,7 +108,12 @@ class LandsatProduct:
         """Retrieve path to the compressed file (L1)."""
         year_month = self.sensing_date().strftime('%Y-%m')
 
-        collection = '{}{}'.format(self._fragments[0][:2], int(self._fragments[0][-2:]))
+        product_version = int(self._fragments[0][-2:])
+
+        if product_version == 8:
+            collection = 'LC8'
+        else:
+            collection = '{}{}'.format(self._fragments[0][:2], product_version)
 
         scene_path = Path(Config.DATA_DIR) / 'Repository/Archive' / collection / year_month / self.tile_id()
 

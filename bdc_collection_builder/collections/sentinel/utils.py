@@ -273,7 +273,7 @@ class Sentinel2NBAR(Sentinel2SR):
 class SentinelFactory:
     """Define a factory to identify a Sentinel product based on scene identifier."""
 
-    _map = dict(
+    map = dict(
         l1=dict(),
         l2=dict(),
         l3=dict()
@@ -281,13 +281,13 @@ class SentinelFactory:
 
     def register(self):
         """Initialize factory object."""
-        self._map['l1'][Sentinel2TOA.id] = Sentinel2TOA
-        self._map['l2'][Sentinel2SR.id] = Sentinel2SR
-        self._map['l3'][Sentinel2NBAR.id] = Sentinel2NBAR
+        self.map['l1'][Sentinel2TOA.id] = Sentinel2TOA
+        self.map['l2'][Sentinel2SR.id] = Sentinel2SR
+        self.map['l3'][Sentinel2NBAR.id] = Sentinel2NBAR
 
     def get_from_collection(self, collection: str):
         """Retrieve the respective Sentinel driver from given collection."""
-        for drivers_by_level in self._map.values():
+        for drivers_by_level in self.map.values():
             for driver_name in drivers_by_level:
                 if collection == driver_name:
                     return drivers_by_level[driver_name]
@@ -298,7 +298,7 @@ class SentinelFactory:
         """Retrieve the respective Sentinel driver from given scene id."""
         fragments = SentinelProduct.parse_scene_id(scene_id)
 
-        drivers_by_level = self._map.get('l{}'.format(level)) or dict()
+        drivers_by_level = self.map.get('l{}'.format(level)) or dict()
 
         product_level = int(fragments[0][1])
 

@@ -145,7 +145,7 @@ class RadcorBusiness:
         sat = args['satsen']
         cloud = float(args['cloud'])
         limit = args['limit']
-        action = args['action']
+        action = args.get('action', 'preview')
         do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
 
         extra_args = args.get('args', dict())
@@ -155,6 +155,7 @@ class RadcorBusiness:
         skip_l1 = extra_args.get('skip_l1', False)
 
         scenes = {}
+
         if 'landsat' in sat.lower():
             result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
             scenes.update(result)
@@ -186,10 +187,11 @@ class RadcorBusiness:
                 scene['status'] = 'NOTDONE'
 
                 tile = '{}{}'.format(scene['path'], scene['row'])
-                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_1.id, engine=db)
+
                 RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db)
 
                 if not skip_l1:
+                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_1.id, engine=db)
                     RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db_aws)
 
                 if do_harmonization:
@@ -213,7 +215,7 @@ class RadcorBusiness:
                 sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
 
                 activity = dict(
-                    collection_id=sentinel_scene_level_1.id,
+                    collection_id=sentinel_scene_level_1.id if not skip_l1 else sentinel_scene_level_2.id,
                     activity_type='downloadS2',
                     tags=args.get('tags', []),
                     sceneid=sceneid,
@@ -225,17 +227,20 @@ class RadcorBusiness:
                     )
                 )
 
-                if not cls.create_activity(activity):
+                if action == 'start' and not cls.create_activity(activity):
                     logging.warning('radcor - activity already done {}'.format(sceneid))
                     continue
 
                 tile_id = scene.get('pathrow', scene.get('tileid'))
 
-                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_1.id, engine=db)
                 RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db)
-                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db_aws)
+
+                if not skip_l1:
+                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_1.id, engine=db)
+                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db_aws)
+
                 if do_harmonization:
-                    sentinel_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
+                    sentinel_scene_level_3 = sentinel_factory.get_from_sceneid(sceneid, level=3)
 
                     RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db)
                     RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db_aws)

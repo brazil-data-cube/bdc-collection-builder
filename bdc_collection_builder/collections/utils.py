@@ -76,17 +76,20 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
 
     Args:
         activity (RadcorActivity) - A not done activity
-        skip_l1 - Skip publish schedule for download tasks.
+        skip_l1 (bool) - Skip publish schedule for download tasks.
+        kwargs (dict) - Extra arguments to pass celery function.
     """
-    from .sentinel import tasks as sentinel_tasks
     from .landsat import tasks as landsat_tasks
+    from .landsat.utils import factory as landsat_factory
+    from .sentinel import tasks as sentinel_tasks
+    from .sentinel.utils import factory as sentinel_factory
     # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
         # Atm Correction chain
-        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
+        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1)
         # Publish ATM Correction
         upload_chain = sentinel_tasks.upload_sentinel.s()
 
@@ -94,8 +97,9 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
 
         if activity['args'].get('harmonize'):
             # Harmonization chain
-            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | sentinel_tasks.publish_sentinel.s() | \
-                        sentinel_tasks.upload_sentinel.s()
+            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | \
+                              sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1) | \
+                              sentinel_tasks.upload_sentinel.s()
             inner_group = group(upload_chain, harmonize_chain)
 
         inner_group = atm_corr_publish_chain | inner_group
@@ -119,7 +123,8 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
     elif app == 'publishS2':
         tasks = [sentinel_tasks.publish_sentinel.s(activity)]
 
-        if 'S2SR' in activity['collection_id']:
+        # When collection L2, chain the upload task
+        if activity['collection_id'] in list(sentinel_factory.map['l2'].keys()):
             tasks.append(sentinel_tasks.upload_sentinel.s())
 
         return chain(*tasks).apply_async()
@@ -170,7 +175,12 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         task_chain = atm_corr_chain | inner_group
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
-        task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
+        task_chain = landsat_tasks.publish_landsat.s(activity)
+
+        # When collection L2, chain the upload task
+        if activity['collection_id'] in list(landsat_factory.map['l2'].keys()):
+            task_chain |= landsat_tasks.upload_landsat.s()
+
         return chain(task_chain).apply_async()
     elif app == 'harmonizeLC8':
         task_chain = landsat_tasks.harmonization_landsat.s(activity) | landsat_tasks.publish_landsat.s() | \

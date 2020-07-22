@@ -101,9 +101,6 @@ class SentinelTask(RadcorTask):
 
             collection_item = self.get_collection_item(activity_history.activity)
 
-            fragments = scene['sceneid'].split('_')
-            year_month = fragments[2][:4] + '-' + fragments[2][4:6]
-
             # Output product dir
             product_dir = sentinel_scene.compressed_file().parent
 
@@ -211,7 +208,7 @@ class SentinelTask(RadcorTask):
 
         return scene
 
-    def publish(self, scene):
+    def publish(self, scene, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -229,9 +226,12 @@ class SentinelTask(RadcorTask):
             activity_history.activity.id
         ))
 
+        args = activity_history.activity.args.copy()
+        args.update(kwargs)
+
         try:
             item = self.get_collection_item(activity_history.activity)
-            assets = publish(item, activity_history.activity)
+            assets = publish(item, activity_history.activity, **args)
         except InvalidRequestError as e:
             # Error related with Transacion on AWS
             # TODO: Is it occurs on local instance?
@@ -378,7 +378,7 @@ def atm_correction(scene, **kwargs):
                  max_retries=3,
                  autoretry_for=(InvalidRequestError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def publish_sentinel(scene):
+def publish_sentinel(scene, **kwargs):
     """Represent a celery task definition for handling Sentinel Publish TIFF files generation.
 
     This celery tasks listen only for queues 'publish'.
@@ -389,7 +389,7 @@ def publish_sentinel(scene):
     Returns:
         Returns processed activity
     """
-    return publish_sentinel.publish(scene)
+    return publish_sentinel.publish(scene, **kwargs)
 
 
 @celery_app.task(base=SentinelTask,

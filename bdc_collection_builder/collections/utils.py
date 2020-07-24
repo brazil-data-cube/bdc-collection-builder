@@ -223,7 +223,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
     # Request
     scenes_result = api.search(
         dataset=formal_name,
-        bbox=(slat, wlon, nlat, elon),
+        bbox=(slat, wlon, nlat, elon),  # TODO: Pass xmin,ymin,xmax,ymax when landsatxplore bug are fixed.
         start_date=startdate,
         end_date=enddate,
         max_cloud_cover=cloud or 100,
@@ -240,14 +240,25 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
         copy_scene = dict()
         copy_scene['sceneid'] = scene['displayId']
         copy_scene['scene_id'] = scene['entityId']
-        copy_scene['cloud'] = int(scene['cloudCover'])
+        copy_scene['cloud'] = float(scene['cloudCover'])
         copy_scene['date'] = scene['acquisitionDate']
 
-        xmin, ymin, xmax, ymax = scene['sceneBounds'].split(',')
-        copy_scene['wlon'] = float(xmin)
-        copy_scene['slat'] = float(ymin)
-        copy_scene['elon'] = float(xmax)
-        copy_scene['nlat'] = float(ymax)
+        xmin, ymin, xmax, ymax = [float(value) for value in scene['sceneBounds'].split(',')]
+
+        # TODO: Check data integrity
+        # Sometimes the USGS responds invalid bounding box scenes while searching in EarthExplorer Catalog.
+        # w=-60.87065, n=-10.18204, e=-57.66829, s=-12.18696
+        # The expected scenes are:
+        # 228067, 228068, 228069, 229067, 229068, 229069, 230067, 230068, 230069.
+        # However, an invalid scene will be found (074068, 074067).
+        if xmin - xmax < -3:
+            logging.warning(f'Scene {scene["displayId"]} inconsistent.')
+            continue
+
+        copy_scene['wlon'] = xmin
+        copy_scene['slat'] = ymin
+        copy_scene['elon'] = xmax
+        copy_scene['nlat'] = ymax
         copy_scene['link'] = EE_DOWNLOAD_URL.format(folder=landsat_folder_id, sid=scene['entityId'])
 
         pathrow = scene['displayId'].split('_')[2]

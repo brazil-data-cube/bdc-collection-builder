@@ -106,19 +106,16 @@ class RadcorBusiness:
     @classmethod
     def create_activity(cls, activity):
         """Persist an activity on database."""
-        with db.session.begin_nested():
-            where = dict(
-                sceneid=activity['sceneid'],
-                activity_type=activity['activity_type'],
-                collection_id=activity['collection_id']
-            )
+        where = dict(
+            sceneid=activity['sceneid'],
+            activity_type=activity['activity_type'],
+            collection_id=activity['collection_id']
+        )
 
-            _, created = get_or_create_model(RadcorActivity, defaults=activity, **where)
+        model, created = get_or_create_model(RadcorActivity, defaults=activity, **where)
 
         if created:
-            db.session.commit()
-        else:
-            db.session.rollback()
+            db.session.add(model)
 
         return created
 
@@ -145,7 +142,7 @@ class RadcorBusiness:
         sat = args['satsen']
         cloud = float(args['cloud'])
         limit = args['limit']
-        action = args['action']
+        action = args.get('action', 'preview')
         do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
 
         extra_args = args.get('args', dict())
@@ -155,100 +152,83 @@ class RadcorBusiness:
         skip_l1 = extra_args.get('skip_l1', False)
 
         scenes = {}
-        if 'landsat' in sat.lower():
-            result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
-            scenes.update(result)
-            for id in result:
-                scene = result[id]
-                sceneid = scene['sceneid']
 
-                landsat_scene_level_1 = landsat_factory.get_from_sceneid(sceneid)
-                landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
+        try:
+            if 'landsat' in sat.lower():
+                result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
+                scenes.update(result)
+                for id in result:
+                    scene = result[id]
+                    sceneid = scene['sceneid']
 
-                # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
-                activity = dict(
-                    collection_id=landsat_scene_level_1.id if not skip_l1 else landsat_scene_level_2.id,
-                    activity_type='downloadLC8',
-                    tags=args.get('tags', []),
-                    sceneid=sceneid,
-                    scene_type='SCENE',
-                    args=dict(
-                        link=scene['link'],
-                        cloud=scene.get('cloud'),
-                        harmonize=do_harmonization
+                    landsat_scene_level_1 = landsat_factory.get_from_sceneid(sceneid)
+                    landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
+
+                    # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
+                    activity = dict(
+                        collection_id=landsat_scene_level_1.id if not skip_l1 else landsat_scene_level_2.id,
+                        activity_type='downloadLC8',
+                        tags=args.get('tags', []),
+                        sceneid=sceneid,
+                        scene_type='SCENE',
+                        args=dict(
+                            link=scene['link'],
+                            cloud=scene.get('cloud'),
+                            harmonize=do_harmonization
+                        )
                     )
-                )
 
-                if not cls.create_activity(activity):
-                    logging.warning('radcor - activity already done {}'.format(activity['sceneid']))
-                    continue
+                    created = cls.create_activity(activity)
 
-                scene['status'] = 'NOTDONE'
+                    if action == 'start' and not created:
+                        logging.warning('radcor - activity already done {}'.format(activity['sceneid']))
+                        continue
 
-                tile = '{}{}'.format(scene['path'], scene['row'])
-                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_1.id, engine=db)
-                RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db)
+                    activities.append(activity)
 
-                if not skip_l1:
-                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_2.id, engine=db_aws)
+            if 'S2' in sat:
+                result = get_sentinel_scenes(w, n, e, s, rstart, rend, cloud, limit)
+                scenes.update(result)
+                for id in result:
+                    scene = result[id]
+                    sceneid = scene['sceneid']
 
-                if do_harmonization:
-                    landsat_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
+                    sentinel_scene_level_1 = sentinel_factory.get_from_sceneid(sceneid)
 
-                    RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db)
-
-                    if not skip_l1:
-                        RadcorBusiness.create_tile('WRS2', tile, landsat_scene_level_3.id, engine=db_aws)
-
-                activities.append(activity)
-
-        if 'S2' in sat:
-            result = get_sentinel_scenes(w, n, e, s, rstart, rend, cloud, limit)
-            scenes.update(result)
-            for id in result:
-                scene = result[id]
-                sceneid = scene['sceneid']
-
-                sentinel_scene_level_1 = sentinel_factory.get_from_sceneid(sceneid)
-                sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
-
-                activity = dict(
-                    collection_id=sentinel_scene_level_1.id,
-                    activity_type='downloadS2',
-                    tags=args.get('tags', []),
-                    sceneid=sceneid,
-                    scene_type='SCENE',
-                    args=dict(
-                        link=scene['link'],
-                        cloud=scene.get('cloud'),
-                        harmonize=do_harmonization
+                    activity = dict(
+                        collection_id=sentinel_scene_level_1.id,
+                        activity_type='downloadS2',
+                        tags=args.get('tags', []),
+                        sceneid=sceneid,
+                        scene_type='SCENE',
+                        args=dict(
+                            link=scene['link'],
+                            cloud=scene.get('cloud'),
+                            harmonize=do_harmonization
+                        )
                     )
-                )
 
-                if not cls.create_activity(activity):
-                    logging.warning('radcor - activity already done {}'.format(sceneid))
-                    continue
+                    created = cls.create_activity(activity)
 
-                tile_id = scene.get('pathrow', scene.get('tileid'))
+                    if action == 'start' and not created:
+                        logging.warning('radcor - activity already done {}'.format(sceneid))
+                        continue
 
-                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_1.id, engine=db)
-                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db)
-                RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_2.id, engine=db_aws)
-                if do_harmonization:
-                    sentinel_scene_level_3 = landsat_factory.get_from_sceneid(sceneid, level=3)
+                    scenes[id] = scene
 
-                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db)
-                    RadcorBusiness.create_tile('MGRS', tile_id, sentinel_scene_level_3.id, engine=db_aws)
+                    activities.append(activity)
 
-                scene['status'] = 'NOTDONE'
+            if action == 'start':
+                db.session.commit()
 
-                scenes[id] = scene
+                for activity in activities:
+                    cls.start(activity, **extra_args)
+            else:
+                db.session.rollback()
 
-                activities.append(activity)
-
-        if action == 'start':
-            for activity in activities:
-                cls.start(activity, **extra_args)
+        except BaseException:
+            db.session.rollback()
+            raise
 
         return scenes
 

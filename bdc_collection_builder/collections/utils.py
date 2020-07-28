@@ -28,7 +28,6 @@ from bdc_db.models import AssetMV, db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
-from landsatxplore.earthexplorer import EE_DOWNLOAD_URL, EE_FOLDER
 from numpngw import write_png
 from osgeo import gdal
 from skimage import exposure
@@ -39,6 +38,17 @@ from sqlalchemy_utils import refresh_materialized_view
 from ..config import CURRENT_DIR, Config
 from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
+
+
+EARTH_EXPLORER_DOWNLOAD_URI = 'https://earthexplorer.usgs.gov/download/{folder}/{sid}/EE'
+# List of product id - Earth Explorer Catalog
+# TODO: We should use from landsatxplore library but it still not supports 1.5.0.
+#  Review it when upgrade to 1.5.0 - https://m2m.cr.usgs.gov/api/docs/json/
+EARTH_EXPLORER_PRODUCT_ID = {
+    'LANDSAT_TM_C1': '5e83d08ee1e2890b',   # Landsat 4/5
+    'LANDSAT_ETM_C1': '5e83a506f72553b6',  # Landsat 7
+    'LANDSAT_8_C1': '5e83d0b84df8d8c2'     # Landsat 8
+}
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -209,16 +219,20 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
     return poly.ExportToWkt(),poly
 
 
-def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
-    """List landsat scenes from USGS."""
+def get_earth_explorer_api():
     credentials = get_credentials()['landsat']
 
-    api = API(credentials['username'], credentials['password'])
+    return API(credentials['username'], credentials['password'])
 
-    landsat_folder_id = EE_FOLDER.get(formal_name)
+
+def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
+    """List landsat scenes from USGS."""
+    api = get_earth_explorer_api()
+
+    landsat_folder_id = EARTH_EXPLORER_PRODUCT_ID.get(formal_name)
 
     if landsat_folder_id is None:
-        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EE_FOLDER.keys()))
+        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EARTH_EXPLORER_PRODUCT_ID.keys()))
 
     # Request
     scenes_result = api.search(
@@ -233,8 +247,8 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
     scenes_output = {}
 
     for scene in scenes_result:
-        if scene['displayId'].endswith('RT'):
-            logging.warning('Skipping Real Time {}'.format(scene['displayId']))
+        if scene['displayId'].endswith('RT') or scene['displayId'].startswith('LO08'):
+            logging.warning('Skipping RealTime/OLI-Only {}'.format(scene['displayId']))
             continue
 
         copy_scene = dict()
@@ -259,7 +273,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
         copy_scene['slat'] = ymin
         copy_scene['elon'] = xmax
         copy_scene['nlat'] = ymax
-        copy_scene['link'] = EE_DOWNLOAD_URL.format(folder=landsat_folder_id, sid=scene['entityId'])
+        copy_scene['link'] = EARTH_EXPLORER_DOWNLOAD_URI.format(folder=landsat_folder_id, sid=scene['entityId'])
 
         pathrow = scene['displayId'].split('_')[2]
 

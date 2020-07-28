@@ -11,8 +11,10 @@
 # Python Native
 import logging
 import os
+import shutil
 import subprocess
 from datetime import datetime
+from tempfile import TemporaryDirectory
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
@@ -97,17 +99,22 @@ class LandsatTask(RadcorTask):
                 # Ensure file is removed since it may be corrupted
                 remove_file(str(digital_number_file))
 
-                try:
-                    # Download from google
-                    logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
-                        scene_id, digital_number_file.exists(), valid)
-                    )
-                    file, link = download_from_google(scene_id, str(productdir))
-                    activity_args['provider'] = link
-                except BaseException:
-                    logging.info('Download Landsat {} from USGS...'.format(scene_id))
-                    file = download_landsat_images(activity_args['link'], productdir)
-                    activity_args['provider'] = activity_args['link']
+                # Create temporary directory and move to right place after downloaded.
+                with TemporaryDirectory(prefix=scene_id) as tmp:
+                    try:
+                        # Download from google
+                        logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
+                            scene_id, digital_number_file.exists(), valid)
+                        )
+                        file, link = download_from_google(scene_id, str(tmp))
+                        activity_args['provider'] = link
+                    except BaseException:
+                        logging.info('Download Landsat {} from USGS...'.format(scene_id))
+                        file = download_landsat_images(activity_args['link'], tmp)
+                        activity_args['provider'] = activity_args['link']
+
+                    # Move file downloaded in temporary directory to the right place
+                    shutil.move(file, str(digital_number_file))
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 

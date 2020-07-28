@@ -313,7 +313,7 @@ def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
         if not context_dir.exists() or not context_dir.is_dir():
             raise IOError('Invalid directory to compress Landsat. "{}"'.format(data_dir))
 
-        compressed_file_path = scene.compressed_file()
+        compressed_file_path = Path(data_dir) / scene.compressed_file().name
 
         files = scene.compressed_file_bands()
 

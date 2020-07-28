@@ -19,7 +19,6 @@ from werkzeug.exceptions import BadRequest
 # Builder
 from bdc_db.models import db, CollectionTile
 from bdc_collection_builder.config import Config
-from bdc_collection_builder.db import db_aws
 from .forms import SimpleActivityForm
 from .landsat.utils import factory as landsat_factory
 from .models import RadcorActivity, RadcorActivityHistory

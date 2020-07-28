@@ -200,7 +200,7 @@ class LandsatDigitalNumber07(LandsatProduct):
 
     def get_band_map(self) -> dict:
         return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6',
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs1='B6_VCID_1', tirs2='B6_VCID_2',
             swir2='B7', panchromatic='B8', quality='BQA'
         )
 

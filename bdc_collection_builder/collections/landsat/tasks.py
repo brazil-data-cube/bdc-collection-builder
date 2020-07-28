@@ -115,6 +115,7 @@ class LandsatTask(RadcorTask):
 
                     # Move file downloaded in temporary directory to the right place
                     shutil.move(file, str(digital_number_file))
+                    file = str(digital_number_file)
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 

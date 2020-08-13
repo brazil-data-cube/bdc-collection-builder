@@ -114,10 +114,6 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
             inner_group
         ]
 
-        if not skip_l1:
-            # Publish L1
-            after_download_group.append(sentinel_tasks.publish_sentinel.s())
-
         outer_group = group(*after_download_group)
         task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
@@ -141,8 +137,6 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
     elif app == 'downloadLC8':
-        # Raw chain represents DN publish chain
-        raw_data_chain = landsat_tasks.publish_landsat.s()
         # Atm Correction chain
         atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
         # Publish ATM Correction
@@ -158,7 +152,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
             inner_group = group(publish_atm_chain, harmonize_chain)
 
         atm_chain = atm_corr_chain | inner_group
-        outer_group = group(raw_data_chain, atm_chain)
+        outer_group = group(atm_chain)
         task_chain = landsat_tasks.download_landsat.s(activity) | outer_group
 
         return chain(task_chain).apply_async()
@@ -421,10 +415,14 @@ def load_img(img_path):
         raise RuntimeError('Cannot find {}'.format(img_path))
 
 
-def extractall(file):
+def extractall(file, destination=None):
     """Extract zipfile."""
     archive = ZipFile(file, 'r')
-    archive.extractall(resource_path.dirname(file))
+
+    if destination is None:
+        destination = resource_path.dirname(file)
+
+    archive.extractall(destination)
     archive.close()
 
 
@@ -500,7 +498,7 @@ def is_valid_compressed(file):
     return not corrupt
 
 
-def extract_and_get_internal_name(zip_file_name):
+def extract_and_get_internal_name(zip_file_name, extract_to=None):
     """Extract zipfile and return internal folder path."""
     # Check if file is valid
     valid = is_valid_compressed(zip_file_name)
@@ -508,7 +506,7 @@ def extract_and_get_internal_name(zip_file_name):
     if not valid:
         raise IOError('Invalid zip file "{}"'.format(zip_file_name))
     else:
-        extractall(zip_file_name)
+        extractall(zip_file_name, destination=extract_to)
 
         # Get extracted zip folder name
         with ZipFile(zip_file_name) as zipObj:

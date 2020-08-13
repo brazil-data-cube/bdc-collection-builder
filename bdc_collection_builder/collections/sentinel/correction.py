@@ -20,9 +20,12 @@ from shutil import rmtree
 from json import loads as json_parser
 
 # 3rdparty
+from tempfile import TemporaryDirectory
+
 from requests import get as resource_get
 
 # Builder
+from bdc_collection_builder.collections.utils import extract_and_get_internal_name
 from bdc_collection_builder.config import Config
 
 
@@ -99,23 +102,28 @@ def correction_sen2cor280(scene):
 
 
 def correction_laSRC(input_dir: str, output_dir: str) -> str:
-    scene_id_safe = Path(input_dir).name
+    scene_id = Path(input_dir).stem
 
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix='correction', suffix=scene_id) as tmp:
+        scene_id_safe = extract_and_get_internal_name(str(input_dir), extract_to=str(tmp))
 
-    # "input_dir" usually already points to .SAFE. We need the dir name
-    base_input_dir = str(Path(input_dir).parent)
+        scene_id_safe = scene_id_safe.replace('/', '')
 
-    cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(scene_id_safe)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    logging.warning('cmd {}'.format(cmd))
+        # "input_dir" usually already points to .SAFE. We need the dir name
+        base_input_dir = str(tmp)
 
-    env = dict(**os.environ, INDIR=base_input_dir, OUTDIR=str(output_dir))
+        cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(scene_id_safe)
 
-    process = subprocess.Popen(cmd, shell=True, env=env)
-    process.wait()
+        logging.warning('cmd {}'.format(cmd))
 
-    if process.returncode != 0:
-        raise RuntimeError('Error in LaSRC generation')
+        env = dict(**os.environ, INDIR=base_input_dir, OUTDIR=str(output_dir))
 
-    return output_dir
+        process = subprocess.Popen(cmd, shell=True, env=env)
+        process.wait()
+
+        if process.returncode != 0:
+            raise RuntimeError('Error in LaSRC generation')
+
+        return output_dir

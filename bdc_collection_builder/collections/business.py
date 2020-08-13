@@ -160,12 +160,11 @@ class RadcorBusiness:
                     scene = result[id]
                     sceneid = scene['sceneid']
 
-                    landsat_scene_level_1 = landsat_factory.get_from_sceneid(sceneid)
                     landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
 
                     # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
                     activity = dict(
-                        collection_id=landsat_scene_level_1.id if not skip_l1 else landsat_scene_level_2.id,
+                        collection_id=landsat_scene_level_2.id,
                         activity_type='downloadLC8',
                         tags=args.get('tags', []),
                         sceneid=sceneid,
@@ -192,10 +191,10 @@ class RadcorBusiness:
                     scene = result[id]
                     sceneid = scene['sceneid']
 
-                    sentinel_scene_level_1 = sentinel_factory.get_from_sceneid(sceneid)
+                    sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
 
                     activity = dict(
-                        collection_id=sentinel_scene_level_1.id,
+                        collection_id=sentinel_scene_level_2.id,
                         activity_type='downloadS2',
                         tags=args.get('tags', []),
                         sceneid=sceneid,

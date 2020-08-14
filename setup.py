@@ -60,7 +60,7 @@ install_requires = [
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-db.git@b-0.2#egg=bdc-db',
+    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-catalog.git@b-0.2#egg=bdc-db',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0'
 ]

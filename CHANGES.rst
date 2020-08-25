@@ -15,7 +15,7 @@ Version 0.4.0
 
 Released 2020-08-25
 
-- Add `LaSRC 2.0 <https://github.com/USGS-EROS/espa-surface-reflectance>`_ with `FMask 4.2 <https://github.com/GERSL/Fmask>`_ on collections Landsat-8 and Sentinel-2 - #156
+- Add `LaSRC 2.0 <https://github.com/USGS-EROS/espa-surface-reflectance>`_ with `FMask 4.2 <https://github.com/GERSL/Fmask>`_ on collections Landsat-8 and Sentinel-2 - `#156 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/156>`_
 - Fix band name "quality" is wrong for Landsat 8 using LaSRC and Fmask - `#162 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/162>`_
 - Set USGS EarthExplorer as default provider of Landsat instead AWS - `#144 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/144>`_
 - Fix bug in sen2cor and publish on multiple scenes in the same sensing date - `#142 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/142>`_

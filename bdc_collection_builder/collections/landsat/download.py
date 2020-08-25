@@ -24,10 +24,7 @@ from bdc_collection_builder.collections.utils import get_credentials
 
 
 def get_session() -> RequestSession:
-    """Create a session with USGS channel.
-
-    TODO: Use development seed STAC instead
-    """
+    """Create a session with USGS channel."""
     url_login = 'https://ers.cr.usgs.gov/login/'
     session = RequestSession()
     login_html = session.get(url_login)
@@ -35,7 +32,7 @@ def get_session() -> RequestSession:
     html = BeautifulSoup(login_html.content, "html.parser")
 
     __ncforminfo = html.find("input", {"name": "__ncforminfo"}).attrs.get("value")
-    csrf_token = html.find("input", {"id": "csrf_token"}).attrs.get("value")
+    csrf_token = html.find("input", {"name": "csrf"}).attrs.get("value")
 
     auth = {"username": user['username'], "password": user['password'], "csrf_token": csrf_token, "__ncforminfo": __ncforminfo}
 
@@ -102,9 +99,12 @@ def download_from_aws(scene_id: str, destination: str, compressed_path: str = No
     Returns:
         Tuple with path where file was saved and AWS link downloaded.
     """
-    from .publish import BAND_MAP_DN
+    from .utils import factory
 
-    if compressed_path == None:
+    scene = factory.get_from_sceneid(scene_id)
+    BAND_MAP_DN = scene.get_band_map()
+
+    if compressed_path is None:
         compressed_path = destination
 
     os.makedirs(compressed_path, exist_ok=True)
@@ -160,7 +160,8 @@ def download_landsat_images(link, destination):
     """Download landsat from USGS."""
     session = get_session()
 
-    req = session.get(link, timeout=90, stream=True)
+    timeout = 60*15  # 15 minutes since EarthExplorer may staging the image and make it online.
+    req = session.get(link, timeout=timeout, stream=True)
     logging.warning('downloadLC8 - r {}'.format(req.headers))
     count = 0
     while req.headers.get("Content-Disposition") is None and count < 2:
@@ -194,7 +195,7 @@ def download_landsat_images(link, destination):
         logging.warning( 'downloadLC8 - {} already downloaded'.format(link))
         return outtar
 
-    block_size = 1024*10
+    block_size = 1024*512
 
     with open(outtar, 'wb') as fs:
         for chunk in req.iter_content(chunk_size=block_size):

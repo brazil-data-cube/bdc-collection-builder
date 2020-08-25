@@ -11,8 +11,10 @@
 # Python Native
 import logging
 import os
+import shutil
 import subprocess
 from datetime import datetime
+from tempfile import TemporaryDirectory
 
 # 3rdparty
 from botocore.exceptions import EndpointConnectionError
@@ -97,17 +99,23 @@ class LandsatTask(RadcorTask):
                 # Ensure file is removed since it may be corrupted
                 remove_file(str(digital_number_file))
 
-                try:
-                    # Download from google
-                    logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
-                        scene_id, digital_number_file.exists(), valid)
-                    )
-                    file, link = download_from_google(scene_id, str(productdir))
-                    activity_args['provider'] = link
-                except BaseException:
-                    logging.info('Download Landsat {} from USGS...'.format(scene_id))
-                    file = download_landsat_images(activity_args['link'], productdir)
-                    activity_args['provider'] = activity_args['link']
+                # Create temporary directory and move to right place after downloaded.
+                with TemporaryDirectory(prefix=scene_id) as tmp:
+                    try:
+                        # Download from google
+                        logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
+                            scene_id, digital_number_file.exists(), valid)
+                        )
+                        file, link = download_from_google(scene_id, str(tmp))
+                        activity_args['provider'] = link
+                    except BaseException:
+                        logging.info('Download Landsat {} from USGS...'.format(scene_id))
+                        file = download_landsat_images(activity_args['link'], tmp)
+                        activity_args['provider'] = activity_args['link']
+
+                    # Move file downloaded in temporary directory to the right place
+                    shutil.move(file, str(digital_number_file))
+                    file = str(digital_number_file)
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
@@ -234,21 +242,21 @@ class LandsatTask(RadcorTask):
             output_path = landsat_scene.path()
             output_path.mkdir(exist_ok=True, parents=True)
 
-            input_dir = landsat_scene_level_1.compressed_file().parent
+            with TemporaryDirectory(prefix='correction', suffix=scene_id) as tmp:
+                with tarfile.open(scene['args']['file']) as compressed_file:
+                    # Extracting to temp directory
+                    compressed_file.extractall(tmp)
 
-            with tarfile.open(scene['args']['file']) as compressed_file:
-                # Extracting to temp directory
-                compressed_file.extractall(landsat_scene_level_1.compressed_file().parent)
+                input_dir = str(tmp)  # landsat_scene_level_1.compressed_file().parent
+                cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(landsat_scene_level_1.scene_id)
 
-            cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(landsat_scene_level_1.scene_id)
+                logging.warning('cmd {}'.format(cmd))
 
-            logging.warning('cmd {}'.format(cmd))
+                env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_path))
+                process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
+                process.wait()
 
-            env = dict(**os.environ, INDIR=str(input_dir), OUTDIR=str(output_path))
-            process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
-            process.wait()
-
-            assert process.returncode == 0
+                assert process.returncode == 0
 
             pathrow = landsat_scene.tile_id()
 
@@ -268,11 +276,6 @@ class LandsatTask(RadcorTask):
             logging.error('Error at correction Landsat {}, id={} - {}'.format(scene_id, execution.activity_id, str(e)))
 
             raise e
-        finally:
-            # Remove extracted files
-            for f in landsat_scene_level_1.compressed_file_bands():
-                if f.exists():
-                    f.unlink()
 
         scene['activity_type'] = 'publishLC8'
         scene['args']['level'] = landsat_scene.level

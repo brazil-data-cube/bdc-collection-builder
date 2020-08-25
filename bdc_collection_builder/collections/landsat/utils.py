@@ -108,7 +108,12 @@ class LandsatProduct:
         """Retrieve path to the compressed file (L1)."""
         year_month = self.sensing_date().strftime('%Y-%m')
 
-        collection = '{}{}'.format(self._fragments[0][:2], int(self._fragments[0][-2:]))
+        product_version = int(self._fragments[0][-2:])
+
+        if product_version == 8:
+            collection = 'LC8'
+        else:
+            collection = '{}{}'.format(self._fragments[0][:2], product_version)
 
         scene_path = Path(Config.DATA_DIR) / 'Repository/Archive' / collection / year_month / self.tile_id()
 
@@ -195,7 +200,7 @@ class LandsatDigitalNumber07(LandsatProduct):
 
     def get_band_map(self) -> dict:
         return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6',
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs1='B6_VCID_1', tirs2='B6_VCID_2',
             swir2='B7', panchromatic='B8', quality='BQA'
         )
 
@@ -308,7 +313,7 @@ def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
         if not context_dir.exists() or not context_dir.is_dir():
             raise IOError('Invalid directory to compress Landsat. "{}"'.format(data_dir))
 
-        compressed_file_path = scene.compressed_file()
+        compressed_file_path = Path(data_dir) / scene.compressed_file().name
 
         files = scene.compressed_file_bands()
 

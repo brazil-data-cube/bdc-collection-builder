@@ -12,8 +12,6 @@ Creates a python click context and inject it to the global flask commands.
 """
 
 import click
-from bdc_db.cli import create_cli
-from bdc_db.cli import create_db as bdc_create_db
 from bdc_db.models import Band, Collection, db
 from bdc_db.cli import create_db as bdc_create_db, create_cli
 from flask.cli import with_appcontext
@@ -43,6 +41,54 @@ def create_db(ctx: click.Context):
         db.session.execute('CREATE SCHEMA IF NOT EXISTS {}'.format(Config.ACTIVITIES_SCHEMA))
 
     db.session.commit()
+
+
+@cli.group()
+@with_appcontext
+def scenes():
+    """Handle collection images"""
+
+
+@scenes.command()
+@click.option('--scene-ids', required=True, help='Given scene id to download')
+@with_appcontext
+def download(scene_ids):
+    """Download the Landsat-8 products using scene id.
+
+    TODO: Support Sentinel 2 and Landsat 5/7.
+    """
+    from .collections.business import RadcorBusiness
+    from .collections.landsat.utils import factory
+    from .collections.utils import get_earth_explorer_api, EARTH_EXPLORER_DOWNLOAD_URI, EARTH_EXPLORER_PRODUCT_ID
+    from .utils import initialize_factories
+
+    initialize_factories()
+
+    scenes = scene_ids.split(',')
+
+    api = get_earth_explorer_api()
+
+    dataset = 'LANDSAT_8_C1'
+
+    for scene in scenes:
+        landsat_scene_level_1 = factory.get_from_sceneid(scene_id=scene, level=1)
+
+        formal = api.lookup(dataset, [scene], inverse=True)
+
+        link = EARTH_EXPLORER_DOWNLOAD_URI.format(folder=EARTH_EXPLORER_PRODUCT_ID[dataset], sid=formal[0])
+
+        activity = dict(
+            collection_id=landsat_scene_level_1.id,
+            activity_type='downloadLC8',
+            tags=[],
+            sceneid=scene,
+            scene_type='SCENE',
+            args=dict(link=link)
+        )
+
+        _ = RadcorBusiness.create_activity(activity)
+
+        RadcorBusiness.start(activity)
 
 
 @cli.command('load-collections')

@@ -10,6 +10,22 @@
 Changes
 =======
 
+Version 0.4.0
+-------------
+
+Released 2020-08-25
+
+- Add `LaSRC 2.0 <https://github.com/USGS-EROS/espa-surface-reflectance>`_ with `FMask 4.2 <https://github.com/GERSL/Fmask>`_ on collections Landsat-8 and Sentinel-2 - #156
+- Fix band name "quality" is wrong for Landsat 8 using LaSRC and Fmask - #162
+- Set USGS EarthExplorer as default provider of Landsat instead AWS - #144
+- Fix bug in sen2cor and publish on multiple scenes in the same sensing date - #142
+- Skipping download of Landsat8 Real Time imagery (RT) - #125
+- Fix the tar.gz validator on Collection Landsat-8 L1 - #123
+- Improve the restart process - #75
+
+    - Restart a task by scene_id, status
+
+
 Version 0.2.0
 -------------
 

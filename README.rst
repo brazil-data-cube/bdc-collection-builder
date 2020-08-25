@@ -60,7 +60,7 @@ See `DEPLOY.rst <./DEPLOY.rst>`_.
 Developer Documentation
 =======================
 
-See https://bdc-collection-builder.readthedocs.io/en/b-0.2.
+See https://bdc-collection-builder.readthedocs.io/en/latest/.
 
 
 License

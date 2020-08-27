@@ -7,7 +7,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from urllib3.exceptions import NewConnectionError, MaxRetryError
-from zipfile import ZipFile
 import logging
 import os
 import re
@@ -29,7 +28,7 @@ from ...db import db_aws
 from ..base_task import RadcorTask
 from ..utils import extract_and_get_internal_name, refresh_assets_view, is_valid_compressed, upload_file
 from .clients import sentinel_clients
-from .download import download_sentinel_images, download_sentinel_from_creodias
+from .download import download_sentinel_images, download_sentinel_from_creodias, download_from_aws
 from .harmonization import sentinel_harmonize
 from .publish import publish
 from .correction import correction_laSRC
@@ -127,12 +126,16 @@ class SentinelTask(RadcorTask):
                 if not zip_file_name.exists() or not valid:
                     with TemporaryDirectory(suffix=scene_id) as tmp:
                         tmp_file = Path(tmp) / zip_file_name.name
+
                         try:
-                            # Acquire User to download
-                            with self.get_user() as user:
-                                logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
-                                # Download from Copernicus
-                                download_sentinel_images(link, str(tmp_file), user)
+                            downloaded_file = download_from_aws(scene_id, tmp)
+
+                            if downloaded_file is None:
+                                # Acquire User to download
+                                with self.get_user() as user:
+                                    logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
+                                    # Download from Copernicus
+                                    download_sentinel_images(link, str(tmp_file), user)
                         except (ConnectionError, HTTPError) as e:
                             try:
                                 logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
@@ -148,9 +151,6 @@ class SentinelTask(RadcorTask):
 
                         zip_file_name.parent.mkdir(exist_ok=True, parents=True)
                         shutil.move(str(tmp_file), str(zip_file_name))
-                #
-                # internal_folder_name = extract_and_get_internal_name(str(zip_file_name))
-                # extracted_file_path = os.path.join(str(product_dir), internal_folder_name)
 
                 logging.debug('Done download.')
                 activity_args['file'] = str(zip_file_name)

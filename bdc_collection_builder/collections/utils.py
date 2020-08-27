@@ -103,7 +103,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         # Atm Correction chain
         atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1)
         # Publish ATM Correction
-        upload_chain = sentinel_tasks.upload_sentinel.s()
+        upload_chain = sentinel_tasks.apply_post_processing.s() | sentinel_tasks.upload_sentinel.s()
 
         inner_group = upload_chain
 
@@ -126,6 +126,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \
                         sentinel_tasks.publish_sentinel.s() | \
+                        sentinel_tasks.apply_post_processing.s() | \
                         sentinel_tasks.upload_sentinel.s()
         return chain(task_chain).apply_async()
     elif app == 'publishS2':
@@ -133,6 +134,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
 
         # When collection L2, chain the upload task
         if activity['collection_id'] in list(sentinel_factory.map['l2'].keys()):
+            tasks.append(sentinel_tasks.apply_post_processing.s())
             tasks.append(sentinel_tasks.upload_sentinel.s())
 
         return chain(*tasks).apply_async()

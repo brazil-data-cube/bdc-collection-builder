@@ -18,7 +18,7 @@ from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
 # BDC DB
-from bdc_db.models import db
+from bdc_db.models import db, Collection
 
 # Builder
 from ...celery import celery_app
@@ -272,15 +272,12 @@ class SentinelTask(RadcorTask):
             scene - Serialized Activity
         """
         # Create/update activity
-        execution = self.create_execution(scene)
+        self.create_execution(scene)
 
         assets = scene['args']['assets']
 
         for entry in assets.values():
             file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
-
-            if entry['file'].endswith('Fmask4.tif'):
-                post_processing(entry['file'], execution.activity.collection, assets, 10)
 
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
@@ -340,6 +337,18 @@ class SentinelTask(RadcorTask):
         scene['args']['file'] = harmonized_dir
         scene['args']['level'] = 3
         scene['activity_type'] = 'publishS2'
+
+        return scene
+
+    def post_publish(self, scene):
+        logging.info(f'Applying post-processing for {scene["sceneid"]}')
+        collection = Collection.query().filter(Collection.id == scene['collection_id']).first()
+
+        assets = scene['args']['assets']
+
+        for entry in assets.values():
+            if entry['file'].endswith('Fmask4.tif'):
+                post_processing(entry['file'], collection, assets, 10)
 
         return scene
 
@@ -427,3 +436,8 @@ def harmonization_sentinel(scene):
         scene (dict): Radcor Activity with "harmonizeS2" app context
     """
     return harmonization_sentinel.harmonize(scene)
+
+
+@celery_app.task(base=SentinelTask, queue='post-processing')
+def apply_post_processing(scene):
+    return apply_post_processing.post_publish(scene)

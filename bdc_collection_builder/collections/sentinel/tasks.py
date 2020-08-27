@@ -3,6 +3,7 @@
 # Python Native
 import shutil
 from datetime import datetime
+from distutils.util import strtobool
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -21,6 +22,7 @@ from sqlalchemy.exc import InvalidRequestError
 from bdc_db.models import db, Collection
 
 # Builder
+from .google import download_from_google
 from ...celery import celery_app
 from ...celery.cache import lock_handler
 from ...config import Config
@@ -127,8 +129,23 @@ class SentinelTask(RadcorTask):
                     with TemporaryDirectory(suffix=scene_id) as tmp:
                         tmp_file = Path(tmp) / zip_file_name.name
 
+                        use_google = strtobool(scene['args'].get('use_google', '0'))
+
+                        download_handler = list()
+
+                        if use_google:
+                            download_handler.append(download_from_google)
+
+                        download_handler.append(download_from_aws)
+
+                        downloaded_file = None
+
                         try:
-                            downloaded_file = download_from_aws(scene_id, tmp)
+                            for _download in download_handler:
+                                downloaded_file = _download(scene_id, tmp)
+
+                                if downloaded_file:
+                                    break
 
                             if downloaded_file is None:
                                 # Acquire User to download

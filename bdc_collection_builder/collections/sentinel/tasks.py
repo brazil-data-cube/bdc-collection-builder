@@ -1,8 +1,11 @@
 """Describes the Celery Tasks definition of Sentinel products."""
 
 # Python Native
+import shutil
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from urllib3.exceptions import NewConnectionError, MaxRetryError
 from zipfile import ZipFile
 import logging
@@ -123,30 +126,35 @@ class SentinelTask(RadcorTask):
                     valid = is_valid_compressed(str(zip_file_name))
 
                 if not zip_file_name.exists() or not valid:
-                    try:
-                        # Acquire User to download
-                        with self.get_user() as user:
-                            logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
-                            # Download from Copernicus
-                            download_sentinel_images(link, str(zip_file_name), user)
-                    except (ConnectionError, HTTPError) as e:
+                    with TemporaryDirectory(suffix=scene_id) as tmp:
+                        tmp_file = Path(tmp) / zip_file_name.name
                         try:
-                            logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
-
-                            download_from_onda(scene_id, os.path.dirname(str(zip_file_name)))
-                        except:
+                            # Acquire User to download
+                            with self.get_user() as user:
+                                logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
+                                # Download from Copernicus
+                                download_sentinel_images(link, str(tmp_file), user)
+                        except (ConnectionError, HTTPError) as e:
                             try:
-                                logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
-                                download_sentinel_from_creodias(scene_id, str(zip_file_name))
-                            except:
-                                # Ignore errors from external provider
-                                raise e
+                                logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
 
-                internal_folder_name = extract_and_get_internal_name(str(zip_file_name))
-                extracted_file_path = os.path.join(str(product_dir), internal_folder_name)
+                                download_from_onda(scene_id, os.path.dirname(str(tmp_file)))
+                            except:
+                                try:
+                                    logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
+                                    download_sentinel_from_creodias(scene_id, str(tmp_file))
+                                except:
+                                    # Ignore errors from external provider
+                                    raise e
+
+                        zip_file_name.parent.mkdir(exist_ok=True, parents=True)
+                        shutil.move(str(tmp_file), str(zip_file_name))
+                #
+                # internal_folder_name = extract_and_get_internal_name(str(zip_file_name))
+                # extracted_file_path = os.path.join(str(product_dir), internal_folder_name)
 
                 logging.debug('Done download.')
-                activity_args['file'] = extracted_file_path
+                activity_args['file'] = str(zip_file_name)
 
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if zip_file_name.exists():
@@ -233,7 +241,7 @@ class SentinelTask(RadcorTask):
             item = self.get_collection_item(activity_history.activity)
             assets = publish(item, activity_history.activity, **args)
         except InvalidRequestError as e:
-            # Error related with Transacion on AWS
+            # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
             logging.error("Transaction Error on activity - {}".format(activity_history.activity_id), exc_info=True)
 

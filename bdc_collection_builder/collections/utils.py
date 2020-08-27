@@ -28,7 +28,6 @@ from bdc_db.models import AssetMV, db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
-from landsatxplore.earthexplorer import EE_DOWNLOAD_URL, EE_FOLDER
 from numpngw import write_png
 from osgeo import gdal
 from skimage import exposure
@@ -39,6 +38,17 @@ from sqlalchemy_utils import refresh_materialized_view
 from ..config import CURRENT_DIR, Config
 from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
+
+
+EARTH_EXPLORER_DOWNLOAD_URI = 'https://earthexplorer.usgs.gov/download/{folder}/{sid}/EE'
+# List of product id - Earth Explorer Catalog
+# TODO: We should use from landsatxplore library but it still not supports 1.5.0.
+#  Review it when upgrade to 1.5.0 - https://m2m.cr.usgs.gov/api/docs/json/
+EARTH_EXPLORER_PRODUCT_ID = {
+    'LANDSAT_TM_C1': '5e83d08ee1e2890b',   # Landsat 4/5
+    'LANDSAT_ETM_C1': '5e83a506f72553b6',  # Landsat 7
+    'LANDSAT_8_C1': '5e83d0b84df8d8c2'     # Landsat 8
+}
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -108,10 +118,6 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
             inner_group
         ]
 
-        if not skip_l1:
-            # Publish L1
-            after_download_group.append(sentinel_tasks.publish_sentinel.s())
-
         outer_group = group(*after_download_group)
         task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
         return chain(task_chain).apply_async()
@@ -136,8 +142,6 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
     elif app == 'downloadLC8':
-        # Raw chain represents DN publish chain
-        raw_data_chain = landsat_tasks.publish_landsat.s()
         # Atm Correction chain
         atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
         # Publish ATM Correction
@@ -153,7 +157,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
             inner_group = group(publish_atm_chain, harmonize_chain)
 
         atm_chain = atm_corr_chain | inner_group
-        outer_group = group(raw_data_chain, atm_chain)
+        outer_group = group(atm_chain)
         task_chain = landsat_tasks.download_landsat.s(activity) | outer_group
 
         return chain(task_chain).apply_async()
@@ -219,16 +223,20 @@ def create_wkt(ullon, ullat, lrlon, lrlat):
     return poly.ExportToWkt(),poly
 
 
-def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
-    """List landsat scenes from USGS."""
+def get_earth_explorer_api():
     credentials = get_credentials()['landsat']
 
-    api = API(credentials['username'], credentials['password'])
+    return API(credentials['username'], credentials['password'])
 
-    landsat_folder_id = EE_FOLDER.get(formal_name)
+
+def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal_name: str):
+    """List landsat scenes from USGS."""
+    api = get_earth_explorer_api()
+
+    landsat_folder_id = EARTH_EXPLORER_PRODUCT_ID.get(formal_name)
 
     if landsat_folder_id is None:
-        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EE_FOLDER.keys()))
+        raise ValueError('Invalid Landsat product name. Expected one of {}'.format(EARTH_EXPLORER_PRODUCT_ID.keys()))
 
     # Request
     scenes_result = api.search(
@@ -243,8 +251,8 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
     scenes_output = {}
 
     for scene in scenes_result:
-        if scene['displayId'].endswith('RT'):
-            logging.warning('Skipping Real Time {}'.format(scene['displayId']))
+        if scene['displayId'].endswith('RT') or scene['displayId'].startswith('LO08'):
+            logging.warning('Skipping RealTime/OLI-Only {}'.format(scene['displayId']))
             continue
 
         copy_scene = dict()
@@ -269,7 +277,7 @@ def get_landsat_scenes(wlon, nlat, elon, slat, startdate, enddate, cloud, formal
         copy_scene['slat'] = ymin
         copy_scene['elon'] = xmax
         copy_scene['nlat'] = ymax
-        copy_scene['link'] = EE_DOWNLOAD_URL.format(folder=landsat_folder_id, sid=scene['entityId'])
+        copy_scene['link'] = EARTH_EXPLORER_DOWNLOAD_URI.format(folder=landsat_folder_id, sid=scene['entityId'])
 
         pathrow = scene['displayId'].split('_')[2]
 
@@ -417,10 +425,14 @@ def load_img(img_path):
         raise RuntimeError('Cannot find {}'.format(img_path))
 
 
-def extractall(file):
+def extractall(file, destination=None):
     """Extract zipfile."""
     archive = ZipFile(file, 'r')
-    archive.extractall(resource_path.dirname(file))
+
+    if destination is None:
+        destination = resource_path.dirname(file)
+
+    archive.extractall(destination)
     archive.close()
 
 
@@ -496,7 +508,7 @@ def is_valid_compressed(file):
     return not corrupt
 
 
-def extract_and_get_internal_name(zip_file_name):
+def extract_and_get_internal_name(zip_file_name, extract_to=None):
     """Extract zipfile and return internal folder path."""
     # Check if file is valid
     valid = is_valid_compressed(zip_file_name)
@@ -504,7 +516,7 @@ def extract_and_get_internal_name(zip_file_name):
     if not valid:
         raise IOError('Invalid zip file "{}"'.format(zip_file_name))
     else:
-        extractall(zip_file_name)
+        extractall(zip_file_name, destination=extract_to)
 
         # Get extracted zip folder name
         with ZipFile(zip_file_name) as zipObj:

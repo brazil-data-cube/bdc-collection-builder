@@ -200,7 +200,7 @@ class LandsatDigitalNumber07(LandsatProduct):
 
     def get_band_map(self) -> dict:
         return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs='B6',
+            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs1='B6_VCID_1', tirs2='B6_VCID_2',
             swir2='B7', panchromatic='B8', quality='BQA'
         )
 
@@ -313,7 +313,7 @@ def compress_landsat_scene(scene: LandsatProduct, data_dir: str):
         if not context_dir.exists() or not context_dir.is_dir():
             raise IOError('Invalid directory to compress Landsat. "{}"'.format(data_dir))
 
-        compressed_file_path = scene.compressed_file()
+        compressed_file_path = Path(data_dir) / scene.compressed_file().name
 
         files = scene.compressed_file_bands()
 

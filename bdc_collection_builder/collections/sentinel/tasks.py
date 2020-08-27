@@ -34,8 +34,7 @@ from .harmonization import sentinel_harmonize
 from .publish import publish
 from .correction import correction_laSRC
 from .onda import download_from_onda
-from .utils import factory
-
+from .utils import factory, post_processing
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
@@ -273,12 +272,16 @@ class SentinelTask(RadcorTask):
             scene - Serialized Activity
         """
         # Create/update activity
-        self.create_execution(scene)
+        execution = self.create_execution(scene)
 
         assets = scene['args']['assets']
 
         for entry in assets.values():
             file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
+
+            if entry['file'].endswith('Fmask4.tif'):
+                post_processing(entry['file'], execution.activity.collection, assets, 10)
+
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
 

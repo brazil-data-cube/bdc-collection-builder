@@ -2,12 +2,18 @@
 import fnmatch
 import logging
 import os
-from os import path as resource_path
 # 3rdparty
+
+import numpy
+import shutil
+from tempfile import TemporaryDirectory
+
+from bdc_db.models import Band, Collection
 from rasterio.enums import Resampling
-from zipfile import ZipFile
+from rasterio.warp import Affine, reproject
 import rasterio
 # BDC Scripts
+from bdc_collection_builder.collections.utils import generate_cogs
 from bdc_collection_builder.config import Config
 from bdc_collection_builder.collections.models import RadcorActivity
 from datetime import datetime
@@ -314,6 +320,132 @@ class SentinelFactory:
                     return driver(scene_id)
 
         raise ValueError('Not found a valid driver for {}'.format(scene_id))
+
+
+def post_processing(quality_file_path: str, collection: Collection, scenes: dict, resample_to=None):
+    """Stack the merge bands in order to apply a filter on the quality band.
+
+    We have faced some issues regarding `nodata` value in spectral bands, which was resulting
+    in wrong provenance date on STACK data cubes, since the Fmask tells the pixel is valid (0) but a nodata
+    value is found in other bands.
+    To avoid that, we read all the others bands, seeking for `nodata` value. When found, we set this to
+    nodata in Fmask output::
+
+        Quality             Nir                   Quality
+
+        0 0 2 4      702  876 7000 9000      =>    0 0 2 4
+        0 0 0 0      687  987 1022 1029      =>    0 0 0 0
+        0 2 2 4    -9999 7100 7322 9564      =>  255 2 2 4
+
+    Notes:
+        It may take too long to execute for a large grid.
+
+    Args:
+         quality_file_path: Path to the cloud masking file.
+         collection: The collection instance.
+         scenes: Map of band and file path
+         resample_to: Resolution to re-sample. Default is None, which uses default value.
+    """
+    quality_file_path = Path(quality_file_path)
+    band_names = [band_name for band_name in scenes.keys() if band_name.lower() not in ('ndvi', 'evi', 'fmask4')]
+
+    bands = Band.query().filter(
+        Band.collection_id == collection.id,
+        Band.name.in_(band_names)
+    ).all()
+
+    options = dict()
+
+    with TemporaryDirectory() as tmp:
+        temp_file = Path(tmp) / quality_file_path.name
+
+        # Copy to temp dir
+        shutil.copyfile(quality_file_path, temp_file)
+
+        if resample_to:
+            with rasterio.open(str(quality_file_path)) as ds:
+                ds_transform = ds.profile['transform']
+                transform = Affine(resample_to, 0, ds_transform[2], 0, -resample_to, ds_transform[5])
+
+                options.update(ds.meta.copy())
+                options['transform'] = transform
+                options['width'] = ds.profile['width'] * (ds_transform[0] / resample_to)
+                options['height'] = ds.profile['height'] * (ds_transform[0] / resample_to)
+
+                nodata = options.get('nodata') or 255
+                options['nodata'] = nodata
+                raster = numpy.full(ds.shape, dtype=options['dtype'], fill_value=nodata)
+
+                reproject(
+                    source=rasterio.band(ds, 1),
+                    destination=raster,
+                    src_transform=ds_transform,
+                    src_crs=options['crs'],
+                    dst_transform=transform,
+                    dst_crs=options['crs'],
+                    src_nodata=nodata,
+                    dst_nodata=nodata,
+                    resampling=Resampling.nearest
+                )
+
+                with rasterio.open(str(temp_file), mode='w', **options) as temp_ds:
+                    temp_ds.write_band(1, raster)
+
+                # Build COG
+                generate_cogs(str(temp_file), str(temp_file))
+
+        with rasterio.open(str(temp_file), **options) as quality_ds:
+            blocks = list(quality_ds.block_windows())
+            profile = quality_ds.profile
+            nodata = profile.get('nodata', 255)
+            raster_merge = quality_ds.read(1)
+            for _, block in blocks:
+                nodata_positions = []
+
+                row_offset = block.row_off + block.height
+                col_offset = block.col_off + block.width
+
+                for band in bands:
+                    band_file = scenes[band.name]['file']
+
+                    with rasterio.open(str(band_file)) as ds:
+                        raster = ds.read(1, window=block)
+
+                    nodata_found = numpy.where(raster == -9999)
+                    raster_nodata_pos = numpy.ravel_multi_index(nodata_found, raster.shape)
+                    nodata_positions = numpy.union1d(nodata_positions, raster_nodata_pos)
+
+                if len(nodata_positions):
+                    raster_merge[block.row_off: row_offset, block.col_off: col_offset][
+                        numpy.unravel_index(nodata_positions.astype(numpy.int64), raster.shape)] = nodata
+
+        save_as_cog(str(temp_file), raster_merge, **profile)
+
+        # Move right place
+        shutil.move(str(temp_file), str(quality_file_path))
+
+
+def save_as_cog(destination: str, raster, mode='w', **profile):
+    """Save the raster file as Cloud Optimized GeoTIFF.
+
+    See Also:
+        Cloud Optimized GeoTiff https://gdal.org/drivers/raster/cog.html
+
+    Args:
+        destination: Path to store the data set.
+        raster: Numpy raster values to persist in disk
+        mode: Default rasterio mode. Default is 'w' but you also can set 'r+'.
+        **profile: Rasterio profile values to add in dataset.
+    """
+    with rasterio.open(str(destination), mode, **profile) as dataset:
+        if profile.get('nodata'):
+            dataset.nodata = profile['nodata']
+
+        dataset.write_band(1, raster)
+        dataset.build_overviews([2, 4, 8, 16, 32, 64], Resampling.nearest)
+        dataset.update_tags(ns='rio_overview', resampling='nearest')
+
+    generate_cogs(str(destination), str(destination))
 
 
 factory = SentinelFactory()

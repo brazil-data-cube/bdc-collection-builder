@@ -30,6 +30,8 @@ from celery import chain, group
 from landsatxplore.api import API
 from numpngw import write_png
 from osgeo import gdal
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
 from skimage import exposure
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
@@ -444,7 +446,7 @@ def get_credentials():
         return json_parser(f.read())
 
 
-def generate_cogs(input_data_set_path, file_path):
+def generate_cogs(input_data_set_path, file_path, profile='lzw', profile_options=None, **options):
     """Generate Cloud Optimized GeoTIFF files (COG).
 
     Example:
@@ -457,40 +459,36 @@ def generate_cogs(input_data_set_path, file_path):
     Args:
         input_data_set_path (str) - Path to the input data set
         file_path (str) - Target data set filename
+        profile (str) - A COG profile based in `rio_cogeo.profiles`.
+        profile_options (dict) - Custom options to the profile.
 
     Returns:
         Path to COG.
     """
-    src_ds = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
+    if profile_options is None:
+        profile_options = dict()
 
-    if src_ds is None:
-        raise ValueError('Could not open data set "{}"'.format(input_data_set_path))
+    output_profile = cog_profiles.get(profile)
+    output_profile.update(dict(BIGTIFF="IF_SAFER"))
+    output_profile.update(profile_options)
 
-    driver = gdal.GetDriverByName('MEM')
+    # Dataset Open option (see gdalwarp `-oo` option)
+    config = dict(
+        GDAL_NUM_THREADS="ALL_CPUS",
+        GDAL_TIFF_INTERNAL_MASK=True,
+        GDAL_TIFF_OVR_BLOCKSIZE="128",
+    )
 
-    src_band = src_ds.GetRasterBand(1)
-    data_set = driver.Create('', src_ds.RasterXSize, src_ds.RasterYSize, 1, src_band.DataType)
-    data_set.SetGeoTransform( src_ds.GetGeoTransform() )
-    data_set.SetProjection( src_ds.GetProjection() )
-
-    data_set_band = data_set.GetRasterBand(1)
-
-    dummy = src_band.GetNoDataValue()
-
-    if dummy is not None:
-        data_set_band.SetNoDataValue(dummy)
-
-    data_set_band.WriteArray( src_band.ReadAsArray() )
-    data_set.BuildOverviews("NEAREST", [2, 4, 8, 16, 32, 64])
-
-    driver = gdal.GetDriverByName('GTiff')
-    dst_ds = driver.CreateCopy(file_path, data_set, options=["COPY_SRC_OVERVIEWS=YES", "TILED=YES", "COMPRESS=LZW"])
-
-    del src_ds
-    del data_set
-    del dst_ds
-
-    return file_path
+    cog_translate(
+        str(input_data_set_path),
+        str(file_path),
+        output_profile,
+        config=config,
+        in_memory=False,
+        quiet=True,
+        **options,
+    )
+    return str(file_path)
 
 
 def is_valid_compressed(file):

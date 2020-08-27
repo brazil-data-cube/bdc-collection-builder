@@ -53,6 +53,7 @@ install_requires = [
     'marshmallow-sqlalchemy>=0.19.0',
     'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',
+    'rio-cogeo>=1.1,<2',
     'redis>=3.3.11',
     'requests>=2.22.0',
     'GDAL>=2.3.3',

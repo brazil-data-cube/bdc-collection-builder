@@ -10,9 +10,10 @@
 
 
 # 3rdparty
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validates_schema, ValidationError, post_load
+from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_db.models import db, CollectionItem
+from bdc_catalog.models import db, Item
 # Builder
 from .models import RadcorActivity, RadcorActivityHistory
 
@@ -37,9 +38,9 @@ class CollectionItemForm(ModelSchema):
     class Meta:
         """Define internal model handling."""
 
-        model = CollectionItem
+        model = Item
         sqla_session = db.session
-        exclude = ('grs_schema', 'cube_collection', 'tile')
+        exclude = ('geom', 'min_convex_hull', 'tile')
 
 
 class HistoryForm(ModelSchema):
@@ -87,3 +88,53 @@ class RadcorActivityForm(SimpleActivityForm):
     def dump_last_execution(self, obj):
         """Dump last task execution."""
         return HistoryForm().dump(obj.history[0]) if len(obj.history) > 0 else None
+
+
+class SearchImageForm(Schema):
+    """Define the schema to search for images on Remote Providers."""
+
+    satsen = fields.String(required=True, allow_none=False)
+    start = fields.Date(required=True, allow_none=False)
+    end = fields.Date(required=True, allow_none=False)
+    tags = fields.List(fields.String, required=True, allow_none=False)
+    cloud = fields.Float(default=100, allow_nan=False)
+    action = fields.String(required=True, validate=OneOf(['preview', 'start']))
+    w = fields.Float(allow_none=False, allow_nan=False)
+    s = fields.Float(allow_none=False, allow_nan=False)
+    e = fields.Float(allow_none=False, allow_nan=False)
+    n = fields.Float(allow_none=False, allow_nan=False)
+    scenes = fields.List(fields.String(), allow_none=False)
+
+    @post_load
+    def pre_load_dates(self, data, **kwargs) -> dict:
+        """Format the parsed data and serialize the 'start' and 'end' as 'Y-m-d' string."""
+        if 'start' in data:
+            data['start'] = data['start'].strftime('%Y-%m-%d')
+
+        if 'end' in data:
+            data['end'] = data['end'].strftime('%Y-%m-%d')
+
+        return data
+
+    @validates_schema
+    def validate_scenes(self, data, **kwargs):
+        """Validate the search image form.
+
+        Ensure that bounding box given (w, s, e, n) and scenes is not set in the same context.
+
+        Raises:
+            ValidationError When both scenes and bounding box given. It also raise error when bbox is inconsistent.
+        """
+        bbox_given = data.keys() >= {'w', 's', 'e', 'n'}
+
+        if 'scenes' in data and bbox_given:
+            raise ValidationError('"scenes" and bbox ("w", "s", "e", "n") given. Please refer one of those.')
+
+        if bbox_given:
+            w, s, e, n = data['w'], data['s'], data['e'], data['n']
+
+            if w > e:
+                raise ValidationError('Xmin is greater than XMax')
+
+            if s > n:
+                raise ValidationError('Ymin is greater than YMax')

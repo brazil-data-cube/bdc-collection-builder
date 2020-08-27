@@ -8,19 +8,25 @@
 
 """Defines the utility functions to use among celery tasks."""
 
-
-from bdc_collection_builder.celery import celery_app
+from celery import current_app
+from celery.backends.database import SessionManager
 
 
 def list_running_tasks():
     """List all running tasks in celery cluster."""
-    inspector = celery_app.control.inspect()
+    inspector = current_app.control.inspect()
 
     return inspector.active()
 
 
 def list_pending_tasks():
     """List all pending tasks in celery cluster."""
-    inspector = celery_app.control.inspect()
+    inspector = current_app.control.inspect()
 
     return inspector.reserved()
+
+
+def load_celery_models():
+    session = SessionManager()
+    engine = session.get_engine(current_app.backend.url)
+    session.prepare_models(engine)

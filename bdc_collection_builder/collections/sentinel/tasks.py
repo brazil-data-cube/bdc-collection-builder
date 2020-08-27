@@ -19,7 +19,7 @@ from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
 # BDC DB
-from bdc_db.models import db
+from bdc_catalog.models import db
 
 # Builder
 from ...celery import celery_app
@@ -37,9 +37,6 @@ from .onda import download_from_onda
 from .utils import factory
 
 
-lock = lock_handler.lock('sentinel_download_lock_4')
-
-
 class SentinelTask(RadcorTask):
     """Define abstraction of Sentinel 2 - L1C and L2A products."""
 
@@ -55,6 +52,8 @@ class SentinelTask(RadcorTask):
             AtomicUser An atomic user
         """
         user = None
+
+        lock = lock_handler.lock('sentinel_download_lock_4')
 
         while lock.locked():
             logging.info('Resource locked....')
@@ -102,21 +101,18 @@ class SentinelTask(RadcorTask):
         with db.session.no_autoflush:
             activity_args = scene.get('args', dict())
 
-            collection_item = self.get_collection_item(activity_history.activity)
-
-            # Output product dir
-            product_dir = sentinel_scene.compressed_file().parent
+            # collection_item = self.get_collection_item(activity_history.activity)
 
             link = activity_args['link']
             scene_id = scene['sceneid']
 
             zip_file_name = sentinel_scene.compressed_file()
 
-            collection_item.compressed_file = str(zip_file_name.relative_to(Config.DATA_DIR))
+            # collection_item.compressed_file = str(zip_file_name.relative_to(Config.DATA_DIR))
             cloud = activity_args.get('cloud')
 
-            if cloud:
-                collection_item.cloud_cover = cloud
+            # if cloud:
+            # collection_item.cloud_cover = cloud
 
             try:
                 valid = True
@@ -149,12 +145,9 @@ class SentinelTask(RadcorTask):
 
                         zip_file_name.parent.mkdir(exist_ok=True, parents=True)
                         shutil.move(str(tmp_file), str(zip_file_name))
-                #
-                # internal_folder_name = extract_and_get_internal_name(str(zip_file_name))
-                # extracted_file_path = os.path.join(str(product_dir), internal_folder_name)
 
                 logging.debug('Done download.')
-                activity_args['file'] = str(zip_file_name)
+                activity_args['compressed_file'] = str(zip_file_name)
 
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if zip_file_name.exists():
@@ -173,7 +166,7 @@ class SentinelTask(RadcorTask):
                 raise e
 
         # Persist a collection item on database
-        collection_item.save()
+        # collection_item.save()
 
         activity_args.pop('link')
         scene['args'] = activity_args
@@ -205,7 +198,7 @@ class SentinelTask(RadcorTask):
             output_dir = sentinel_scene.path()
 
             # TODO: Add the sen2cor again as optional processor
-            correction_result = correction_laSRC(scene['args']['file'], str(output_dir))
+            correction_result = correction_laSRC(scene['args']['compressed_file'], str(output_dir))
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e

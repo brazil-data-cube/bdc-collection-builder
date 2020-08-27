@@ -13,7 +13,14 @@ import redis
 from bdc_collection_builder.config import Config
 
 
-client = redis.Redis.from_url(Config.REDIS_URL)
+class Cache:
+    client: redis.Redis = None
+
+    def initialize(self):
+        self.client = redis.Redis.from_url(Config.REDIS_URL)
+
+
+cache = Cache()
 
 
 class LockHandler:
@@ -33,7 +40,7 @@ class LockHandler:
             name - Lock name
             **options - Extra optional parameters
         """
-        lock = client.lock(name, **options)
+        lock = cache.client.lock(name, **options)
 
         self._locks.append(lock)
 

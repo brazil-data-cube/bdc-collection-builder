@@ -76,7 +76,7 @@ class LandsatTask(RadcorTask):
 
             activity_args = scene.get('args', {})
 
-            collection_item = self.get_collection_item(activity_history.activity)
+            # collection_item = self.get_collection_item(activity_history.activity)
 
             # Output product dir
             productdir = landsat_scene.compressed_file().parent
@@ -119,21 +119,21 @@ class LandsatTask(RadcorTask):
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
-            collection_item.compressed_file = str(file).replace(Config.DATA_DIR, '')
+            # collection_item.compressed_file = str(file).replace(Config.DATA_DIR, '')
 
-            cloud = activity_args.get('cloud')
+            # cloud = activity_args.get('cloud')
 
-            if cloud:
-                collection_item.cloud_cover = cloud
+            # if cloud:
+            #     collection_item.cloud_cover = cloud
 
-            activity_args['file'] = str(file)
+            activity_args['compressed_file'] = str(file)
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id),
                           exc_info=True)
 
             raise e
 
-        collection_item.save()
+        # collection_item.save()
 
         scene['args'] = activity_args
 
@@ -160,7 +160,8 @@ class LandsatTask(RadcorTask):
         landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=collection_level)
 
         try:
-            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+            item = self.get_collection_item(activity_history.activity)
+            assets = publish(item, activity_history.activity)
         except InvalidRequestError as e:
             # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
@@ -227,7 +228,7 @@ class LandsatTask(RadcorTask):
         # Get Resolver for Landsat scene level 2
         landsat_scene = factory.get_from_sceneid(scene_id, level=2)
         landsat_scene_level_1 = factory.get_from_sceneid(scene_id, level=1)
-        scene['collection_id'] = landsat_scene.id
+        # scene['collection_id'] = landsat_scene.id
 
         # Create/Update activity
         execution = self.create_execution(scene)
@@ -236,14 +237,14 @@ class LandsatTask(RadcorTask):
             params = dict(
                 app=scene['activity_type'],
                 sceneid=scene['sceneid'],
-                file=scene['args']['file']
+                file=scene['args']['compressed_file']
             )
 
             output_path = landsat_scene.path()
             output_path.mkdir(exist_ok=True, parents=True)
 
             with TemporaryDirectory(prefix='correction', suffix=scene_id) as tmp:
-                with tarfile.open(scene['args']['file']) as compressed_file:
+                with tarfile.open(scene['args']['compressed_file']) as compressed_file:
                     # Extracting to temp directory
                     compressed_file.extractall(tmp)
 

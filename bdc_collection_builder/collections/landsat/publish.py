@@ -15,15 +15,16 @@ from pathlib import Path
 from shutil import unpack_archive
 
 # 3rdparty
-from bdc_db.models import Asset, Band, Collection, CollectionItem, db
+from bdc_catalog.models import Band, Collection, Item, Quicklook, db,Tile
 from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
 
 # Builder
 from ...config import Config
+from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
 from ..models import RadcorActivity
-from ..utils import create_quick_look, get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
+from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif
 from .utils import factory
 
 
@@ -94,7 +95,7 @@ def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
     return file_path
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity):
+def publish(collection_item: Item, scene: RadcorActivity):
     """Publish Landsat collection.
 
     It works with both Digital Number (DN) and Surface Reflectance (SR).
@@ -121,7 +122,16 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         productdir = uncompress(productdir, str(target_dir))
 
     collection = Collection.query().filter(Collection.id == collection_item.collection_id).one()
-    quicklook = collection.bands_quicklook.split(',') if collection.bands_quicklook else DEFAULT_QUICK_LOOK_BANDS
+
+    quicklook = Quicklook.query().filter(Quicklook.collection_id == collection.id).all()
+
+    if quicklook:
+        quicklook_bands = Band.query().filter(
+            Band.id.in_(quicklook.red, quicklook.green, quicklook.blue)
+        ).all()
+        quicklook = [quicklook_bands[0].name, quicklook_bands[1].name, quicklook_bands[2].name]
+    else:
+        quicklook = DEFAULT_QUICK_LOOK_BANDS
 
     files = {}
     qlfiles = {}
@@ -190,27 +200,38 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
         else:
             asset_url = productdir
 
-        pngname = resource_path.join(asset_url, Path(pngname).name)
+        pngname_relative = resource_path.join(asset_url, Path(pngname).name)
 
-        assets_to_upload['quicklook']['asset'] = pngname
+        assets_to_upload['quicklook']['asset'] = pngname_relative
 
         with engine.session.begin_nested():
             with engine.session.no_autoflush:
                 # Add collection item to the session if not present
                 if collection_item not in engine.session:
-                    item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
+                    item = engine.session.query(Item).filter(
+                        Item.name == collection_item.name,
+                        Item.collection_id == collection_item.collection_id
+                    ).first()
 
                     if not item:
                         cloned_properties = CollectionItemForm().dump(collection_item)
-                        collection_item = CollectionItem(**cloned_properties)
+                        collection_item = Item(**cloned_properties)
                         engine.session.add(collection_item)
 
-                collection_item.quicklook = pngname
+                # collection_item.quicklook = pngname
 
                 collection_bands = engine.session.query(Band)\
                     .filter(Band.collection_id == collection_item.collection_id)\
                     .all()
 
+                assets = dict(
+                    thumbnail=dict(
+                        href=asset_url,
+                        type='image/png',
+                        roles='thumbnail',
+                        size=Path(pngname).stat().st_size
+                    )
+                )
                 # Inserting data into Product table
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
@@ -227,33 +248,23 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                             band, collection_item.collection_id))
                         continue
 
-                    defaults = dict(
-                        url=template,
-                        source=landsat_scene.source(),
-                        raster_size_x=dataset.RasterXSize,
-                        raster_size_y=dataset.RasterYSize,
-                        raster_size_t=1,
-                        chunk_size_t=1,
-                        chunk_size_x=chunk_x,
-                        chunk_size_y=chunk_y
+                    assets[band_model.name] = dict(
+                        type=COG_MIME_TYPE,
+                        href=template,
+                        roles='data',
+                        size=Path(files[band]).stat().st_size,
+                        raster_size=dict(
+                            x=dataset.RasterXSize,
+                            y=dataset.RasterYSize,
+                        ),
+                        chunk_size=dict(x=chunk_x, y=chunk_y)
                     )
 
-                    asset, _ = get_or_create_model(
-                        Asset,
-                        engine=engine,
-                        defaults=defaults,
-                        collection_id=scene.collection_id,
-                        band_id=band_model.id,
-                        grs_schema_id=scene.collection.grs_schema_id,
-                        tile_id=collection_item.tile_id,
-                        collection_item_id=collection_item.id,
-                    )
-                    asset.url = defaults['url']
+                    assets_to_upload[band] = dict(file=files[band], asset=template)
 
-                    assets_to_upload[band] = dict(file=files[band], asset=asset.url)
-
-                    # Add into scope of local and remote database
-                    add_instance(engine, asset)
+                collection_item.assets = assets
+                # Add into scope of local and remote database
+                add_instance(engine, collection_item)
 
         # Persist database
         commit(engine)

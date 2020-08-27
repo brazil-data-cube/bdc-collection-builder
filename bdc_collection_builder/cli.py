@@ -12,10 +12,9 @@ Creates a python click context and inject it to the global flask commands.
 """
 
 import click
-from bdc_db.models import Band, Collection, db
-from bdc_db.cli import create_db as bdc_create_db, create_cli
-from flask.cli import with_appcontext
-from flask_migrate.cli import db as flask_db
+from bdc_catalog.models import Band, Collection, db
+from bdc_catalog.cli import cli
+from flask.cli import with_appcontext, FlaskGroup
 
 from . import create_app
 from .collections.sentinel.utils import Sentinel2SR
@@ -24,23 +23,25 @@ from .config import Config
 
 
 # Create bdc-collection-builder cli from bdc-db
-cli = create_cli(create_app=create_app)
+@click.group(cls=FlaskGroup, create_app=create_app)
+def cli():
+    """Command line for Collection Builder."""
 
-
-@flask_db.command()
-@with_appcontext
-@click.pass_context
-def create_db(ctx: click.Context):
-    """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
-
-    # Forward context to bdc-db createdb command in order to create database
-    ctx.forward(bdc_create_db)
-
-    click.secho('Creating schema {}...'.format(Config.ACTIVITIES_SCHEMA), fg='green')
-    with db.session.begin_nested():
-        db.session.execute('CREATE SCHEMA IF NOT EXISTS {}'.format(Config.ACTIVITIES_SCHEMA))
-
-    db.session.commit()
+#
+# @cli.command()
+# @with_appcontext
+# @click.pass_context
+# def create_db(ctx: click.Context):
+#     """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
+#
+#     # Forward context to bdc-db createdb command in order to create database
+#     ctx.forward(bdc_create_db)
+#
+#     click.secho('Creating schema {}...'.format(Config.ACTIVITIES_SCHEMA), fg='green')
+#     with db.session.begin_nested():
+#         db.session.execute('CREATE SCHEMA IF NOT EXISTS {}'.format(Config.ACTIVITIES_SCHEMA))
+#
+#     db.session.commit()
 
 
 @cli.group()

@@ -8,10 +8,11 @@
 
 """Python Brazil Data Cube Collection Builder."""
 
-from bdc_db.ext import BDCDatabase
+from bdc_catalog.ext import BDCCatalog
 from flask import Flask
 
 from . import celery, config
+from .celery.utils import load_celery_models
 from .config import get_settings
 from .version import __version__
 
@@ -30,7 +31,7 @@ def create_app(config_name='DevelopmentConfig'):
 
     with app.app_context():
         # Initialize Flask SQLAlchemy
-        BDCDatabase(app)
+        BDCCatalog(app)
 
         from bdc_collection_builder.db import db_aws
         db_aws.initialize()
@@ -42,6 +43,8 @@ def create_app(config_name='DevelopmentConfig'):
         # Setup blueprint
         from bdc_collection_builder.blueprint import bp
         app.register_blueprint(bp)
+
+        load_celery_models()
 
         from .utils import initialize_factories
 

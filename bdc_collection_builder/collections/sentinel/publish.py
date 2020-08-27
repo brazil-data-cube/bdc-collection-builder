@@ -16,19 +16,20 @@ import os
 # 3rdparty
 import gdal
 import numpy
-from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_catalog.models import Band, Item, MimeType, db
 from numpngw import write_png
 from skimage.transform import resize
 # Builder
 from ...config import Config
+from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
-from ..utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
+from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
 from ..models import RadcorActivity
 from .utils import get_jp2_files, get_tif_files, factory
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity):
+def publish(collection_item: Item, scene: RadcorActivity):
     """Publish Sentinel collection.
 
     It works with both L1C and L2A.
@@ -157,16 +158,35 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
         collection_bands = engine.session.query(Band).filter(Band.collection_id == scene.collection_id).all()
 
+        mime_type = MimeType.query().filter(name=COG_MIME_TYPE).first_or_404()
+
         with engine.session.begin_nested():
             with engine.session.no_autoflush:
                 # Add collection item to the session if not present
                 if collection_item not in engine.session:
-                    item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
+                    item = engine.session.query(Item).filter(
+                        Item.name == collection_item.name,
+                        Item.collection_id == collection_item.collection_id
+                    ).first()
 
                     if not item:
                         cloned_properties = CollectionItemForm().dump(collection_item)
-                        cloned_item = CollectionItem(**cloned_properties)
+                        cloned_item = Item(**cloned_properties)
                         engine.session.add(cloned_item)
+
+                assets = dict()
+
+                # Create Qlook file
+                pngname = product_uri / '{}.png'.format(file_basename)
+                if not pngname.exists():
+                    # When TCI band found, use it to generate quicklook
+                    if files.get('qlfile'):
+                        create_quick_look_from_tci(str(pngname), files['qlfile'])
+                    else:
+                        create_quick_look(str(pngname), [files['red'], files['green'], files['blue']])
+
+                normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
+                assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
                 # Convert original format to COG
                 for sband in bands:
@@ -186,46 +206,33 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
                         logging.warning('Band {} not registered on database. Skipping'.format(sband))
                         continue
 
-                    defaults = dict(
-                        source=source,
-                        url='{}/{}'.format(str(asset_url), cog_file_name),
-                        raster_size_x=asset_dataset.RasterXSize,
-                        raster_size_y=asset_dataset.RasterYSize,
-                        raster_size_t=1,
-                        chunk_size_t=1,
-                        chunk_size_x=chunk_x,
-                        chunk_size_y=chunk_y
+                    assets[band_model.name] = dict(
+                        href='{}/{}'.format(str(asset_url), cog_file_name),
+                        type=COG_MIME_TYPE,
+                        size=cog_file_path.stat().st_size,
+                        roles='data',
+                        raster_size=dict(
+                            x=raster_band.Xmax,
+                            y=raster_band.Ymax,
+                        ),
+                        chunk_size=dict(x=chunk_x, y=chunk_y)
                     )
-                    asset, _ = get_or_create_model(
-                        Asset,
-                        defaults=defaults,
-                        engine=engine,
-                        collection_id=scene.collection_id,
-                        band_id=band_model.id,
-                        grs_schema_id=scene.collection.grs_schema_id,
-                        tile_id=collection_item.tile_id,
-                        collection_item_id=collection_item.id,
-                    )
-                    asset.url = defaults['url']
 
-                    assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=asset.url))
+                    assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=assets[band_model.name]['href']))
 
                     del asset_dataset
 
-                # Create Qlook file
-                pngname = product_uri / '{}.png'.format(file_basename)
-                if not pngname.exists():
-                    # When TCI band found, use it to generate quicklook
-                    if files.get('qlfile'):
-                        create_quick_look_from_tci(str(pngname), files['qlfile'])
-                    else:
-                        create_quick_look(str(pngname), [files['red'], files['green'], files['blue']])
+                assets['thumbnail'] = dict(
+                    href=str(normalized_quicklook_path),
+                    type='image/png',
+                    size=Path(pngname).stat().st_size,
+                    roles='thumbnail'
+                )
 
-                normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
-                assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
+                collection_item.assets = assets
 
-                c_item = engine.session.query(CollectionItem).filter(
-                    CollectionItem.id == collection_item.id
+                c_item = engine.session.query(Item).filter(
+                    Item.id == collection_item.id
                 ).first()
                 if c_item:
                     c_item.quicklook = normalized_quicklook_path

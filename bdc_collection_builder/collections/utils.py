@@ -11,10 +11,12 @@
 
 # Python Native
 import datetime
+import hashlib
 import json
 import logging
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
+from pathlib import Path
 from typing import List
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -24,7 +26,7 @@ import boto3
 import numpy
 import rasterio
 import requests
-from bdc_db.models import AssetMV, db
+from bdc_catalog.models import db
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
@@ -608,13 +610,6 @@ def refresh_assets_view(refresh_on_aws=True):
         logging.info('Skipping refresh view.')
         return
 
-    refresh_materialized_view(db.session, AssetMV.__table__)
-    commit(db)
-
-    if refresh_on_aws:
-        refresh_materialized_view(db_aws.session, AssetMV.__table__)
-        commit(db)
-
     logging.info('View refreshed.')
 
 
@@ -651,3 +646,32 @@ def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
         nb += 1
 
     write_png(str(png_file), image, transparent=(0, 0, 0))
+
+
+def check_sum(file_path: Path, chunk_size=4096) -> str:
+    """Read a file and generate a checksum multihash.
+
+    This method uses the algorithm `blake2b 256 bits`.
+    The multihash code for `blake2b-512` is defined in
+    https://github.com/multiformats/py-multihash/blob/master/multihash/constants.py#L82
+
+    See more of multihash in https://github.com/multiformats/multihash
+
+    Args:
+        file_path - Path to the file
+        chunk_size - Size in bytes to read per iteration.
+    """
+    algorithm = hashlib.blake2b(digest_size=32)
+
+    with open(str(file_path), "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            algorithm.update(chunk)
+
+    digest = algorithm.hexdigest()
+
+    # https://github.com/multiformats/py-multihash/blob/master/multihash/constants.py#L82
+    print(digest)
+    hash_algorithm = '12'
+    hash_length = 40  # => 64
+
+    return f'{hash_algorithm}{hash_length}{digest}'

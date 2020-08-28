@@ -28,7 +28,7 @@ from ..models import RadcorActivity
 from .utils import get_jp2_files, get_tif_files, factory
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity):
+def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=False, **kwargs):
     """Publish Sentinel collection.
 
     It works with both L1C and L2A.
@@ -42,6 +42,11 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
     # Get collection level to publish. Default is l1
     # TODO: Check in database the scenes level 2 already published. We must set to level 2
     collection_level = scene.args.get('level') or 1
+
+    if collection_level == 1 and skip_l1:
+        logging.info(f'Skipping publish skip_l1={skip_l1} L1 - {collection_item.collection_id}')
+        return dict()
+
     sentinel_scene = factory.get_from_sceneid(scene.sceneid, level=collection_level)
     harmonized_scene = factory.get_from_sceneid(scene.sceneid, level=3)
 
@@ -151,6 +156,10 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
             continue
 
         if instance == 'aws':
+            if Config.DISABLE_PUBLISH_SECOND_DB:
+                logging.info('Skipping publish in second db.')
+                continue
+
             asset_url = Config.AWS_BUCKET_NAME / (product_uri.relative_to(Path(Config.DATA_DIR) / 'Repository/Archive'))
         else:
             asset_url = '/' / product_uri.relative_to(Config.DATA_DIR)

@@ -10,10 +10,18 @@
 
 import logging
 import os
+import shutil
+from pathlib import Path
+
 import requests
+
+# 3rdparty
+from bdc_core.decorators import working_directory
+from sentinelhub import AwsProductRequest, SHConfig
 
 # Builder
 from bdc_collection_builder.collections.utils import get_credentials
+from bdc_collection_builder.config import Config
 
 
 def _download(file_path: str, response: requests.Response):
@@ -120,3 +128,52 @@ def download_sentinel_from_creodias(scene_id: str, file_path: str):
             raise RuntimeError('Could not download {} - {}'.format(response.status_code, scene_id))
 
         _download(file_path, response)
+
+
+def download_from_aws(scene_id: str, destination: str):
+    """Download the Sentinel Scene from AWS.
+
+    It uses the library `sentinelhub-py <https://sentinelhub-py.readthedocs.io>`_ to download
+    the Sentinel-2 SAFE folder. Once downloaded, it compressed into a `zip`.
+
+    Notes:
+        Make sure to set both `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in environment variable.
+
+        This method does not raise Exception.
+
+    Args:
+        scene_id - Sentinel-2 Product Id (We call as scene_id)
+        destination - Path to store data. We recommend to use python `tempfile.TemporaryDirectory` and then move.
+
+    Returns:
+        Path to the downloaded file when success or None when an error occurred.
+    """
+    try:
+        config = SHConfig()
+        config.aws_access_key_id = Config.AWS_ACCESS_KEY_ID
+        config.aws_secret_access_key = Config.AWS_SECRET_ACCESS_KEY
+
+        logging.info(f'Downloading {scene_id} From AWS...')
+
+        request = AwsProductRequest(
+            product_id=scene_id,
+            data_folder=destination,
+            safe_format=True,
+            config=config
+        )
+        _ = request.get_data(save_data=True)
+
+        file_name = '{}.SAFE'.format(scene_id)
+
+        logging.info(f'Compressing {scene_id}.SAFE...')
+
+        with working_directory(destination):
+            shutil.make_archive(base_dir=file_name,
+                                format='zip',
+                                base_name=scene_id)
+
+        return Path(destination) / file_name
+
+    except BaseException as e:
+        logging.error(f'Error downloading from AWS. {scene_id} - {str(e)}')
+        return None

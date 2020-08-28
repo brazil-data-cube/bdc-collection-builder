@@ -170,7 +170,7 @@ class SentinelTask(RadcorTask):
                         shutil.move(str(tmp_file), str(zip_file_name))
 
                 logging.debug('Done download.')
-                activity_args['file'] = str(zip_file_name)
+                activity_args['compressed_file'] = str(zip_file_name)
 
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if zip_file_name.exists():
@@ -221,7 +221,7 @@ class SentinelTask(RadcorTask):
             output_dir = sentinel_scene.path()
 
             # TODO: Add the sen2cor again as optional processor
-            correction_result = correction_laSRC(scene['args']['file'], str(output_dir))
+            correction_result = correction_laSRC(scene['args']['compressed_file'], str(output_dir))
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
@@ -298,6 +298,15 @@ class SentinelTask(RadcorTask):
 
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
+
+        if scene['args'].get('compressed_file'):
+            Path(scene['args'].get('compressed_file')).unlink()
+
+        try:
+            logging.info(f'Removing {scene["args"]["file"]}')
+            shutil.rmtree(scene["args"]["file"], ignore_errors=True)
+        except BaseException as e:
+            logging.error(f'Cannot remove {scene["args"]["file"]} - {str(e)}')
 
     def harmonize(self, scene):
         """Apply Harmonization on Sentinel-2 collection.

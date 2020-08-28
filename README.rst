@@ -11,11 +11,11 @@ BDC Collection Builder
 ======================
 
 .. image:: https://img.shields.io/badge/license-MIT-green
-        :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/v0.2.0/LICENSE
+        :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/v0.4.0/LICENSE
         :alt: Software License
 
-.. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=b-0.2
-        :target: https://bdc-collection-builder.readthedocs.io/en/b-0.2/
+.. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=b-0.4
+        :target: https://bdc-collection-builder.readthedocs.io/en/b-0.4/
         :alt: Documentation Status
 
 .. image:: https://img.shields.io/badge/lifecycle-experimental-orange.svg
@@ -26,9 +26,9 @@ BDC Collection Builder
         :target: https://github.com/brazil-data-cube/bdc-collection-builder/releases
         :alt: Release
 
-.. image:: https://badges.gitter.im/brazil-data-cube/community.svg/
-        :target: https://gitter.im/brazil-data-cube/community#
-        :alt: Join the chat
+.. image:: https://img.shields.io/discord/689541907621085198?logo=discord&logoColor=ffffff&color=7389D8
+        :target: https://discord.com/channels/689541907621085198#
+        :alt: Join us at Discord
 
 
 About

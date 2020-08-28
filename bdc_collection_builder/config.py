@@ -36,7 +36,6 @@ class Config:
         'SQLALCHEMY_DATABASE_URI_AWS',
         'postgresql://postgres:postgres@localhost:5433/bdc_collection_builder'
     )
-    DISABLE_PUBLISH_SECOND_DB = strtobool(str(os.getenv('DISABLE_PUBLISH_SECOND_DB', True)))
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-arquive')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')

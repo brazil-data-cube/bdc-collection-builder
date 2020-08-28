@@ -141,18 +141,11 @@ class SentinelTask(RadcorTask):
                         downloaded_file = None
 
                         try:
-                            for _download in download_handler:
-                                downloaded_file = _download(scene_id, tmp)
-
-                                if downloaded_file:
-                                    break
-
-                            if downloaded_file is None:
-                                # Acquire User to download
-                                with self.get_user() as user:
-                                    logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
-                                    # Download from Copernicus
-                                    download_sentinel_images(link, str(tmp_file), user)
+                            # Acquire User to download
+                            with self.get_user() as user:
+                                logging.info('Starting Download {} - {}...'.format(scene_id, user.username))
+                                # Download from Copernicus
+                                download_sentinel_images(link, str(tmp_file), user)
                         except (ConnectionError, HTTPError) as e:
                             try:
                                 logging.warning('Trying to download "{}" from ONDA...'.format(scene_id))
@@ -160,8 +153,16 @@ class SentinelTask(RadcorTask):
                                 download_from_onda(scene_id, os.path.dirname(str(tmp_file)))
                             except:
                                 try:
-                                    logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
-                                    download_sentinel_from_creodias(scene_id, str(tmp_file))
+                                    # Google / Safe generator
+                                    for _download in download_handler:
+                                        downloaded_file = _download(scene_id, tmp)
+
+                                        if downloaded_file:
+                                            break
+
+                                    if downloaded_file is None:
+                                        logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
+                                        download_sentinel_from_creodias(scene_id, str(tmp_file))
                                 except:
                                     # Ignore errors from external provider
                                     raise e

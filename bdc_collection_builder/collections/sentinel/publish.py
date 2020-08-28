@@ -16,13 +16,13 @@ import os
 # 3rdparty
 import gdal
 import numpy
-from bdc_catalog.models import Band, Item, MimeType, db
+from bdc_catalog.models import Band, Item, db
 from numpngw import write_png
 from skimage.transform import resize
 # Builder
 from ...config import Config
 from ...constants import COG_MIME_TYPE
-from ...db import add_instance, commit, db_aws
+from ...db import commit, db_aws
 from ..forms import CollectionItemForm
 from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
 from ..models import RadcorActivity
@@ -136,8 +136,6 @@ def publish(collection_item: Item, scene: RadcorActivity):
         if not is_valid_tif(cog_file_path):
             raise RuntimeError('Not Valid {}'.format(cog_file_path))
 
-    source = scene.sceneid.split('_')[0]
-
     assets_to_upload = {}
 
     for instance in ['local', 'aws']:
@@ -157,8 +155,6 @@ def publish(collection_item: Item, scene: RadcorActivity):
             asset_url = '/' / product_uri.relative_to(Config.DATA_DIR)
 
         collection_bands = engine.session.query(Band).filter(Band.collection_id == scene.collection_id).all()
-
-        mime_type = MimeType.query().filter(name=COG_MIME_TYPE).first_or_404()
 
         with engine.session.begin_nested():
             with engine.session.no_autoflush:
@@ -188,6 +184,13 @@ def publish(collection_item: Item, scene: RadcorActivity):
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
                 assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
+                assets['thumbnail'] = dict(
+                    href=str(normalized_quicklook_path),
+                    type='image/png',
+                    size=Path(pngname).stat().st_size,
+                    roles='thumbnail'
+                )
+
                 # Convert original format to COG
                 for sband in bands:
                     # Set destination of COG file
@@ -212,8 +215,8 @@ def publish(collection_item: Item, scene: RadcorActivity):
                         size=cog_file_path.stat().st_size,
                         roles='data',
                         raster_size=dict(
-                            x=raster_band.Xmax,
-                            y=raster_band.Ymax,
+                            x=asset_dataset.RasterXSize,
+                            y=asset_dataset.RasterYSize,
                         ),
                         chunk_size=dict(x=chunk_x, y=chunk_y)
                     )
@@ -222,21 +225,7 @@ def publish(collection_item: Item, scene: RadcorActivity):
 
                     del asset_dataset
 
-                assets['thumbnail'] = dict(
-                    href=str(normalized_quicklook_path),
-                    type='image/png',
-                    size=Path(pngname).stat().st_size,
-                    roles='thumbnail'
-                )
-
                 collection_item.assets = assets
-
-                c_item = engine.session.query(Item).filter(
-                    Item.id == collection_item.id
-                ).first()
-                if c_item:
-                    c_item.quicklook = normalized_quicklook_path
-                    add_instance(engine, c_item)
 
         commit(engine)
 

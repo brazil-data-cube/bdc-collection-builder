@@ -19,7 +19,7 @@ from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
 # BDC DB
-from bdc_catalog.models import db
+from bdc_catalog.models import db, Collection
 
 # Builder
 from ...celery import celery_app
@@ -101,18 +101,10 @@ class SentinelTask(RadcorTask):
         with db.session.no_autoflush:
             activity_args = scene.get('args', dict())
 
-            # collection_item = self.get_collection_item(activity_history.activity)
-
             link = activity_args['link']
             scene_id = scene['sceneid']
 
             zip_file_name = sentinel_scene.compressed_file()
-
-            # collection_item.compressed_file = str(zip_file_name.relative_to(Config.DATA_DIR))
-            cloud = activity_args.get('cloud')
-
-            # if cloud:
-            # collection_item.cloud_cover = cloud
 
             try:
                 valid = True
@@ -165,9 +157,6 @@ class SentinelTask(RadcorTask):
 
                 raise e
 
-        # Persist a collection item on database
-        # collection_item.save()
-
         activity_args.pop('link')
         scene['args'] = activity_args
 
@@ -187,8 +176,10 @@ class SentinelTask(RadcorTask):
         # Get Resolver for Landsat scene level 2
         sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=2)
 
+        collection = Collection.query().filter(Collection.name == sentinel_scene.id).first()
+
         # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = sentinel_scene.id
+        scene['collection_id'] = collection.id
         scene['activity_type'] = 'correctionS2'
 
         # Create/update activity

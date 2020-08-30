@@ -15,7 +15,7 @@ from pathlib import Path
 from shutil import unpack_archive
 
 # 3rdparty
-from bdc_catalog.models import Band, Collection, Item, Quicklook, db,Tile
+from bdc_catalog.models import Band, Collection, Item, Quicklook, db
 from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
 
 # Builder
@@ -24,7 +24,7 @@ from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
 from ..models import RadcorActivity
-from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif
+from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition
 from .utils import factory
 
 
@@ -225,21 +225,12 @@ def publish(collection_item: Item, scene: RadcorActivity):
                     .all()
 
                 assets = dict(
-                    thumbnail=dict(
-                        href=asset_url,
-                        type='image/png',
-                        roles='thumbnail',
-                        size=Path(pngname).stat().st_size
-                    )
+                    thumbnail=create_asset_definition(str(asset_url), 'image/png', 'thumbnail', str(pngname))
                 )
+
                 # Inserting data into Product table
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
-
-                    dataset = GDALOpen(files[band], GA_ReadOnly)
-                    asset_band = dataset.GetRasterBand(1)
-
-                    chunk_x, chunk_y = asset_band.GetBlockSize()
 
                     band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
 
@@ -248,16 +239,9 @@ def publish(collection_item: Item, scene: RadcorActivity):
                             band, collection_item.collection_id))
                         continue
 
-                    assets[band_model.name] = dict(
-                        type=COG_MIME_TYPE,
-                        href=template,
-                        roles='data',
-                        size=Path(files[band]).stat().st_size,
-                        raster_size=dict(
-                            x=dataset.RasterXSize,
-                            y=dataset.RasterYSize,
-                        ),
-                        chunk_size=dict(x=chunk_x, y=chunk_y)
+                    assets[band_model.name] = create_asset_definition(
+                        template, COG_MIME_TYPE,
+                        'data', files[band], is_raster=True
                     )
 
                     assets_to_upload[band] = dict(file=files[band], asset=template)

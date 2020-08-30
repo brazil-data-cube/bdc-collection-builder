@@ -23,6 +23,7 @@ from zlib import error as zlib_error
 
 # 3rdparty
 import boto3
+import multihash
 import numpy
 import rasterio
 import requests
@@ -648,11 +649,11 @@ def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
     write_png(str(png_file), image, transparent=(0, 0, 0))
 
 
-def check_sum(file_path: Path, chunk_size=4096) -> str:
+def check_sum(file_path: str, chunk_size=4096) -> str:
     """Read a file and generate a checksum multihash.
 
-    This method uses the algorithm `blake2b 256 bits`.
-    The multihash code for `blake2b-512` is defined in
+    This method uses the algorithm `blake2b 512 bits`.
+    The multihash code for `blake2b-512` (0xb240) is defined in
     https://github.com/multiformats/py-multihash/blob/master/multihash/constants.py#L82
 
     See more of multihash in https://github.com/multiformats/multihash
@@ -660,18 +661,49 @@ def check_sum(file_path: Path, chunk_size=4096) -> str:
     Args:
         file_path - Path to the file
         chunk_size - Size in bytes to read per iteration.
+
+    Returns:
+        A string-like hash in hex-decimal
     """
-    algorithm = hashlib.blake2b(digest_size=32)
+    algorithm = hashlib.blake2b()
 
     with open(str(file_path), "rb") as f:
         for chunk in iter(lambda: f.read(chunk_size), b""):
             algorithm.update(chunk)
 
-    digest = algorithm.hexdigest()
+    blake2b = 0xb240
+    blake2b_size = 0x40
 
-    # https://github.com/multiformats/py-multihash/blob/master/multihash/constants.py#L82
-    print(digest)
-    hash_algorithm = '12'
-    hash_length = 40  # => 64
+    hash_bytes = multihash.encode(digest=algorithm.digest(), code=blake2b, length=blake2b_size)
 
-    return f'{hash_algorithm}{hash_length}{digest}'
+    return multihash.to_hex_string(hash_bytes)
+
+
+def create_asset_definition(href: str, mime_type: str, role: str, absolute_path: str, is_raster=False):
+    """Create a valid asset definition for collections.
+
+    TODO: Generate the asset for `Item` field with all bands
+    """
+    asset = {
+        'href': str(href),
+        'type': mime_type,
+        'size': Path(absolute_path).stat().st_size,
+        'checksum:multihash': check_sum(str(absolute_path)),
+        'roles': role
+    }
+
+    if is_raster:
+        with rasterio.open(str(absolute_path)) as data_set:
+            asset['raster_size'] = dict(
+                x=data_set.shape[1],
+                y=data_set.shape[0],
+            )
+
+            chunk_x, chunk_y = data_set.profile.get('blockxsize'), data_set.profile.get('blockxsize')
+
+            if chunk_x is None or chunk_x is None:
+                raise RuntimeError('Can\'t compute raster chunk size. Is it a tiled/ valid Cloud Optimized GeoTIFF?')
+
+            asset['chunk_size'] = dict(x=chunk_x, y=chunk_y)
+
+    return asset

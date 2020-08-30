@@ -24,7 +24,7 @@ from ...config import Config
 from ...constants import COG_MIME_TYPE
 from ...db import commit, db_aws
 from ..forms import CollectionItemForm
-from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
+from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look, create_asset_definition
 from ..models import RadcorActivity
 from .utils import get_jp2_files, get_tif_files, factory
 
@@ -184,12 +184,8 @@ def publish(collection_item: Item, scene: RadcorActivity):
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
                 assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
-                assets['thumbnail'] = dict(
-                    href=str(normalized_quicklook_path),
-                    type='image/png',
-                    size=Path(pngname).stat().st_size,
-                    roles='thumbnail'
-                )
+                assets['thumbnail'] = create_asset_definition(str(normalized_quicklook_path), 'image/png', 'thumbnail',
+                                                              str(pngname))
 
                 # Convert original format to COG
                 for sband in bands:
@@ -197,33 +193,18 @@ def publish(collection_item: Item, scene: RadcorActivity):
                     cog_file_name = '{}_{}.tif'.format(file_basename, sband)
                     cog_file_path = product_uri / cog_file_name
 
-                    asset_dataset = gdal.Open(str(cog_file_path))
-
-                    raster_band = asset_dataset.GetRasterBand(1)
-
-                    chunk_x, chunk_y = raster_band.GetBlockSize()
-
                     band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
 
                     if band_model is None:
                         logging.warning('Band {} not registered on database. Skipping'.format(sband))
                         continue
 
-                    assets[band_model.name] = dict(
-                        href='{}/{}'.format(str(asset_url), cog_file_name),
-                        type=COG_MIME_TYPE,
-                        size=cog_file_path.stat().st_size,
-                        roles='data',
-                        raster_size=dict(
-                            x=asset_dataset.RasterXSize,
-                            y=asset_dataset.RasterYSize,
-                        ),
-                        chunk_size=dict(x=chunk_x, y=chunk_y)
+                    assets[band_model.name] = create_asset_definition(
+                        f'{str(asset_url)}/{cog_file_name}', COG_MIME_TYPE,
+                        'data', cog_file_path, is_raster=True
                     )
 
                     assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=assets[band_model.name]['href']))
-
-                    del asset_dataset
 
                 collection_item.assets = assets
 

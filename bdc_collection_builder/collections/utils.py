@@ -11,7 +11,6 @@
 
 # Python Native
 import datetime
-import hashlib
 import json
 import logging
 from json import loads as json_parser
@@ -23,11 +22,11 @@ from zlib import error as zlib_error
 
 # 3rdparty
 import boto3
-import multihash
 import numpy
 import rasterio
 import requests
 from bdc_catalog.models import db
+from bdc_catalog.utils import multihash_checksum_sha256
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
@@ -35,11 +34,9 @@ from numpngw import write_png
 from osgeo import gdal
 from skimage import exposure
 from skimage.transform import resize
-from sqlalchemy_utils import refresh_materialized_view
 
 # Builder
 from ..config import CURRENT_DIR, Config
-from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
 
 
@@ -649,47 +646,36 @@ def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
     write_png(str(png_file), image, transparent=(0, 0, 0))
 
 
-def check_sum(file_path: str, chunk_size=4096) -> str:
-    """Read a file and generate a checksum multihash.
-
-    This method uses the algorithm `blake2b 512 bits`.
-    The multihash code for `blake2b-512` (0xb240) is defined in
-    https://github.com/multiformats/py-multihash/blob/master/multihash/constants.py#L82
-
-    See more of multihash in https://github.com/multiformats/multihash
-
-    Args:
-        file_path - Path to the file
-        chunk_size - Size in bytes to read per iteration.
-
-    Returns:
-        A string-like hash in hex-decimal
-    """
-    algorithm = hashlib.blake2b()
-
-    with open(str(file_path), "rb") as f:
-        for chunk in iter(lambda: f.read(chunk_size), b""):
-            algorithm.update(chunk)
-
-    blake2b = 0xb240
-    blake2b_size = 0x40
-
-    hash_bytes = multihash.encode(digest=algorithm.digest(), code=blake2b, length=blake2b_size)
-
-    return multihash.to_hex_string(hash_bytes)
-
-
-def create_asset_definition(href: str, mime_type: str, role: str, absolute_path: str, is_raster=False):
+def create_asset_definition(href: str, mime_type: str, role: List[str], absolute_path: str,
+                            created=None, is_raster=False):
     """Create a valid asset definition for collections.
 
     TODO: Generate the asset for `Item` field with all bands
+
+    Args:
+        href - Relative path to the asset
+        mime_type - Asset Mime type str
+        role - Asset role. Available values are: ['data'], ['thumbnail']
+        absolute_path - Absolute path to the asset. Required to generate check_sum
+        created - Date time str of asset. When not set, use current timestamp.
+        is_raster - Flag to identify raster. When set, `raster_size` and `chunk_size` will be set to the asset.
     """
+    fmt = '%Y-%m-%dT%H:%M:%S'
+    _now_str = datetime.datetime.utcnow().strftime(fmt)
+
+    if created is None:
+        created = _now_str
+    elif isinstance(created, datetime.datetime):
+        created = created.strftime(fmt)
+
     asset = {
         'href': str(href),
         'type': mime_type,
         'size': Path(absolute_path).stat().st_size,
-        'checksum:multihash': check_sum(str(absolute_path)),
-        'roles': role
+        'checksum:multihash': multihash_checksum_sha256(str(absolute_path)),
+        'roles': role,
+        'created': created,
+        'updated': _now_str
     }
 
     if is_raster:

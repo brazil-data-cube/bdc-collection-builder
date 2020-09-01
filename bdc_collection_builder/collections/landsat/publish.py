@@ -218,14 +218,12 @@ def publish(collection_item: Item, scene: RadcorActivity):
                         collection_item = Item(**cloned_properties)
                         engine.session.add(collection_item)
 
-                # collection_item.quicklook = pngname
-
                 collection_bands = engine.session.query(Band)\
                     .filter(Band.collection_id == collection_item.collection_id)\
                     .all()
 
                 assets = dict(
-                    thumbnail=create_asset_definition(str(asset_url), 'image/png', 'thumbnail', str(pngname))
+                    thumbnail=create_asset_definition(str(asset_url), 'image/png', ['thumbnail'], str(pngname))
                 )
 
                 # Inserting data into Product table
@@ -241,7 +239,7 @@ def publish(collection_item: Item, scene: RadcorActivity):
 
                     assets[band_model.name] = create_asset_definition(
                         template, COG_MIME_TYPE,
-                        'data', files[band], is_raster=True
+                        ['data'], files[band], is_raster=True
                     )
 
                     assets_to_upload[band] = dict(file=files[band], asset=template)

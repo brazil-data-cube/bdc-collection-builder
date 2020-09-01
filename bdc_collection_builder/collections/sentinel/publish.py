@@ -184,8 +184,8 @@ def publish(collection_item: Item, scene: RadcorActivity):
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
                 assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
-                assets['thumbnail'] = create_asset_definition(str(normalized_quicklook_path), 'image/png', 'thumbnail',
-                                                              str(pngname))
+                assets['thumbnail'] = create_asset_definition(str(normalized_quicklook_path), 'image/png',
+                                                              ['thumbnail'], str(pngname))
 
                 # Convert original format to COG
                 for sband in bands:
@@ -201,7 +201,7 @@ def publish(collection_item: Item, scene: RadcorActivity):
 
                     assets[band_model.name] = create_asset_definition(
                         f'{str(asset_url)}/{cog_file_name}', COG_MIME_TYPE,
-                        'data', cog_file_path, is_raster=True
+                        ['data'], cog_file_path, is_raster=True
                     )
 
                     assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=assets[band_model.name]['href']))

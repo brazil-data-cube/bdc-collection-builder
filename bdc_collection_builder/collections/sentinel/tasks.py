@@ -295,7 +295,8 @@ class SentinelTask(RadcorTask):
         assets = scene['args']['assets']
 
         for entry in assets.values():
-            file_without_prefix = entry['asset'].replace('/Repository/Archive/', '')
+            # bucket/collection_name/... =>  collection_name/...
+            file_without_prefix = str(Path(entry['asset']).relative_to(Config.ITEM_ASSET_PREFIX))
 
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)

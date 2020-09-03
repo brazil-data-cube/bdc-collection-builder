@@ -155,14 +155,16 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
         if sentinel_scene.level == 1 and instance == 'aws':
             continue
 
+        base_file_prefix = 'Repository/Archive'
+
         if instance == 'aws':
             if Config.DISABLE_PUBLISH_SECOND_DB:
                 logging.info('Skipping publish in second db.')
                 continue
 
-            asset_url = Config.AWS_BUCKET_NAME / (product_uri.relative_to(Path(Config.DATA_DIR) / 'Repository/Archive'))
+            asset_url = Config.AWS_BUCKET_NAME / (product_uri.relative_to(Path(Config.DATA_DIR) / base_file_prefix))
         else:
-            asset_url = '/' / product_uri.relative_to(Config.DATA_DIR)
+            asset_url = Path(Config.ITEM_ASSET_PREFIX) / product_uri.relative_to(Path(Config.DATA_DIR) / base_file_prefix)
 
         collection_bands = engine.session.query(Band).filter(Band.collection_id == scene.collection_id).all()
 

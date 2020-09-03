@@ -2,16 +2,17 @@
 import fnmatch
 import logging
 import os
-# 3rdparty
-
-import numpy
 import shutil
 from tempfile import TemporaryDirectory
+# 3rdparty
+from typing import Optional
 
+import boto3
+import numpy
+import rasterio
 from bdc_db.models import Band, Collection
 from rasterio.enums import Resampling
 from rasterio.warp import Affine, reproject
-import rasterio
 # BDC Scripts
 from bdc_collection_builder.collections.utils import generate_cogs
 from bdc_collection_builder.config import Config
@@ -365,31 +366,32 @@ def post_processing(quality_file_path: str, collection: Collection, scenes: dict
         if resample_to:
             with rasterio.open(str(quality_file_path)) as ds:
                 ds_transform = ds.profile['transform']
-                transform = Affine(resample_to, 0, ds_transform[2], 0, -resample_to, ds_transform[5])
 
                 options.update(ds.meta.copy())
+
+                factor = ds_transform[0] / resample_to
+
+                options['width'] = ds.profile['width'] * factor
+                options['height'] = ds.profile['height'] * factor
+
+                transform = ds.transform * ds.transform.scale((ds.width / options['width']), (ds.height / options['height']))
+
                 options['transform'] = transform
-                options['width'] = ds.profile['width'] * (ds_transform[0] / resample_to)
-                options['height'] = ds.profile['height'] * (ds_transform[0] / resample_to)
 
                 nodata = options.get('nodata') or 255
                 options['nodata'] = nodata
-                raster = numpy.full(ds.shape, dtype=options['dtype'], fill_value=nodata)
 
-                reproject(
-                    source=rasterio.band(ds, 1),
-                    destination=raster,
-                    src_transform=ds_transform,
-                    src_crs=options['crs'],
-                    dst_transform=transform,
-                    dst_crs=options['crs'],
-                    src_nodata=nodata,
-                    dst_nodata=nodata,
+                raster = ds.read(
+                    out_shape=(
+                        ds.count,
+                        int(options['height']),
+                        int(options['width'])
+                    ),
                     resampling=Resampling.nearest
                 )
 
                 with rasterio.open(str(temp_file), mode='w', **options) as temp_ds:
-                    temp_ds.write_band(1, raster)
+                    temp_ds.write_band(1, raster[0])
 
                 # Build COG
                 generate_cogs(str(temp_file), str(temp_file))

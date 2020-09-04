@@ -35,7 +35,7 @@ from .harmonization import sentinel_harmonize
 from .publish import publish
 from .correction import correction_laSRC
 from .onda import download_from_onda
-from .utils import factory, post_processing
+from .utils import factory, post_processing, DataSynchronizer
 
 lock = lock_handler.lock('sentinel_download_lock_4')
 
@@ -104,9 +104,6 @@ class SentinelTask(RadcorTask):
 
             collection_item = self.get_collection_item(activity_history.activity)
 
-            # Output product dir
-            product_dir = sentinel_scene.compressed_file().parent
-
             link = activity_args['link']
             scene_id = scene['sceneid']
 
@@ -120,6 +117,11 @@ class SentinelTask(RadcorTask):
 
             try:
                 valid = True
+
+                synchronizer = DataSynchronizer(str(zip_file_name))
+
+                if DataSynchronizer.is_remote_sync_configured():
+                    synchronizer.check_data()
 
                 if zip_file_name.exists():
                     logging.debug('zip file exists')
@@ -173,6 +175,9 @@ class SentinelTask(RadcorTask):
                 logging.debug('Done download.')
                 activity_args['compressed_file'] = str(zip_file_name)
 
+                if DataSynchronizer.is_remote_sync_configured():
+                    synchronizer.sync_data(auto_remove=True)
+
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if zip_file_name.exists():
                     os.remove(zip_file_name)
@@ -218,18 +223,29 @@ class SentinelTask(RadcorTask):
         # Create/update activity
         self.create_execution(scene)
 
+        synchronizer = DataSynchronizer(scene['args']['compressed_file'])
+
         try:
             output_dir = sentinel_scene.path()
 
+            synchronizer.check_data()
+
             # TODO: Add the sen2cor again as optional processor
             correction_result = correction_laSRC(scene['args']['compressed_file'], str(output_dir))
+
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.sync_data(correction_result, auto_remove=True)
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
+        finally:
+            synchronizer.remove_data(raise_error=False)
 
         scene['args']['level'] = 2
         scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
+
+        logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
         return scene
 
@@ -254,9 +270,16 @@ class SentinelTask(RadcorTask):
         args = activity_history.activity.args.copy()
         args.update(kwargs)
 
+        synchronizer = DataSynchronizer(scene['args']['file'])
+
         try:
+            synchronizer.check_data()
+
             item = self.get_collection_item(activity_history.activity)
             assets = publish(item, activity_history.activity, **args)
+
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.sync_data(auto_remove=True)
         except InvalidRequestError as e:
             # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
@@ -267,6 +290,9 @@ class SentinelTask(RadcorTask):
             raise e
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id), exc_info=True)
+
+            synchronizer.remove_data(raise_error=False)
+
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
@@ -295,13 +321,11 @@ class SentinelTask(RadcorTask):
         assets = scene['args']['assets']
 
         for entry in assets.values():
-            file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
+            # bucket/collection_name/... =>  collection_name/...
+            file_without_prefix = str(Path(entry['asset']).relative_to(Config.ITEM_ASSET_PREFIX))
 
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
-
-        if scene['args'].get('compressed_file'):
-            Path(scene['args'].get('compressed_file')).unlink()
 
         try:
             logging.info(f'Removing {scene["args"]["file"]}')
@@ -373,9 +397,17 @@ class SentinelTask(RadcorTask):
 
         assets = scene['args']['assets']
 
+        synchronizer = DataSynchronizer(scene['args']['file'])
+
+        synchronizer.check_data()
+
         for entry in assets.values():
             if entry['file'].endswith('Fmask4.tif'):
                 post_processing(entry['file'], collection, assets, 10)
+
+        synchronizer.sync_data(bucket=Config.AWS_BUCKET_NAME, auto_remove=True)
+
+        synchronizer.remove_data(raise_error=False)
 
         return scene
 

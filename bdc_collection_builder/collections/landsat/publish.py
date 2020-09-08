@@ -94,7 +94,7 @@ def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
     return file_path
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity):
+def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=False, **kwargs):
     """Publish Landsat collection.
 
     It works with both Digital Number (DN) and Surface Reflectance (SR).
@@ -107,6 +107,10 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity):
 
     # Get collection level to publish. Default is l1
     collection_level = scene.args.get('level') or 1
+
+    if collection_level == 1 and skip_l1:
+        logging.info(f'Skipping publish skip_l1={skip_l1} L1 - {collection_item.collection_id}')
+        return dict()
 
     landsat_scene = factory.get_from_sceneid(identifier, level=collection_level)
 

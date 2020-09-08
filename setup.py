@@ -53,6 +53,7 @@ install_requires = [
     'marshmallow-sqlalchemy>=0.19.0',
     'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',
+    'rio-cogeo>=1.1,<2',
     'redis>=3.3.11',
     'requests>=2.22.0',
     'GDAL>=2.3.3',
@@ -62,7 +63,8 @@ install_requires = [
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
     'bdc-db @ git+git://github.com/brazil-data-cube/bdc-catalog.git@b-0.2#egg=bdc-db',
     'celery[librabbitmq]>=4.3,<4.4.3',
-    'Werkzeug>=0.16,<1.0'
+    'Werkzeug>=0.16,<1.0',
+    'sentinelhub>3.0,<4'
 ]
 
 packages = find_packages()

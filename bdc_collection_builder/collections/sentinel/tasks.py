@@ -485,3 +485,8 @@ def harmonization_sentinel(scene):
         scene (dict): Radcor Activity with "harmonizeS2" app context
     """
     return harmonization_sentinel.harmonize(scene)
+
+
+@celery_app.task(base=SentinelTask, queue='post-processing')
+def apply_post_processing(scene):
+    return apply_post_processing.post_publish(scene)

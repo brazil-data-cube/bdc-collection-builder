@@ -142,7 +142,7 @@ class LandsatTask(RadcorTask):
 
         return scene
 
-    def publish(self, scene):
+    def publish(self, scene, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -159,8 +159,11 @@ class LandsatTask(RadcorTask):
 
         landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=collection_level)
 
+        args = activity_history.activity.args.copy()
+        args.update(kwargs)
+
         try:
-            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity)
+            assets = publish(self.get_collection_item(activity_history.activity), activity_history.activity, **args)
         except InvalidRequestError as e:
             # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
@@ -363,7 +366,7 @@ def atm_correction_landsat(scene):
                  max_retries=3,
                  autoretry_for=(InvalidRequestError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def publish_landsat(scene):
+def publish_landsat(scene, **kwargs):
     """Represent a celery task definition for handling Landsat Publish TIFF files generation.
 
     This celery tasks listen only for queues 'publish'.
@@ -377,7 +380,7 @@ def publish_landsat(scene):
     Returns:
         Returns processed activity
     """
-    return publish_landsat.publish(scene)
+    return publish_landsat.publish(scene, **kwargs)
 
 
 @celery_app.task(base=LandsatTask,

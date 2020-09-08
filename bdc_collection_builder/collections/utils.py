@@ -30,6 +30,8 @@ from celery import chain, group
 from landsatxplore.api import API
 from numpngw import write_png
 from osgeo import gdal
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
 from skimage import exposure
 from skimage.transform import resize
 from sqlalchemy_utils import refresh_materialized_view
@@ -86,26 +88,30 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
 
     Args:
         activity (RadcorActivity) - A not done activity
-        skip_l1 - Skip publish schedule for download tasks.
+        skip_l1 (bool) - Skip publish schedule for download tasks.
+        kwargs (dict) - Extra arguments to pass celery function.
     """
-    from .sentinel import tasks as sentinel_tasks
     from .landsat import tasks as landsat_tasks
+    from .landsat.utils import factory as landsat_factory
+    from .sentinel import tasks as sentinel_tasks
+    from .sentinel.utils import factory as sentinel_factory
     # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
     app = activity.get('activity_type')
 
     if app == 'downloadS2':
         # Atm Correction chain
-        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s()
+        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1)
         # Publish ATM Correction
-        upload_chain = sentinel_tasks.upload_sentinel.s()
+        upload_chain = sentinel_tasks.apply_post_processing.s()
 
         inner_group = upload_chain
 
         if activity['args'].get('harmonize'):
             # Harmonization chain
-            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | sentinel_tasks.publish_sentinel.s() | \
-                        sentinel_tasks.upload_sentinel.s()
+            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | \
+                              sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1) | \
+                              sentinel_tasks.upload_sentinel.s()
             inner_group = group(upload_chain, harmonize_chain)
 
         inner_group = atm_corr_publish_chain | inner_group
@@ -120,13 +126,14 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
     elif app == 'correctionS2':
         task_chain = sentinel_tasks.atm_correction.s(activity) | \
                         sentinel_tasks.publish_sentinel.s() | \
-                        sentinel_tasks.upload_sentinel.s()
+                        sentinel_tasks.apply_post_processing.s()
         return chain(task_chain).apply_async()
     elif app == 'publishS2':
         tasks = [sentinel_tasks.publish_sentinel.s(activity)]
 
-        if 'S2SR' in activity['collection_id']:
-            tasks.append(sentinel_tasks.upload_sentinel.s())
+        # When collection L2, chain the upload task
+        if activity['collection_id'] in list(sentinel_factory.map['l2'].keys()):
+            tasks.append(sentinel_tasks.apply_post_processing.s())
 
         return chain(*tasks).apply_async()
     elif app == 'harmonizeS2':
@@ -174,7 +181,12 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         task_chain = atm_corr_chain | inner_group
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
-        task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.upload_landsat.s()
+        task_chain = landsat_tasks.publish_landsat.s(activity)
+
+        # When collection L2, chain the upload task
+        if activity['collection_id'] in list(landsat_factory.map['l2'].keys()):
+            task_chain |= landsat_tasks.upload_landsat.s()
+
         return chain(task_chain).apply_async()
     elif app == 'harmonizeLC8':
         task_chain = landsat_tasks.harmonization_landsat.s(activity) | landsat_tasks.publish_landsat.s() | \
@@ -434,7 +446,7 @@ def get_credentials():
         return json_parser(f.read())
 
 
-def generate_cogs(input_data_set_path, file_path):
+def generate_cogs(input_data_set_path, file_path, profile='lzw', profile_options=None, **options):
     """Generate Cloud Optimized GeoTIFF files (COG).
 
     Example:
@@ -447,40 +459,36 @@ def generate_cogs(input_data_set_path, file_path):
     Args:
         input_data_set_path (str) - Path to the input data set
         file_path (str) - Target data set filename
+        profile (str) - A COG profile based in `rio_cogeo.profiles`.
+        profile_options (dict) - Custom options to the profile.
 
     Returns:
         Path to COG.
     """
-    src_ds = gdal.Open(input_data_set_path, gdal.GA_ReadOnly)
+    if profile_options is None:
+        profile_options = dict()
 
-    if src_ds is None:
-        raise ValueError('Could not open data set "{}"'.format(input_data_set_path))
+    output_profile = cog_profiles.get(profile)
+    output_profile.update(dict(BIGTIFF="IF_SAFER"))
+    output_profile.update(profile_options)
 
-    driver = gdal.GetDriverByName('MEM')
+    # Dataset Open option (see gdalwarp `-oo` option)
+    config = dict(
+        GDAL_NUM_THREADS="ALL_CPUS",
+        GDAL_TIFF_INTERNAL_MASK=True,
+        GDAL_TIFF_OVR_BLOCKSIZE="128",
+    )
 
-    src_band = src_ds.GetRasterBand(1)
-    data_set = driver.Create('', src_ds.RasterXSize, src_ds.RasterYSize, 1, src_band.DataType)
-    data_set.SetGeoTransform( src_ds.GetGeoTransform() )
-    data_set.SetProjection( src_ds.GetProjection() )
-
-    data_set_band = data_set.GetRasterBand(1)
-
-    dummy = src_band.GetNoDataValue()
-
-    if dummy is not None:
-        data_set_band.SetNoDataValue(dummy)
-
-    data_set_band.WriteArray( src_band.ReadAsArray() )
-    data_set.BuildOverviews("NEAREST", [2, 4, 8, 16, 32, 64])
-
-    driver = gdal.GetDriverByName('GTiff')
-    dst_ds = driver.CreateCopy(file_path, data_set, options=["COPY_SRC_OVERVIEWS=YES", "TILED=YES", "COMPRESS=LZW"])
-
-    del src_ds
-    del data_set
-    del dst_ds
-
-    return file_path
+    cog_translate(
+        str(input_data_set_path),
+        str(file_path),
+        output_profile,
+        config=config,
+        in_memory=False,
+        quiet=True,
+        **options,
+    )
+    return str(file_path)
 
 
 def is_valid_compressed(file):

@@ -405,9 +405,9 @@ class SentinelTask(RadcorTask):
             if entry['file'].endswith('Fmask4.tif'):
                 post_processing(entry['file'], collection, assets, 10)
 
-        synchronizer.sync_data(bucket=Config.AWS_BUCKET_NAME, auto_remove=True)
-
-        synchronizer.remove_data(raise_error=False)
+        if DataSynchronizer.is_remote_sync_configured():
+            synchronizer.sync_data(bucket=Config.AWS_BUCKET_NAME, auto_remove=True)
+            synchronizer.remove_data(raise_error=False)
 
         return scene
 

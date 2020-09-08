@@ -19,12 +19,15 @@ from bdc_catalog.models import Band, Collection, Item, Quicklook, db
 from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
 
 # Builder
+from geoalchemy2.shape import from_shape
+
 from ...config import Config
 from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
 from ..models import RadcorActivity
-from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition, get_or_create_model
+from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition,\
+    raster_extent, raster_convexhull
 from .utils import factory
 
 
@@ -226,6 +229,8 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                     thumbnail=create_asset_definition(str(asset_url), 'image/png', ['thumbnail'], str(pngname))
                 )
 
+                geom = min_convex_hull = None
+
                 # Inserting data into Product table
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
@@ -237,6 +242,10 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                             band, collection_item.collection_id))
                         continue
 
+                    if geom is None:
+                        geom = raster_extent(files[band])
+                        min_convex_hull = raster_convexhull(files[band])
+
                     assets[band_model.name] = create_asset_definition(
                         template, COG_MIME_TYPE,
                         ['data'], files[band], is_raster=True
@@ -245,6 +254,8 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                     assets_to_upload[band] = dict(file=files[band], asset=template)
 
                 collection_item.assets = assets
+                collection_item.geom = from_shape(geom, srid=4326)
+                collection_item.min_convex_hull = from_shape(min_convex_hull, srid=4326)
                 # Add into scope of local and remote database
                 add_instance(engine, collection_item)
 

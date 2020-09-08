@@ -24,7 +24,11 @@ from zlib import error as zlib_error
 import boto3
 import numpy
 import rasterio
+import rasterio.features
+import rasterio.warp
 import requests
+import shapely
+import shapely.geometry
 from bdc_catalog.models import db
 from bdc_catalog.utils import multihash_checksum_sha256
 from botocore.exceptions import ClientError
@@ -701,3 +705,51 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
             asset['chunk_size'] = dict(x=chunk_x, y=chunk_y)
 
     return asset
+
+
+def raster_extent(file_path: str, epsg = 'EPSG:4326') -> shapely.geometry.Polygon:
+    """Get raster extent in arbitrary CRS
+
+    Args:
+        file_path (str): Path to image
+        epsg (str): EPSG Code of result crs
+
+    Returns:
+        dict: geojson-like geometry
+    """
+
+    with rasterio.open(str(file_path)) as data_set:
+        _geom = shapely.geometry.mapping(shapely.geometry.box(*data_set.bounds))
+        return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
+
+
+def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
+    """get image footprint
+
+    Args:
+        file_path (str): image file
+        epsg (str): geometry EPSG
+
+    See:
+        https://rasterio.readthedocs.io/en/latest/topics/masks.html
+    """
+    with rasterio.open(str(file_path)) as data_set:
+        # Read raster data, masking nodata values
+        data = data_set.read(1, masked=True)
+        # Create mask, which 1 represents valid data and 0 nodata
+        mask = numpy.invert(data.mask).astype(numpy.uint8)
+
+        geoms = []
+        res = {'val': []}
+        for geom, val in rasterio.features.shapes(mask, mask=mask, transform=data_set.transform):
+            geom = rasterio.warp.transform_geom(data_set.crs, epsg, geom, precision=6)
+
+            res['val'].append(val)
+            geoms.append(shapely.geometry.shape(geom))
+
+        if len(geoms) == 1:
+            return geoms[0]
+
+        multi_polygons = shapely.geometry.MultiPolygon(geoms)
+
+        return multi_polygons.convex_hull

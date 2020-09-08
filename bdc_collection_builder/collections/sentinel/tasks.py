@@ -3,6 +3,7 @@
 # Python Native
 import shutil
 from datetime import datetime
+from distutils.util import strtobool
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -22,6 +23,7 @@ from sqlalchemy.exc import InvalidRequestError
 from bdc_catalog.models import db, Collection
 
 # Builder
+from .google import download_from_google
 from ...celery import celery_app
 from ...celery.cache import lock_handler
 from ...config import Config
@@ -29,12 +31,12 @@ from ...db import db_aws
 from ..base_task import RadcorTask
 from ..utils import extract_and_get_internal_name, refresh_assets_view, is_valid_compressed, upload_file
 from .clients import sentinel_clients
-from .download import download_sentinel_images, download_sentinel_from_creodias
+from .download import download_sentinel_images, download_sentinel_from_creodias, download_from_aws
 from .harmonization import sentinel_harmonize
 from .publish import publish
 from .correction import correction_laSRC
 from .onda import download_from_onda
-from .utils import factory
+from .utils import factory, post_processing, DataSynchronizer
 
 
 class SentinelTask(RadcorTask):
@@ -52,8 +54,6 @@ class SentinelTask(RadcorTask):
             AtomicUser An atomic user
         """
         user = None
-
-        lock = lock_handler.lock('sentinel_download_lock_4')
 
         while lock.locked():
             logging.info('Resource locked....')
@@ -109,6 +109,11 @@ class SentinelTask(RadcorTask):
             try:
                 valid = True
 
+                synchronizer = DataSynchronizer(str(zip_file_name))
+
+                if DataSynchronizer.is_remote_sync_configured():
+                    synchronizer.check_data()
+
                 if zip_file_name.exists():
                     logging.debug('zip file exists')
                     valid = is_valid_compressed(str(zip_file_name))
@@ -116,6 +121,18 @@ class SentinelTask(RadcorTask):
                 if not zip_file_name.exists() or not valid:
                     with TemporaryDirectory(suffix=scene_id) as tmp:
                         tmp_file = Path(tmp) / zip_file_name.name
+
+                        use_google = strtobool(scene['args'].get('use_google', '0'))
+
+                        download_handler = list()
+
+                        if use_google:
+                            download_handler.append(download_from_google)
+
+                        download_handler.append(download_from_aws)
+
+                        downloaded_file = None
+
                         try:
                             # Acquire User to download
                             with self.get_user() as user:
@@ -129,8 +146,16 @@ class SentinelTask(RadcorTask):
                                 download_from_onda(scene_id, os.path.dirname(str(tmp_file)))
                             except:
                                 try:
-                                    logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
-                                    download_sentinel_from_creodias(scene_id, str(tmp_file))
+                                    # Google / Safe generator
+                                    for _download in download_handler:
+                                        downloaded_file = _download(scene_id, tmp)
+
+                                        if downloaded_file:
+                                            break
+
+                                    if downloaded_file is None:
+                                        logging.warning('Trying download {} from CREODIAS...'.format(scene_id))
+                                        download_sentinel_from_creodias(scene_id, str(tmp_file))
                                 except:
                                     # Ignore errors from external provider
                                     raise e
@@ -140,6 +165,9 @@ class SentinelTask(RadcorTask):
 
                 logging.debug('Done download.')
                 activity_args['compressed_file'] = str(zip_file_name)
+
+                if DataSynchronizer.is_remote_sync_configured():
+                    synchronizer.sync_data(auto_remove=True)
 
             except (HTTPError, MaxRetryError, NewConnectionError, ConnectionError) as e:
                 if zip_file_name.exists():
@@ -185,22 +213,33 @@ class SentinelTask(RadcorTask):
         # Create/update activity
         self.create_execution(scene)
 
+        synchronizer = DataSynchronizer(scene['args']['compressed_file'])
+
         try:
             output_dir = sentinel_scene.path()
 
+            synchronizer.check_data()
+
             # TODO: Add the sen2cor again as optional processor
             correction_result = correction_laSRC(scene['args']['compressed_file'], str(output_dir))
+
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.sync_data(correction_result, auto_remove=True)
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
+        finally:
+            synchronizer.remove_data(raise_error=False)
 
         scene['args']['level'] = 2
         scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
 
+        logging.info(f'File {scene["args"].get("compressed_file")} removed.')
+
         return scene
 
-    def publish(self, scene):
+    def publish(self, scene, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -218,9 +257,19 @@ class SentinelTask(RadcorTask):
             activity_history.activity.id
         ))
 
+        args = activity_history.activity.args.copy()
+        args.update(kwargs)
+
+        synchronizer = DataSynchronizer(scene['args']['file'])
+
         try:
+            synchronizer.check_data()
+
             item = self.get_collection_item(activity_history.activity)
-            assets = publish(item, activity_history.activity)
+            assets = publish(item, activity_history.activity, **args)
+
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.sync_data(auto_remove=True)
         except InvalidRequestError as e:
             # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
@@ -231,6 +280,9 @@ class SentinelTask(RadcorTask):
             raise e
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id), exc_info=True)
+
+            synchronizer.remove_data(raise_error=False)
+
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
@@ -259,9 +311,17 @@ class SentinelTask(RadcorTask):
         assets = scene['args']['assets']
 
         for entry in assets.values():
-            file_without_prefix = entry['asset'].replace('{}/'.format(Config.AWS_BUCKET_NAME), '')
+            # bucket/collection_name/... =>  collection_name/...
+            file_without_prefix = str(Path(entry['asset']).relative_to(Config.ITEM_ASSET_PREFIX))
+
             logging.warning('Uploading {} to BUCKET {} - {}'.format(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix))
             upload_file(entry['file'], Config.AWS_BUCKET_NAME, file_without_prefix)
+
+        try:
+            logging.info(f'Removing {scene["args"]["file"]}')
+            shutil.rmtree(scene["args"]["file"], ignore_errors=True)
+        except BaseException as e:
+            logging.error(f'Cannot remove {scene["args"]["file"]} - {str(e)}')
 
     def harmonize(self, scene):
         """Apply Harmonization on Sentinel-2 collection.
@@ -321,6 +381,26 @@ class SentinelTask(RadcorTask):
 
         return scene
 
+    def post_publish(self, scene):
+        logging.info(f'Applying post-processing for {scene["sceneid"]}')
+        collection = Collection.query().filter(Collection.id == scene['collection_id']).first()
+
+        assets = scene['args']['assets']
+
+        synchronizer = DataSynchronizer(scene['args']['file'])
+
+        synchronizer.check_data()
+
+        for entry in assets.values():
+            if entry['file'].endswith('Fmask4.tif'):
+                post_processing(entry['file'], collection, assets, 10)
+
+        if DataSynchronizer.is_remote_sync_configured():
+            synchronizer.sync_data(bucket=Config.AWS_BUCKET_NAME, auto_remove=True)
+            synchronizer.remove_data(raise_error=False)
+
+        return scene
+
 
 # TODO: Sometimes, copernicus reject the connection even using only 2 concurrent connection
 # We should set "autoretry_for" and retry_kwargs={'max_retries': 3} to retry
@@ -367,7 +447,7 @@ def atm_correction(scene, **kwargs):
                  max_retries=3,
                  autoretry_for=(InvalidRequestError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def publish_sentinel(scene):
+def publish_sentinel(scene, **kwargs):
     """Represent a celery task definition for handling Sentinel Publish TIFF files generation.
 
     This celery tasks listen only for queues 'publish'.
@@ -378,7 +458,7 @@ def publish_sentinel(scene):
     Returns:
         Returns processed activity
     """
-    return publish_sentinel.publish(scene)
+    return publish_sentinel.publish(scene, **kwargs)
 
 
 @celery_app.task(base=SentinelTask,

@@ -24,7 +24,7 @@ from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
 from ..models import RadcorActivity
-from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition
+from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition, get_or_create_model
 from .utils import factory
 
 
@@ -95,7 +95,7 @@ def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
     return file_path
 
 
-def publish(collection_item: Item, scene: RadcorActivity):
+def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwargs):
     """Publish Landsat collection.
 
     It works with both Digital Number (DN) and Surface Reflectance (SR).

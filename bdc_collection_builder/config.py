@@ -36,8 +36,15 @@ class Config:
         'SQLALCHEMY_DATABASE_URI_AWS',
         'postgresql://postgres:postgres@localhost:5432/bdc_catalog_aws?application_name=local-collection'
     )
+    ITEM_ASSET_PREFIX = os.getenv('ITEM_ASSET_PREFIX', '/Repository/Archive')
+    DISABLE_PUBLISH_SECOND_DB = strtobool(str(os.getenv('DISABLE_PUBLISH_SECOND_DB', True)))
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
-    AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-arquive')
+
+    # Feature to synchronize data with AWS Buckets.
+    COLLECTION_BUILDER_SYNC = strtobool(str(os.getenv('COLLECTION_BUILDER_SYNC', False)))
+    COLLECTION_BUILDER_SYNC_BUCKET = os.getenv('COLLECTION_BUILDER_SYNC_BUCKET', None)
+
+    AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-archive')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'CHANGE_ME')
     AWS_REGION_NAME = os.environ.get('AWS_REGION_NAME', 'us-east-1')

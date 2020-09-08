@@ -76,8 +76,6 @@ class LandsatTask(RadcorTask):
 
             activity_args = scene.get('args', {})
 
-            # collection_item = self.get_collection_item(activity_history.activity)
-
             # Output product dir
             productdir = landsat_scene.compressed_file().parent
 
@@ -119,21 +117,12 @@ class LandsatTask(RadcorTask):
             else:
                 logging.warning('File {} is valid. Skipping'.format(str(digital_number_file)))
 
-            # collection_item.compressed_file = str(file).replace(Config.DATA_DIR, '')
-
-            # cloud = activity_args.get('cloud')
-
-            # if cloud:
-            #     collection_item.cloud_cover = cloud
-
             activity_args['compressed_file'] = str(file)
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id),
                           exc_info=True)
 
             raise e
-
-        # collection_item.save()
 
         scene['args'] = activity_args
 
@@ -142,7 +131,7 @@ class LandsatTask(RadcorTask):
 
         return scene
 
-    def publish(self, scene):
+    def publish(self, scene, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -159,9 +148,12 @@ class LandsatTask(RadcorTask):
 
         landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=collection_level)
 
+        args = activity_history.activity.args.copy()
+        args.update(kwargs)
+
         try:
             item = self.get_collection_item(activity_history.activity)
-            assets = publish(item, activity_history.activity)
+            assets = publish(item, activity_history.activity, **args)
         except InvalidRequestError as e:
             # Error related with Transaction on AWS
             # TODO: Is it occurs on local instance?
@@ -228,7 +220,6 @@ class LandsatTask(RadcorTask):
         # Get Resolver for Landsat scene level 2
         landsat_scene = factory.get_from_sceneid(scene_id, level=2)
         landsat_scene_level_1 = factory.get_from_sceneid(scene_id, level=1)
-        # scene['collection_id'] = landsat_scene.id
 
         # Create/Update activity
         execution = self.create_execution(scene)
@@ -364,7 +355,7 @@ def atm_correction_landsat(scene):
                  max_retries=3,
                  autoretry_for=(InvalidRequestError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def publish_landsat(scene):
+def publish_landsat(scene, **kwargs):
     """Represent a celery task definition for handling Landsat Publish TIFF files generation.
 
     This celery tasks listen only for queues 'publish'.
@@ -378,7 +369,7 @@ def publish_landsat(scene):
     Returns:
         Returns processed activity
     """
-    return publish_landsat.publish(scene)
+    return publish_landsat.publish(scene, **kwargs)
 
 
 @celery_app.task(base=LandsatTask,

@@ -10,6 +10,20 @@
 Changes
 =======
 
+Version 0.4.1
+-------------
+
+Released 2020-09-08
+
+Bug fixes:
+
+    - Fix Fmask4 re-sample in post-processing task for Sentinel - `#169 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/169>`_.
+
+Changes:
+
+    - Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
+
+
 Version 0.4.0
 -------------
 

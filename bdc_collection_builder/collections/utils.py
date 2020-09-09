@@ -133,11 +133,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
                         sentinel_tasks.apply_post_processing.s()
         return chain(task_chain).apply_async()
     elif app == 'publishS2':
-        tasks = [sentinel_tasks.publish_sentinel.s(activity)]
-
-        # When collection L2, chain the upload task
-        if activity['collection_id'] in list(sentinel_factory.map['l2'].keys()):
-            tasks.append(sentinel_tasks.apply_post_processing.s())
+        tasks = [sentinel_tasks.publish_sentinel.s(activity), sentinel_tasks.apply_post_processing.s()]
 
         return chain(*tasks).apply_async()
     elif app == 'harmonizeS2':
@@ -683,7 +679,7 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
     asset = {
         'href': str(href),
         'type': mime_type,
-        'size': Path(absolute_path).stat().st_size,
+        'bdc:size': Path(absolute_path).stat().st_size,
         'checksum:multihash': multihash_checksum_sha256(str(absolute_path)),
         'roles': role,
         'created': created,
@@ -692,7 +688,7 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
 
     if is_raster:
         with rasterio.open(str(absolute_path)) as data_set:
-            asset['raster_size'] = dict(
+            asset['bdc:raster_size'] = dict(
                 x=data_set.shape[1],
                 y=data_set.shape[0],
             )
@@ -702,7 +698,7 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
             if chunk_x is None or chunk_x is None:
                 raise RuntimeError('Can\'t compute raster chunk size. Is it a tiled/ valid Cloud Optimized GeoTIFF?')
 
-            asset['chunk_size'] = dict(x=chunk_x, y=chunk_y)
+            asset['bdc:chunk_size'] = dict(x=chunk_x, y=chunk_y)
 
     return asset
 
@@ -736,12 +732,12 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
     with rasterio.open(str(file_path)) as data_set:
         # Read raster data, masking nodata values
         data = data_set.read(1, masked=True)
+        data[data != numpy.ma.masked] = 1
+        data[data == numpy.ma.masked] = 0
         # Create mask, which 1 represents valid data and 0 nodata
-        mask = numpy.invert(data.mask).astype(numpy.uint8)
-
         geoms = []
         res = {'val': []}
-        for geom, val in rasterio.features.shapes(mask, mask=mask, transform=data_set.transform):
+        for geom, val in rasterio.features.shapes(data, mask=data, transform=data_set.transform):
             geom = rasterio.warp.transform_geom(data_set.crs, epsg, geom, precision=6)
 
             res['val'].append(val)

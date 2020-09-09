@@ -17,6 +17,7 @@ import os
 import gdal
 import numpy
 from bdc_catalog.models import Band, Item, db
+from geoalchemy2.shape import from_shape
 from numpngw import write_png
 from skimage.transform import resize
 # Builder
@@ -24,7 +25,8 @@ from ...config import Config
 from ...constants import COG_MIME_TYPE
 from ...db import commit, db_aws
 from ..forms import CollectionItemForm
-from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look, create_asset_definition
+from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look, create_asset_definition, \
+    raster_extent, raster_convexhull
 from ..models import RadcorActivity
 from .utils import get_jp2_files, get_tif_files, factory
 
@@ -198,6 +200,8 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                 assets['thumbnail'] = create_asset_definition(str(normalized_quicklook_path), 'image/png',
                                                               ['thumbnail'], str(pngname))
 
+                geom = min_convex_hull = None
+
                 # Convert original format to COG
                 for sband in bands:
                     # Set destination of COG file
@@ -210,6 +214,10 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                         logging.warning('Band {} not registered on database. Skipping'.format(sband))
                         continue
 
+                    if geom is None:
+                        geom = raster_extent(cog_file_path)
+                        min_convex_hull = raster_convexhull(cog_file_path)
+
                     assets[band_model.name] = create_asset_definition(
                         f'{str(asset_url)}/{cog_file_name}', COG_MIME_TYPE,
                         ['data'], cog_file_path, is_raster=True
@@ -217,6 +225,8 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
 
                     assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=assets[band_model.name]['href']))
 
+                collection_item.geom = from_shape(geom, srid=4326)
+                collection_item.min_convex_hull = from_shape(min_convex_hull, srid=4326)
                 collection_item.assets = assets
 
         commit(engine)

@@ -55,6 +55,8 @@ class SentinelTask(RadcorTask):
         """
         user = None
 
+        lock = lock_handler.lock('sentinel_download_lock_4')
+
         while lock.locked():
             logging.info('Resource locked....')
             time.sleep(1)
@@ -229,13 +231,14 @@ class SentinelTask(RadcorTask):
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
         finally:
-            synchronizer.remove_data(raise_error=False)
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.remove_data(raise_error=False)
+
+                logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
         scene['args']['level'] = 2
         scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
-
-        logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
         return scene
 
@@ -263,7 +266,8 @@ class SentinelTask(RadcorTask):
         synchronizer = DataSynchronizer(scene['args']['file'])
 
         try:
-            synchronizer.check_data()
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.check_data()
 
             item = self.get_collection_item(activity_history.activity)
             assets = publish(item, activity_history.activity, **args)
@@ -281,16 +285,14 @@ class SentinelTask(RadcorTask):
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id), exc_info=True)
 
-            synchronizer.remove_data(raise_error=False)
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.remove_data(raise_error=False)
 
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
         scene['args']['assets'] = assets
-
-        if sentinel_scene.level > 1:
-            refresh_assets_view()
 
         logging.debug('Done Publish Sentinel.')
 
@@ -389,7 +391,8 @@ class SentinelTask(RadcorTask):
 
         synchronizer = DataSynchronizer(scene['args']['file'])
 
-        synchronizer.check_data()
+        if DataSynchronizer.is_remote_sync_configured():
+            synchronizer.check_data()
 
         for entry in assets.values():
             if entry['file'].endswith('Fmask4.tif'):

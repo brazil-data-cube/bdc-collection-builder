@@ -19,29 +19,12 @@ from flask.cli import with_appcontext, FlaskGroup
 from . import create_app
 from .collections.sentinel.utils import Sentinel2SR
 from .collections.utils import get_or_create_model
-from .config import Config
 
 
 # Create bdc-collection-builder cli from bdc-db
 @click.group(cls=FlaskGroup, create_app=create_app)
 def cli():
     """Command line for Collection Builder."""
-
-#
-# @cli.command()
-# @with_appcontext
-# @click.pass_context
-# def create_db(ctx: click.Context):
-#     """Create database. Make sure the variable SQLALCHEMY_DATABASE_URI is set."""
-#
-#     # Forward context to bdc-db createdb command in order to create database
-#     ctx.forward(bdc_create_db)
-#
-#     click.secho('Creating schema {}...'.format(Config.ACTIVITIES_SCHEMA), fg='green')
-#     with db.session.begin_nested():
-#         db.session.execute('CREATE SCHEMA IF NOT EXISTS {}'.format(Config.ACTIVITIES_SCHEMA))
-#
-#     db.session.commit()
 
 
 @cli.group()
@@ -58,8 +41,9 @@ def download(scene_ids):
 
     TODO: Support Sentinel 2 and Landsat 5/7.
     """
+    from bdc_catalog.models import Collection
     from .collections.business import RadcorBusiness
-    from .collections.landsat.utils import factory
+    from .collections.landsat.utils import LandsatSurfaceReflectance08, factory
     from .collections.utils import get_earth_explorer_api, EARTH_EXPLORER_DOWNLOAD_URI, EARTH_EXPLORER_PRODUCT_ID
     from .utils import initialize_factories
 
@@ -71,6 +55,8 @@ def download(scene_ids):
 
     dataset = 'LANDSAT_8_C1'
 
+    collection = Collection.query().filter(Collection.name == LandsatSurfaceReflectance08.id).first_or_404()
+
     for scene in scenes:
         landsat_scene_level_1 = factory.get_from_sceneid(scene_id=scene, level=1)
 
@@ -79,7 +65,7 @@ def download(scene_ids):
         link = EARTH_EXPLORER_DOWNLOAD_URI.format(folder=EARTH_EXPLORER_PRODUCT_ID[dataset], sid=formal[0])
 
         activity = dict(
-            collection_id=landsat_scene_level_1.id,
+            collection_id=collection.id,
             activity_type='downloadLC8',
             tags=[],
             sceneid=scene,

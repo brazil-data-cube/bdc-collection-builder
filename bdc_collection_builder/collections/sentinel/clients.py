@@ -11,7 +11,7 @@
 import json
 import logging
 import os
-from bdc_collection_builder.celery.cache import client
+from bdc_collection_builder.celery.cache import cache
 from bdc_collection_builder.config import CURRENT_DIR
 
 
@@ -25,11 +25,12 @@ class AtomicUser:
     Redis cache.
 
     Example:
-        >>> from bdc_collection_builder.celery.cache import client
+        >>> from bdc_collection_builder.celery.cache import cache
         >>> from bdc_collection_builder.collections.sentinel.clients import sentinel_clients
-        >>>
+        >>> # Initialize cache system
+        >>> cache.initialize()
         >>> # Lock the access to the shared resource
-        >>> with client.lock('my_lock'):
+        >>> with cache.client.lock('my_lock'):
         >>>     user = None
         >>>     while user is None:
         >>>         user = sentinel_clients.use()
@@ -79,9 +80,8 @@ class UserClients:
         """Build user clients interface."""
         self._users = []
         self._key = 'bdc_collection_builder:users'
-        self._load_from_disk()
 
-    def _load_from_disk(self):
+    def initialize(self):
         file = os.path.join(os.path.dirname(CURRENT_DIR), 'secrets.json')
 
         if not os.path.exists(file):
@@ -98,12 +98,12 @@ class UserClients:
     @property
     def users(self):
         """Retrieve all users from disk."""
-        return json.loads(client.get(self._key))
+        return json.loads(cache.client.get(self._key))
 
     @users.setter
     def users(self, obj):
         """Update users."""
-        client.set(self._key, json.dumps(obj))
+        cache.client.set(self._key, json.dumps(obj))
 
     def use(self):
         """Try to lock an atomic user."""

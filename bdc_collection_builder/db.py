@@ -9,8 +9,6 @@
 """Wrapper for external database on AWS."""
 
 # 3rdparty
-from bdc_db.models.base_sql import BaseModel, db
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker

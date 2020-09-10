@@ -7,7 +7,7 @@ import os
 import re
 
 # BDC DB
-from bdc_db.models import CollectionItem
+from bdc_catalog.models import Item
 
 # BDC Scripts
 from ...config import Config
@@ -49,7 +49,7 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     return
 
 
-def landsat_harmonize(collection_item: CollectionItem, scene: RadcorActivity):
+def landsat_harmonize(collection_item: Item, scene: RadcorActivity):
     """Landsat harmonization."""
     identifier = scene.sceneid
     cc = identifier.split('_')

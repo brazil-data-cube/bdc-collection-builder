@@ -6,14 +6,41 @@
 # under the terms of the MIT License; see LICENSE file for more details.
 #
 
-"""Describe Task History Execution."""
+"""Models for Collection Builder."""
 
+from bdc_catalog.models import Collection
+from bdc_catalog.models.base_sql import BaseModel, db
 from celery.backends.database import Task
-from sqlalchemy import Column, DateTime, JSON, Integer, String, Time, or_, ForeignKey
+from sqlalchemy import ARRAY, Column, DateTime, Integer, ForeignKey, JSON, String
 from sqlalchemy.orm import relationship
-from bdc_db.models.base_sql import db, BaseModel
 
-from ...config import Config
+from ..config import Config
+
+
+db.metadata.schema = Config.ACTIVITIES_SCHEMA
+
+
+class RadcorActivity(BaseModel):
+    """Define a collection activity.
+
+    An activity consists in task to execute.
+    """
+
+    __tablename__ = 'activities'
+    __table_args__ = dict(schema=Config.ACTIVITIES_SCHEMA)
+
+    id = Column(Integer, primary_key=True)
+    collection_id = Column(ForeignKey(Collection.id), nullable=False)
+    activity_type = Column('activity_type', String(64), nullable=False)
+    args = Column('args', JSON)
+    tags = Column('tags', ARRAY(String))
+    scene_type = Column('scene_type', String)
+    sceneid = Column('sceneid', String(64), nullable=False)
+
+    # Relations
+    collection = relationship('Collection')
+    history = relationship('RadcorActivityHistory', back_populates='activity', order_by='desc(RadcorActivityHistory.start)')
+
 
 class RadcorActivityHistory(BaseModel):
     """Define Activity History execution.

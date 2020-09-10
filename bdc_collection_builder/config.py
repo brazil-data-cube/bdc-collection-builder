@@ -30,11 +30,11 @@ class Config:
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
-        'postgresql://postgres:postgres@localhost:5433/bdc_collection_builder'
+        'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
     )
     SQLALCHEMY_DATABASE_URI_AWS = os.environ.get(
         'SQLALCHEMY_DATABASE_URI_AWS',
-        'postgresql://postgres:postgres@localhost:5433/bdc_collection_builder'
+        'postgresql://postgres:postgres@localhost:5432/bdc_catalog_aws?application_name=local-collection'
     )
     ITEM_ASSET_PREFIX = os.getenv('ITEM_ASSET_PREFIX', '/Repository/Archive')
     DISABLE_PUBLISH_SECOND_DB = strtobool(str(os.getenv('DISABLE_PUBLISH_SECOND_DB', True)))
@@ -52,7 +52,7 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
-    AUXILIARIES_DIR = os.environ.get('AUXILIARIES_DIR', os.path.join(DATA_DIR, 'auxiliaries'))
+    AUXILIARIES_DIR = os.environ.get('AUXILIARIES_DIR', os.path.join(DATA_DIR, 'ds_data'))
     ESPA_URL = os.environ.get('ESPA_URL', 'http://127.0.0.1:5032')
     SEN2COR_URL = os.environ.get('SEN2COR_URL', 'http://127.0.0.1:5031')
     CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
@@ -71,6 +71,7 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     """Development Mode."""
 
+    DEBUG = True
     DEVELOPMENT = True
 
 

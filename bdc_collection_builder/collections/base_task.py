@@ -15,10 +15,10 @@ from datetime import datetime
 from celery import current_task
 from celery.backends.database import Task
 # Builder
-from bdc_collection_builder.celery import celery_app
-from bdc_db.models import Collection, CollectionItem
+from bdc_catalog.models import Collection, Item, Tile
 from .models import RadcorActivity, RadcorActivityHistory
 from .utils import get_or_create_model
+from ..celery import celery_app
 
 
 class RadcorTask(celery_app.Task):
@@ -74,7 +74,7 @@ class RadcorTask(celery_app.Task):
         """Retrieve the collection associated with Builder Activity."""
         return Collection.query().filter(Collection.id == activity.collection_id).one()
 
-    def get_collection_item(self, activity) -> CollectionItem:
+    def get_collection_item(self, activity) -> Item:
         """Retrieve a collection item using activity.
 
         It tries to add into db session scope a new one if no collection item is
@@ -86,22 +86,26 @@ class RadcorTask(celery_app.Task):
 
         composite_date = self.get_tile_date(scene_id)
 
+        tile = Tile.query().filter(
+            Tile.grid_ref_sys_id == collection.grid_ref_sys_id,
+            Tile.name == self.get_tile_id(scene_id)
+        ).first()
+
+        sensing_date = composite_date.date()
+
         restriction = dict(
-            id='{}-{}'.format(collection.id, scene_id),
-            tile_id=self.get_tile_id(scene_id),
+            name=scene_id,
             collection_id=collection.id,
-            grs_schema_id=collection.grs_schema_id,
-            item_date=composite_date.date()
         )
 
         collection_params = dict(
-            composite_start=composite_date,
-            composite_end=composite_date,
+            tile_id=tile.id,
+            start_date=sensing_date,
+            end_date=sensing_date,
             cloud_cover=activity.args.get('cloud'),
-            scene_type='SCENE',
             **restriction
         )
 
-        collection_item, _ = get_or_create_model(CollectionItem, defaults=collection_params, **restriction)
+        collection_item, _ = get_or_create_model(Item, defaults=collection_params, **restriction)
 
         return collection_item

@@ -47,11 +47,9 @@ install_requires = [
     'docutils>=0.10,<0.15'
     'Flask>=1.1.1',
     'flask-restplus>=0.13.0',
-    'Flask-SQLAlchemy>=2.4.1',
     'google-cloud-storage>=1.28,<2',
     'landsatxplore>=0.6,<1',
     'marshmallow-sqlalchemy>=0.19.0',
-    'SQLAlchemy[postgresql]>=1.3.10',
     'rasterio>=1.1.2',
     'rio-cogeo>=1.1,<2',
     'redis>=3.3.11',
@@ -60,11 +58,13 @@ install_requires = [
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
+    'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-    'bdc-db @ git+git://github.com/brazil-data-cube/bdc-catalog.git@b-0.2#egg=bdc-db',
+    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.1#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
-    'sentinelhub>3.0,<4'
+    'sentinelhub>3.0,<4',
+    'shapely>=1.7,<2'
 ]
 
 packages = find_packages()
@@ -91,6 +91,13 @@ setup(
     entry_points={
         'console_scripts': [
             'bdc-collection-builder = bdc_collection_builder.cli:cli'
+        ],
+        'bdc_db.alembic': [
+            'bdc_collection_builder = bdc_collection_builder:alembic'
+        ],
+        'bdc_db.models': [
+            'bdc_collection_builder = bdc_collection_builder.collections.models',
+            'celery = celery.backends.database.models',
         ]
     },
     extras_require=extras_require,

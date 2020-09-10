@@ -15,15 +15,19 @@ from pathlib import Path
 from shutil import unpack_archive
 
 # 3rdparty
-from bdc_db.models import Asset, Band, Collection, CollectionItem, db
+from bdc_catalog.models import Band, Collection, Item, Quicklook, db
 from gdal import GA_ReadOnly, GetDriverByName, Open as GDALOpen
 
 # Builder
+from geoalchemy2.shape import from_shape
+
 from ...config import Config
+from ...constants import COG_MIME_TYPE
 from ...db import add_instance, commit, db_aws
 from ..forms import CollectionItemForm
 from ..models import RadcorActivity
-from ..utils import create_quick_look, get_or_create_model, generate_evi_ndvi, generate_cogs, is_valid_tif
+from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition,\
+    raster_extent, raster_convexhull
 from .utils import factory
 
 
@@ -94,7 +98,7 @@ def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
     return file_path
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=False, **kwargs):
+def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwargs):
     """Publish Landsat collection.
 
     It works with both Digital Number (DN) and Surface Reflectance (SR).
@@ -107,10 +111,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
 
     # Get collection level to publish. Default is l1
     collection_level = scene.args.get('level') or 1
-
-    if collection_level == 1 and skip_l1:
-        logging.info(f'Skipping publish skip_l1={skip_l1} L1 - {collection_item.collection_id}')
-        return dict()
 
     landsat_scene = factory.get_from_sceneid(identifier, level=collection_level)
 
@@ -125,7 +125,16 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
         productdir = uncompress(productdir, str(target_dir))
 
     collection = Collection.query().filter(Collection.id == collection_item.collection_id).one()
-    quicklook = collection.bands_quicklook.split(',') if collection.bands_quicklook else DEFAULT_QUICK_LOOK_BANDS
+
+    quicklook = Quicklook.query().filter(Quicklook.collection_id == collection.id).all()
+
+    if quicklook:
+        quicklook_bands = Band.query().filter(
+            Band.id.in_(quicklook.red, quicklook.green, quicklook.blue)
+        ).all()
+        quicklook = [quicklook_bands[0].name, quicklook_bands[1].name, quicklook_bands[2].name]
+    else:
+        quicklook = DEFAULT_QUICK_LOOK_BANDS
 
     files = {}
     qlfiles = {}
@@ -194,35 +203,37 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
         else:
             asset_url = productdir
 
-        pngname = resource_path.join(asset_url, Path(pngname).name)
+        pngname_relative = resource_path.join(asset_url, Path(pngname).name)
 
-        assets_to_upload['quicklook']['asset'] = pngname
+        assets_to_upload['quicklook']['asset'] = pngname_relative
 
         with engine.session.begin_nested():
             with engine.session.no_autoflush:
                 # Add collection item to the session if not present
                 if collection_item not in engine.session:
-                    item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
+                    item = engine.session.query(Item).filter(
+                        Item.name == collection_item.name,
+                        Item.collection_id == collection_item.collection_id
+                    ).first()
 
                     if not item:
                         cloned_properties = CollectionItemForm().dump(collection_item)
-                        collection_item = CollectionItem(**cloned_properties)
+                        collection_item = Item(**cloned_properties)
                         engine.session.add(collection_item)
-
-                collection_item.quicklook = pngname
 
                 collection_bands = engine.session.query(Band)\
                     .filter(Band.collection_id == collection_item.collection_id)\
                     .all()
 
+                assets = dict(
+                    thumbnail=create_asset_definition(str(asset_url), 'image/png', ['thumbnail'], str(pngname))
+                )
+
+                geom = min_convex_hull = None
+
                 # Inserting data into Product table
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
-
-                    dataset = GDALOpen(files[band], GA_ReadOnly)
-                    asset_band = dataset.GetRasterBand(1)
-
-                    chunk_x, chunk_y = asset_band.GetBlockSize()
 
                     band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
 
@@ -231,33 +242,22 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
                             band, collection_item.collection_id))
                         continue
 
-                    defaults = dict(
-                        url=template,
-                        source=landsat_scene.source(),
-                        raster_size_x=dataset.RasterXSize,
-                        raster_size_y=dataset.RasterYSize,
-                        raster_size_t=1,
-                        chunk_size_t=1,
-                        chunk_size_x=chunk_x,
-                        chunk_size_y=chunk_y
+                    if geom is None:
+                        geom = raster_extent(files[band])
+                        min_convex_hull = raster_convexhull(files[band])
+
+                    assets[band_model.name] = create_asset_definition(
+                        template, COG_MIME_TYPE,
+                        ['data'], files[band], is_raster=True
                     )
 
-                    asset, _ = get_or_create_model(
-                        Asset,
-                        engine=engine,
-                        defaults=defaults,
-                        collection_id=scene.collection_id,
-                        band_id=band_model.id,
-                        grs_schema_id=scene.collection.grs_schema_id,
-                        tile_id=collection_item.tile_id,
-                        collection_item_id=collection_item.id,
-                    )
-                    asset.url = defaults['url']
+                    assets_to_upload[band] = dict(file=files[band], asset=template)
 
-                    assets_to_upload[band] = dict(file=files[band], asset=asset.url)
-
-                    # Add into scope of local and remote database
-                    add_instance(engine, asset)
+                collection_item.assets = assets
+                collection_item.geom = from_shape(geom, srid=4326)
+                collection_item.min_convex_hull = from_shape(min_convex_hull, srid=4326)
+                # Add into scope of local and remote database
+                add_instance(engine, collection_item)
 
         # Persist database
         commit(engine)

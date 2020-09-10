@@ -13,15 +13,15 @@
 from datetime import datetime
 import logging
 # 3rdparty
+from bdc_catalog.models import Collection
 from celery.backends.database import Task
 from sqlalchemy import func, Date
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, abort
 # Builder
-from bdc_db.models import db, CollectionTile
 from bdc_collection_builder.config import Config
 from .forms import SimpleActivityForm
 from .landsat.utils import factory as landsat_factory
-from .models import RadcorActivity, RadcorActivityHistory
+from .models import RadcorActivity, RadcorActivityHistory, db
 from .sentinel.utils import factory as sentinel_factory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
@@ -89,20 +89,6 @@ class RadcorBusiness:
         return serialized_activities
 
     @classmethod
-    def create_tile(cls, grs, tile, collection, engine=db):
-        """Create tile on database."""
-        with engine.session.begin_nested():
-            restriction = dict(
-                grs_schema_id=grs,
-                tile_id=tile,
-                collection_id=collection
-            )
-
-            _, _ = get_or_create_model(CollectionTile, defaults=restriction, engine=engine, **restriction)
-
-        engine.session.commit()
-
-    @classmethod
     def create_activity(cls, activity):
         """Persist an activity on database."""
         where = dict(
@@ -148,9 +134,21 @@ class RadcorBusiness:
 
         activities = []
 
-        skip_l1 = extra_args.get('skip_l1', False)
+        collections = Collection.query().filter(Collection.collection_type == 'collection').all()
+
+        # TODO: Review this code. The collection name is not unique anymore.
+        collections_map = {c.name: c.id for c in collections}
 
         scenes = {}
+
+        def __get_collection(name: str) -> str:
+            """Ensure collection name exists on database."""
+            collection = collections_map.get(name)
+
+            if collection is None:
+                abort(404, f'Collection {collection} not found.')
+
+            return collection
 
         try:
             if 'landsat' in sat.lower():
@@ -162,9 +160,11 @@ class RadcorBusiness:
 
                     landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
 
+                    collection_id = __get_collection(landsat_scene_level_2.id)
+
                     # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
                     activity = dict(
-                        collection_id=landsat_scene_level_2.id,
+                        collection_id=collection_id,
                         activity_type='downloadLC8',
                         tags=args.get('tags', []),
                         sceneid=sceneid,
@@ -193,8 +193,10 @@ class RadcorBusiness:
 
                     sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
 
+                    collection_id = __get_collection(sentinel_scene_level_2.id)
+
                     activity = dict(
-                        collection_id=sentinel_scene_level_2.id,
+                        collection_id=collection_id,
                         activity_type='downloadS2',
                         tags=args.get('tags', []),
                         sceneid=sceneid,

@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from urllib3.exceptions import NewConnectionError, MaxRetryError
+from zipfile import ZipFile
 import logging
 import os
 import re
@@ -19,7 +20,7 @@ from requests.exceptions import ConnectionError, HTTPError
 from sqlalchemy.exc import InvalidRequestError
 
 # BDC DB
-from bdc_db.models import db, Collection
+from bdc_catalog.models import db, Collection
 
 # Builder
 from .google import download_from_google
@@ -37,8 +38,6 @@ from .correction import correction_laSRC
 from .onda import download_from_onda
 from .utils import factory, post_processing, DataSynchronizer
 
-lock = lock_handler.lock('sentinel_download_lock_4')
-
 
 class SentinelTask(RadcorTask):
     """Define abstraction of Sentinel 2 - L1C and L2A products."""
@@ -55,6 +54,8 @@ class SentinelTask(RadcorTask):
             AtomicUser An atomic user
         """
         user = None
+
+        lock = lock_handler.lock('sentinel_download_lock_4')
 
         while lock.locked():
             logging.info('Resource locked....')
@@ -102,18 +103,10 @@ class SentinelTask(RadcorTask):
         with db.session.no_autoflush:
             activity_args = scene.get('args', dict())
 
-            collection_item = self.get_collection_item(activity_history.activity)
-
             link = activity_args['link']
             scene_id = scene['sceneid']
 
             zip_file_name = sentinel_scene.compressed_file()
-
-            collection_item.compressed_file = str(zip_file_name.relative_to(Config.DATA_DIR))
-            cloud = activity_args.get('cloud')
-
-            if cloud:
-                collection_item.cloud_cover = cloud
 
             try:
                 valid = True
@@ -194,9 +187,6 @@ class SentinelTask(RadcorTask):
 
                 raise e
 
-        # Persist a collection item on database
-        collection_item.save()
-
         activity_args.pop('link')
         scene['args'] = activity_args
 
@@ -216,8 +206,10 @@ class SentinelTask(RadcorTask):
         # Get Resolver for Landsat scene level 2
         sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=2)
 
+        collection = Collection.query().filter(Collection.name == sentinel_scene.id).first()
+
         # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = sentinel_scene.id
+        scene['collection_id'] = collection.id
         scene['activity_type'] = 'correctionS2'
 
         # Create/update activity
@@ -239,13 +231,14 @@ class SentinelTask(RadcorTask):
             logging.error('An error occurred during task execution - {}'.format(scene.get('sceneid')))
             raise e
         finally:
-            synchronizer.remove_data(raise_error=False)
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.remove_data(raise_error=False)
+
+                logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
         scene['args']['level'] = 2
         scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
-
-        logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
         return scene
 
@@ -273,7 +266,8 @@ class SentinelTask(RadcorTask):
         synchronizer = DataSynchronizer(scene['args']['file'])
 
         try:
-            synchronizer.check_data()
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.check_data()
 
             item = self.get_collection_item(activity_history.activity)
             assets = publish(item, activity_history.activity, **args)
@@ -291,16 +285,14 @@ class SentinelTask(RadcorTask):
         except BaseException as e:
             logging.error('An error occurred during task execution - {}'.format(activity_history.activity_id), exc_info=True)
 
-            synchronizer.remove_data(raise_error=False)
+            if DataSynchronizer.is_remote_sync_configured():
+                synchronizer.remove_data(raise_error=False)
 
             raise e
 
         # Create new activity 'uploadS2' to continue task chain
         scene['activity_type'] = 'uploadS2'
         scene['args']['assets'] = assets
-
-        if sentinel_scene.level > 1:
-            refresh_assets_view()
 
         logging.debug('Done Publish Sentinel.')
 
@@ -399,7 +391,8 @@ class SentinelTask(RadcorTask):
 
         synchronizer = DataSynchronizer(scene['args']['file'])
 
-        synchronizer.check_data()
+        if DataSynchronizer.is_remote_sync_configured():
+            synchronizer.check_data()
 
         for entry in assets.values():
             if entry['file'].endswith('Fmask4.tif'):

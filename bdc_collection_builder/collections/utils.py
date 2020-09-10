@@ -15,6 +15,7 @@ import json
 import logging
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
+from pathlib import Path
 from typing import List
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -23,8 +24,13 @@ from zlib import error as zlib_error
 import boto3
 import numpy
 import rasterio
+import rasterio.features
+import rasterio.warp
 import requests
-from bdc_db.models import AssetMV, db
+import shapely
+import shapely.geometry
+from bdc_catalog.models import db
+from bdc_catalog.utils import multihash_checksum_sha256
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
@@ -34,11 +40,9 @@ from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
 from skimage import exposure
 from skimage.transform import resize
-from sqlalchemy_utils import refresh_materialized_view
 
 # Builder
 from ..config import CURRENT_DIR, Config
-from ..db import commit, db_aws
 from .sentinel.clients import sentinel_clients
 
 
@@ -129,11 +133,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
                         sentinel_tasks.apply_post_processing.s()
         return chain(task_chain).apply_async()
     elif app == 'publishS2':
-        tasks = [sentinel_tasks.publish_sentinel.s(activity)]
-
-        # When collection L2, chain the upload task
-        if activity['collection_id'] in list(sentinel_factory.map['l2'].keys()):
-            tasks.append(sentinel_tasks.apply_post_processing.s())
+        tasks = [sentinel_tasks.publish_sentinel.s(activity), sentinel_tasks.apply_post_processing.s()]
 
         return chain(*tasks).apply_async()
     elif app == 'harmonizeS2':
@@ -616,13 +616,6 @@ def refresh_assets_view(refresh_on_aws=True):
         logging.info('Skipping refresh view.')
         return
 
-    refresh_materialized_view(db.session, AssetMV.__table__)
-    commit(db)
-
-    if refresh_on_aws:
-        refresh_materialized_view(db_aws.session, AssetMV.__table__)
-        commit(db)
-
     logging.info('View refreshed.')
 
 
@@ -659,3 +652,100 @@ def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
         nb += 1
 
     write_png(str(png_file), image, transparent=(0, 0, 0))
+
+
+def create_asset_definition(href: str, mime_type: str, role: List[str], absolute_path: str,
+                            created=None, is_raster=False):
+    """Create a valid asset definition for collections.
+
+    TODO: Generate the asset for `Item` field with all bands
+
+    Args:
+        href - Relative path to the asset
+        mime_type - Asset Mime type str
+        role - Asset role. Available values are: ['data'], ['thumbnail']
+        absolute_path - Absolute path to the asset. Required to generate check_sum
+        created - Date time str of asset. When not set, use current timestamp.
+        is_raster - Flag to identify raster. When set, `raster_size` and `chunk_size` will be set to the asset.
+    """
+    fmt = '%Y-%m-%dT%H:%M:%S'
+    _now_str = datetime.datetime.utcnow().strftime(fmt)
+
+    if created is None:
+        created = _now_str
+    elif isinstance(created, datetime.datetime):
+        created = created.strftime(fmt)
+
+    asset = {
+        'href': str(href),
+        'type': mime_type,
+        'bdc:size': Path(absolute_path).stat().st_size,
+        'checksum:multihash': multihash_checksum_sha256(str(absolute_path)),
+        'roles': role,
+        'created': created,
+        'updated': _now_str
+    }
+
+    if is_raster:
+        with rasterio.open(str(absolute_path)) as data_set:
+            asset['bdc:raster_size'] = dict(
+                x=data_set.shape[1],
+                y=data_set.shape[0],
+            )
+
+            chunk_x, chunk_y = data_set.profile.get('blockxsize'), data_set.profile.get('blockxsize')
+
+            if chunk_x is None or chunk_x is None:
+                raise RuntimeError('Can\'t compute raster chunk size. Is it a tiled/ valid Cloud Optimized GeoTIFF?')
+
+            asset['bdc:chunk_size'] = dict(x=chunk_x, y=chunk_y)
+
+    return asset
+
+
+def raster_extent(file_path: str, epsg = 'EPSG:4326') -> shapely.geometry.Polygon:
+    """Get raster extent in arbitrary CRS
+
+    Args:
+        file_path (str): Path to image
+        epsg (str): EPSG Code of result crs
+
+    Returns:
+        dict: geojson-like geometry
+    """
+
+    with rasterio.open(str(file_path)) as data_set:
+        _geom = shapely.geometry.mapping(shapely.geometry.box(*data_set.bounds))
+        return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
+
+
+def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
+    """get image footprint
+
+    Args:
+        file_path (str): image file
+        epsg (str): geometry EPSG
+
+    See:
+        https://rasterio.readthedocs.io/en/latest/topics/masks.html
+    """
+    with rasterio.open(str(file_path)) as data_set:
+        # Read raster data, masking nodata values
+        data = data_set.read(1, masked=True)
+        data[data != numpy.ma.masked] = 1
+        data[data == numpy.ma.masked] = 0
+        # Create mask, which 1 represents valid data and 0 nodata
+        geoms = []
+        res = {'val': []}
+        for geom, val in rasterio.features.shapes(data, mask=data, transform=data_set.transform):
+            geom = rasterio.warp.transform_geom(data_set.crs, epsg, geom, precision=6)
+
+            res['val'].append(val)
+            geoms.append(shapely.geometry.shape(geom))
+
+        if len(geoms) == 1:
+            return geoms[0]
+
+        multi_polygons = shapely.geometry.MultiPolygon(geoms)
+
+        return multi_polygons.convex_hull

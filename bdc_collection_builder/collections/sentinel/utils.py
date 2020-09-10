@@ -10,9 +10,8 @@ from typing import Optional
 import boto3
 import numpy
 import rasterio
-from bdc_db.models import Band, Collection
+from bdc_catalog.models import Band, Collection
 from rasterio.enums import Resampling
-from rasterio.warp import Affine, reproject
 # BDC Scripts
 from bdc_collection_builder.collections.utils import generate_cogs
 from bdc_collection_builder.config import Config

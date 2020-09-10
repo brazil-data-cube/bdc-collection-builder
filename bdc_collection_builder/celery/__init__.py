@@ -11,7 +11,7 @@
 import logging
 from celery import Celery
 from flask import Flask
-from bdc_db.models import db
+from bdc_catalog.models import db
 import flask
 from bdc_collection_builder.config import Config
 
@@ -51,7 +51,10 @@ def create_celery_app(flask_app: Flask):
         CELERY_TASK_ALWAYS_EAGER=always_eager,
         CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
         CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
-        # CELERY_TRACK_STARTED=True
+        DATABASE_TABLE_SCHEMAS=dict(
+            task=Config.ACTIVITIES_SCHEMA,
+            group=Config.ACTIVITIES_SCHEMA
+        )
     ))
 
     TaskBase = celery.Task

@@ -16,19 +16,22 @@ import os
 # 3rdparty
 import gdal
 import numpy
-from bdc_db.models import db, Asset, Band, CollectionItem
+from bdc_catalog.models import Band, Item, db
+from geoalchemy2.shape import from_shape
 from numpngw import write_png
 from skimage.transform import resize
 # Builder
 from ...config import Config
-from ...db import add_instance, commit, db_aws
+from ...constants import COG_MIME_TYPE
+from ...db import commit, db_aws
 from ..forms import CollectionItemForm
-from ..utils import get_or_create_model, generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look
+from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look, create_asset_definition, \
+    raster_extent, raster_convexhull
 from ..models import RadcorActivity
 from .utils import get_jp2_files, get_tif_files, factory
 
 
-def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=False, **kwargs):
+def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwargs):
     """Publish Sentinel collection.
 
     It works with both L1C and L2A.
@@ -140,8 +143,6 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
         if not is_valid_tif(cog_file_path):
             raise RuntimeError('Not Valid {}'.format(cog_file_path))
 
-    source = scene.sceneid.split('_')[0]
-
     assets_to_upload = {}
 
     for instance in ['local', 'aws']:
@@ -172,56 +173,17 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
             with engine.session.no_autoflush:
                 # Add collection item to the session if not present
                 if collection_item not in engine.session:
-                    item = engine.session.query(CollectionItem).filter(CollectionItem.id == collection_item.id).first()
+                    item = engine.session.query(Item).filter(
+                        Item.name == collection_item.name,
+                        Item.collection_id == collection_item.collection_id
+                    ).first()
 
                     if not item:
                         cloned_properties = CollectionItemForm().dump(collection_item)
-                        cloned_item = CollectionItem(**cloned_properties)
+                        cloned_item = Item(**cloned_properties)
                         engine.session.add(cloned_item)
 
-                # Convert original format to COG
-                for sband in bands:
-                    # Set destination of COG file
-                    cog_file_name = '{}_{}.tif'.format(file_basename, sband)
-                    cog_file_path = product_uri / cog_file_name
-
-                    asset_dataset = gdal.Open(str(cog_file_path))
-
-                    raster_band = asset_dataset.GetRasterBand(1)
-
-                    chunk_x, chunk_y = raster_band.GetBlockSize()
-
-                    band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
-
-                    if band_model is None:
-                        logging.warning('Band {} not registered on database. Skipping'.format(sband))
-                        continue
-
-                    defaults = dict(
-                        source=source,
-                        url='{}/{}'.format(str(asset_url), cog_file_name),
-                        raster_size_x=asset_dataset.RasterXSize,
-                        raster_size_y=asset_dataset.RasterYSize,
-                        raster_size_t=1,
-                        chunk_size_t=1,
-                        chunk_size_x=chunk_x,
-                        chunk_size_y=chunk_y
-                    )
-                    asset, _ = get_or_create_model(
-                        Asset,
-                        defaults=defaults,
-                        engine=engine,
-                        collection_id=scene.collection_id,
-                        band_id=band_model.id,
-                        grs_schema_id=scene.collection.grs_schema_id,
-                        tile_id=collection_item.tile_id,
-                        collection_item_id=collection_item.id,
-                    )
-                    asset.url = defaults['url']
-
-                    assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=asset.url))
-
-                    del asset_dataset
+                assets = dict()
 
                 # Create Qlook file
                 pngname = product_uri / '{}.png'.format(file_basename)
@@ -235,12 +197,37 @@ def publish(collection_item: CollectionItem, scene: RadcorActivity, skip_l1=Fals
                 normalized_quicklook_path = os.path.normpath('{}/{}'.format(str(asset_url), os.path.basename(pngname.name)))
                 assets_to_upload['quicklook'] = dict(asset=str(normalized_quicklook_path), file=str(pngname))
 
-                c_item = engine.session.query(CollectionItem).filter(
-                    CollectionItem.id == collection_item.id
-                ).first()
-                if c_item:
-                    c_item.quicklook = normalized_quicklook_path
-                    add_instance(engine, c_item)
+                assets['thumbnail'] = create_asset_definition(str(normalized_quicklook_path), 'image/png',
+                                                              ['thumbnail'], str(pngname))
+
+                geom = min_convex_hull = None
+
+                # Convert original format to COG
+                for sband in bands:
+                    # Set destination of COG file
+                    cog_file_name = '{}_{}.tif'.format(file_basename, sband)
+                    cog_file_path = product_uri / cog_file_name
+
+                    band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
+
+                    if band_model is None:
+                        logging.warning('Band {} not registered on database. Skipping'.format(sband))
+                        continue
+
+                    if geom is None:
+                        geom = raster_extent(cog_file_path)
+                        min_convex_hull = raster_convexhull(cog_file_path)
+
+                    assets[band_model.name] = create_asset_definition(
+                        f'{str(asset_url)}/{cog_file_name}', COG_MIME_TYPE,
+                        ['data'], cog_file_path, is_raster=True
+                    )
+
+                    assets_to_upload[sband] = (dict(file=str(cog_file_path), asset=assets[band_model.name]['href']))
+
+                collection_item.geom = from_shape(geom, srid=4326)
+                collection_item.min_convex_hull = from_shape(min_convex_hull, srid=4326)
+                collection_item.assets = assets
 
         commit(engine)
 

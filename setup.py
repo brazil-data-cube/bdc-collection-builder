@@ -60,10 +60,11 @@ install_requires = [
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
     'bdc-core @ git+git://github.com/brazil-data-cube/bdc-core.git#egg=bdc-core',
-    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.4.0#egg=bdc-catalog',
+    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.1#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
-    'sentinelhub>3.0,<4'
+    'sentinelhub>3.0,<4',
+    'shapely>=1.7,<2'
 ]
 
 packages = find_packages()

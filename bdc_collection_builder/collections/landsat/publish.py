@@ -199,6 +199,10 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
             continue
 
         if instance == 'aws':
+            if Config.DISABLE_PUBLISH_SECOND_DB:
+                logging.info('Skipping publish in second db.')
+                continue
+
             asset_url = productdir.replace('/Repository/Archive', Config.AWS_BUCKET_NAME)
         else:
             asset_url = productdir

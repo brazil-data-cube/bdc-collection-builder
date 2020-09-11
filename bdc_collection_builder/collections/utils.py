@@ -734,6 +734,7 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
         data = data_set.read(1, masked=True)
         data[data != numpy.ma.masked] = 1
         data[data == numpy.ma.masked] = 0
+        data = data.astype(numpy.uint8)
         # Create mask, which 1 represents valid data and 0 nodata
         geoms = []
         res = {'val': []}

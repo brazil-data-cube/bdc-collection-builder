@@ -17,6 +17,7 @@ from datetime import datetime
 from tempfile import TemporaryDirectory
 
 # 3rdparty
+from bdc_catalog.models import Collection
 from botocore.exceptions import EndpointConnectionError
 from sqlalchemy.exc import InvalidRequestError
 from urllib3.exceptions import NewConnectionError, MaxRetryError
@@ -26,12 +27,12 @@ from ...celery import celery_app
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import refresh_assets_view, remove_file, upload_file
+from ..utils import post_processing, remove_file, upload_file
 from .download import download_landsat_images
 from .google import download_from_google
 from .harmonization import landsat_harmonize
 from .publish import publish
-from .utils import LandsatProduct, factory
+from .utils import LandsatProduct
 
 
 def is_valid_tar_gz(file_path: str):
@@ -57,7 +58,7 @@ class LandsatTask(RadcorTask):
 
         return datetime.strptime(fragments[3], '%Y%m%d')
 
-    def download(self, scene):
+    def download(self, scene, **kwargs):
         """Perform download landsat image from USGS.
 
         Args:
@@ -69,10 +70,12 @@ class LandsatTask(RadcorTask):
         # Create/Update activity
         activity_history = self.create_execution(scene)
 
+        collection: Collection = activity_history.activity.collection
+
         try:
             scene_id = scene['sceneid']
             # Get Landsat collection handler
-            landsat_scene = factory.get_from_sceneid(scene_id, level=1)
+            landsat_scene = LandsatProduct(scene_id, collection=collection)
 
             activity_args = scene.get('args', {})
 
@@ -104,7 +107,7 @@ class LandsatTask(RadcorTask):
                         logging.info('Download Landsat {} -> e={} v={} from Google...'.format(
                             scene_id, digital_number_file.exists(), valid)
                         )
-                        file, link = download_from_google(scene_id, str(tmp))
+                        file, link = download_from_google(scene_id, collection, str(tmp))
                         activity_args['provider'] = link
                     except BaseException:
                         logging.info('Download Landsat {} from USGS...'.format(scene_id))
@@ -131,7 +134,7 @@ class LandsatTask(RadcorTask):
 
         return scene
 
-    def publish(self, scene, **kwargs):
+    def publish(self, scene, collection_id=None, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -139,17 +142,17 @@ class LandsatTask(RadcorTask):
         """
         scene['activity_type'] = 'publishLC8'
 
+        if collection_id:
+            scene['collection_id'] = collection_id
+
         # Create/Update activity
         activity_history = self.create_execution(scene)
 
-        # Get collection level to publish. Default is l1
-        # TODO: Check in database the scenes level 2 already published. We must set to level 2
-        collection_level = scene['args'].get('level') or 1
-
-        landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=collection_level)
-
         args = activity_history.activity.args.copy()
         args.update(kwargs)
+
+        activity_history.activity.args = args
+        activity_history.save()
 
         try:
             item = self.get_collection_item(activity_history.activity)
@@ -171,10 +174,6 @@ class LandsatTask(RadcorTask):
 
         scene['activity_type'] = 'uploadLC8'
         scene['args']['assets'] = assets
-
-        # Refresh for everything except for L1
-        if landsat_scene.level > 1:
-            refresh_assets_view()
 
         return scene
 
@@ -205,7 +204,7 @@ class LandsatTask(RadcorTask):
 
         return len(fs) > 0
 
-    def correction(self, scene):
+    def correction(self, scene, collection_id=None, **kwargs):
         """Apply atmospheric correction on collection.
 
         Args:
@@ -217,12 +216,16 @@ class LandsatTask(RadcorTask):
         scene['activity_type'] = 'correctionLC8'
         scene_id = scene['sceneid']
 
-        # Get Resolver for Landsat scene level 2
-        landsat_scene = factory.get_from_sceneid(scene_id, level=2)
-        landsat_scene_level_1 = factory.get_from_sceneid(scene_id, level=1)
+        if collection_id:
+            scene['collection_id'] = collection_id
 
         # Create/Update activity
         execution = self.create_execution(scene)
+
+        collection: Collection = execution.activity.collection
+
+        # Get Resolver for Landsat scene level 2
+        landsat_scene = LandsatProduct(scene_id, collection=collection)
 
         try:
             params = dict(
@@ -240,7 +243,7 @@ class LandsatTask(RadcorTask):
                     compressed_file.extractall(tmp)
 
                 input_dir = str(tmp)  # landsat_scene_level_1.compressed_file().parent
-                cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(landsat_scene_level_1.scene_id)
+                cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(scene_id)
 
                 logging.warning('cmd {}'.format(cmd))
 
@@ -270,7 +273,6 @@ class LandsatTask(RadcorTask):
             raise e
 
         scene['activity_type'] = 'publishLC8'
-        scene['args']['level'] = landsat_scene.level
 
         return scene
 
@@ -283,14 +285,16 @@ class LandsatTask(RadcorTask):
         # Set Collection Level 3 - BDC
         scene['args']['level'] = 3
 
-        landsat_scene = factory.get_from_sceneid(scene['sceneid'], level=scene['args']['level'])
+        # Create/Update activity
+        activity_history = self.create_execution(scene)
+
+        collection: Collection = activity_history.activity.collection
+
+        landsat_scene = LandsatProduct(scene['sceneid'], collection=collection)
 
         # Set Collection to the Landsat NBAR (Nadir BRDF Adjusted Reflectance)
         scene['collection_id'] = landsat_scene.id
         scene['activity_type'] = 'harmonizeLC8'
-
-        # Create/Update activity
-        activity_history = self.create_execution(scene)
 
         logging.debug('Starting Harmonization Landsat...')
 
@@ -312,13 +316,25 @@ class LandsatTask(RadcorTask):
 
         return scene
 
+    def post_publish(self, scene):
+        logging.info(f'Applying post-processing for {scene["sceneid"]}')
+        collection = Collection.query().filter(Collection.id == scene['collection_id']).first()
+
+        assets = scene['args']['assets']
+
+        for entry in assets.values():
+            if entry['file'].endswith('Fmask4.tif'):
+                post_processing(entry['file'], collection, assets)
+
+        return scene
+
 
 @celery_app.task(base=LandsatTask,
                  queue='download',
                  max_retries=72,
                  autoretry_for=(NewConnectionError, MaxRetryError),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def download_landsat(scene):
+def download_landsat(scene, **kwargs):
     """Represent a celery task definition for handling Landsat-8 Download files.
 
     This celery tasks listen only for queues 'download'.
@@ -332,11 +348,11 @@ def download_landsat(scene):
     Returns:
         Returns processed activity
     """
-    return download_landsat.download(scene)
+    return download_landsat.download(scene, **kwargs)
 
 
 @celery_app.task(base=LandsatTask, queue='atm-correction')
-def atm_correction_landsat(scene):
+def atm_correction_landsat(scene, **kwargs):
     """Represent a celery task definition for handling Landsat Atmospheric correction - sen2cor.
 
     This celery tasks listen only for queues 'atm-correction'.
@@ -347,7 +363,7 @@ def atm_correction_landsat(scene):
     Returns:
         Returns processed activity
     """
-    return atm_correction_landsat.correction(scene)
+    return atm_correction_landsat.correction(scene, **kwargs)
 
 
 @celery_app.task(base=LandsatTask,
@@ -377,7 +393,7 @@ def publish_landsat(scene, **kwargs):
                  max_retries=3,
                  auto_retry=(EndpointConnectionError, NewConnectionError,),
                  default_retry_delay=Config.TASK_RETRY_DELAY)
-def upload_landsat(scene):
+def upload_landsat(scene, **kwargs):
     """Represent a celery task definition for handling Landsat8 Upload TIFF to AWS.
 
     This celery tasks listen only for queues 'uploadLC8'.
@@ -385,7 +401,7 @@ def upload_landsat(scene):
     Args:
         scene (dict): Radcor Activity with "uploadLC8" app context
     """
-    upload_landsat.upload(scene)
+    upload_landsat.upload(scene, **kwargs)
 
 
 @celery_app.task(base=LandsatTask, queue='harmonization')
@@ -398,3 +414,8 @@ def harmonization_landsat(scene):
         scene (dict): Radcor Activity with "harmonizeLC8" app context
     """
     return harmonization_landsat.harmonize(scene)
+
+
+@celery_app.task(base=LandsatTask, queue='post-processing')
+def apply_post_processing(scene):
+    return apply_post_processing.post_publish(scene)

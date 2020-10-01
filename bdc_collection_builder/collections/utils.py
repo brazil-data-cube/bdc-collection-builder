@@ -13,9 +13,11 @@
 import datetime
 import json
 import logging
+import shutil
 from json import loads as json_parser
 from os import remove as resource_remove, path as resource_path
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import List
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -29,13 +31,14 @@ import rasterio.warp
 import requests
 import shapely
 import shapely.geometry
-from bdc_catalog.models import db
+from bdc_catalog.models import Band, Collection, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from botocore.exceptions import ClientError
 from celery import chain, group
 from landsatxplore.api import API
 from numpngw import write_png
 from osgeo import gdal
+from rasterio.warp import Resampling
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
 from skimage import exposure
@@ -96,33 +99,55 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         kwargs (dict) - Extra arguments to pass celery function.
     """
     from .landsat import tasks as landsat_tasks
-    from .landsat.utils import factory as landsat_factory
     from .sentinel import tasks as sentinel_tasks
-    from .sentinel.utils import factory as sentinel_factory
     # TODO: Implement it as factory (TaskDispatcher) and pass the responsibility to the task type handler
 
     app = activity.get('activity_type')
 
+    collection_id = activity['collection_id']
+
+    collection = Collection.query().get(collection_id)
+
+    meta_processors = collection._metadata.get('processors', []) if collection._metadata else []
+
+    processing_collections = kwargs.pop('processing_collections', [])
+
+    # TODO: Remove when supports to download L2
+    if meta_processors:
+        # When triggering SR collections, check if collection already in processing list.
+        in_processing_list = len(list(filter(lambda entry: entry['id'] == collection_id, processing_collections))) > 0
+
+        if not in_processing_list:
+            processing_collections.append(dict(id=collection_id, args=dict(apply_data_range=True)))
+
     if app == 'downloadS2':
-        # Atm Correction chain
-        atm_corr_publish_chain = sentinel_tasks.atm_correction.s() | sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1)
-        # Publish ATM Correction
-        upload_chain = sentinel_tasks.apply_post_processing.s()
+        after_download_group = []
 
-        inner_group = upload_chain
+        for collection in processing_collections:
+            copy_kwargs = kwargs.copy()
 
-        if activity['args'].get('harmonize'):
-            # Harmonization chain
-            harmonize_chain = sentinel_tasks.harmonization_sentinel.s() | \
-                              sentinel_tasks.publish_sentinel.s(skip_l1=skip_l1) | \
-                              sentinel_tasks.upload_sentinel.s()
-            inner_group = group(upload_chain, harmonize_chain)
+            copy_kwargs['collection_id'] = collection['id']
+            copy_kwargs.update(collection.get('args', dict()))
 
-        inner_group = atm_corr_publish_chain | inner_group
+            # Atm Correction chain
+            atm_corr_publish_chain = sentinel_tasks.atm_correction.s(**copy_kwargs) | \
+                                     sentinel_tasks.publish_sentinel.s(**copy_kwargs, skip_l1=skip_l1)
 
-        after_download_group = [
-            inner_group
-        ]
+            # Publish ATM Correction
+            upload_chain = sentinel_tasks.apply_post_processing.s(**copy_kwargs)
+
+            inner_group = upload_chain
+
+            if activity['args'].get('harmonize'):
+                # Harmonization chain
+                harmonize_chain = sentinel_tasks.harmonization_sentinel.s(**kwargs) | \
+                                  sentinel_tasks.publish_sentinel.s(**kwargs, skip_l1=skip_l1) | \
+                                  sentinel_tasks.upload_sentinel.s(**kwargs)
+                inner_group = group(upload_chain, harmonize_chain)
+
+            inner_group = atm_corr_publish_chain | inner_group
+
+            after_download_group.append(inner_group)
 
         outer_group = group(*after_download_group)
         task_chain = sentinel_tasks.download_sentinel.s(activity) | outer_group
@@ -144,22 +169,36 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         return sentinel_tasks.upload_sentinel.s(activity).apply_async()
 
     elif app == 'downloadLC8':
-        # Atm Correction chain
-        atm_corr_chain = landsat_tasks.atm_correction_landsat.s()
-        # Publish ATM Correction
-        publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
+        post_processing_step = []
 
-        inner_group = publish_atm_chain
+        for collection in processing_collections:
+            copy_kwargs = kwargs.copy()
 
-        # Check if will add harmonization chain on group
-        if activity['args'].get('harmonize'):
-            # Harmonization chain
-            harmonize_chain = landsat_tasks.harmonization_landsat.s() | landsat_tasks.publish_landsat.s() | \
-                        landsat_tasks.upload_landsat.s()
-            inner_group = group(publish_atm_chain, harmonize_chain)
+            copy_kwargs['collection_id'] = collection['id']
+            copy_kwargs.update(collection.get('args'))
 
-        atm_chain = atm_corr_chain | inner_group
-        outer_group = group(atm_chain)
+            # Atm Correction chain
+            atm_corr_chain = landsat_tasks.atm_correction_landsat.s(**copy_kwargs)
+            # Publish ATM Correction
+            publish_atm_chain = landsat_tasks.publish_landsat.s(**copy_kwargs) | \
+                                landsat_tasks.upload_landsat.s(**copy_kwargs)
+
+            inner_group = publish_atm_chain
+
+            # Check if will add harmonization chain on group
+            if activity['args'].get('harmonize'):
+                # Harmonization chain
+                harmonize_chain = landsat_tasks.harmonization_landsat.s(**copy_kwargs) | \
+                                  landsat_tasks.publish_landsat.s(**copy_kwargs) | \
+                                  landsat_tasks.upload_landsat.s(**copy_kwargs)
+
+                inner_group = group(publish_atm_chain, harmonize_chain)
+
+            inner_group = (atm_corr_chain | publish_atm_chain) | inner_group
+
+            post_processing_step.append(inner_group)
+
+        outer_group = group(*post_processing_step)
         task_chain = landsat_tasks.download_landsat.s(activity) | outer_group
 
         return chain(task_chain).apply_async()
@@ -182,10 +221,6 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
         task_chain = landsat_tasks.publish_landsat.s(activity)
-
-        # When collection L2, chain the upload task
-        if activity['collection_id'] in list(landsat_factory.map['l2'].keys()):
-            task_chain |= landsat_tasks.upload_landsat.s()
 
         return chain(task_chain).apply_async()
     elif app == 'harmonizeLC8':
@@ -610,15 +645,6 @@ def remove_file(file_path: str):
         resource_remove(file_path)
 
 
-def refresh_assets_view(refresh_on_aws=True):
-    """Update the Brazil Data Cube Assets View."""
-    if not Config.ENABLE_REFRESH_VIEW:
-        logging.info('Skipping refresh view.')
-        return
-
-    logging.info('View refreshed.')
-
-
 def create_quick_look(png_file: str, files: List[str], rows=768, cols=768):
     """Generate a Quick Look file (PNG based) from a list of files.
 
@@ -719,12 +745,13 @@ def raster_extent(file_path: str, epsg = 'EPSG:4326') -> shapely.geometry.Polygo
         return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
 
 
-def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
+def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:
     """get image footprint
 
     Args:
         file_path (str): image file
         epsg (str): geometry EPSG
+        no_data: Use custom no data value. Default is dataset.nodata
 
     See:
         https://rasterio.readthedocs.io/en/latest/topics/masks.html
@@ -732,16 +759,19 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
     with rasterio.open(str(file_path)) as data_set:
         # Read raster data, masking nodata values
         data = data_set.read(1, masked=True)
+
+        if no_data is not None:
+            data[data == no_data] = numpy.ma.masked
+
         data[data != numpy.ma.masked] = 1
         data[data == numpy.ma.masked] = 0
+
         data = data.astype(numpy.uint8)
         # Create mask, which 1 represents valid data and 0 nodata
         geoms = []
-        res = {'val': []}
-        for geom, val in rasterio.features.shapes(data, mask=data, transform=data_set.transform):
+        for geom, _ in rasterio.features.shapes(data, mask=data, transform=data_set.transform):
             geom = rasterio.warp.transform_geom(data_set.crs, epsg, geom, precision=6)
 
-            res['val'].append(val)
             geoms.append(shapely.geometry.shape(geom))
 
         if len(geoms) == 1:
@@ -750,3 +780,130 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326') -> dict:
         multi_polygons = shapely.geometry.MultiPolygon(geoms)
 
         return multi_polygons.convex_hull
+
+
+def post_processing(quality_file_path: str, collection: Collection, scenes: dict, resample_to=None):
+    """Stack the merge bands in order to apply a filter on the quality band.
+
+    We have faced some issues regarding `nodata` value in spectral bands, which was resulting
+    in wrong provenance date on STACK data cubes, since the Fmask tells the pixel is valid (0) but a nodata
+    value is found in other bands.
+    To avoid that, we read all the others bands, seeking for `nodata` value. When found, we set this to
+    nodata in Fmask output::
+
+        Quality             Nir                   Quality
+
+        0 0 2 4      702  876 7000 9000      =>    0 0 2 4
+        0 0 0 0      687  987 1022 1029      =>    0 0 0 0
+        0 2 2 4    -9999 7100 7322 9564      =>  255 2 2 4
+
+    Notes:
+        It may take too long to execute for a large grid.
+
+    Args:
+         quality_file_path: Path to the cloud masking file.
+         collection: The collection instance.
+         scenes: Map of band and file path
+         resample_to: Resolution to re-sample. Default is None, which uses default value.
+    """
+    quality_file_path = Path(quality_file_path)
+    band_names = [band_name for band_name in scenes.keys() if band_name.lower() not in ('ndvi', 'evi', 'fmask4')]
+
+    bands = Band.query().filter(
+        Band.collection_id == collection.id,
+        Band.name.in_(band_names)
+    ).all()
+
+    options = dict()
+
+    with TemporaryDirectory() as tmp:
+        temp_file = Path(tmp) / quality_file_path.name
+
+        # Copy to temp dir
+        shutil.copyfile(quality_file_path, temp_file)
+
+        if resample_to:
+            with rasterio.open(str(quality_file_path)) as ds:
+                ds_transform = ds.profile['transform']
+
+                options.update(ds.meta.copy())
+
+                factor = ds_transform[0] / resample_to
+
+                options['width'] = ds.profile['width'] * factor
+                options['height'] = ds.profile['height'] * factor
+
+                transform = ds.transform * ds.transform.scale((ds.width / options['width']), (ds.height / options['height']))
+
+                options['transform'] = transform
+
+                nodata = options.get('nodata') or 255
+                options['nodata'] = nodata
+
+                raster = ds.read(
+                    out_shape=(
+                        ds.count,
+                        int(options['height']),
+                        int(options['width'])
+                    ),
+                    resampling=Resampling.nearest
+                )
+
+                with rasterio.open(str(temp_file), mode='w', **options) as temp_ds:
+                    temp_ds.write_band(1, raster[0])
+
+                # Build COG
+                generate_cogs(str(temp_file), str(temp_file))
+
+        with rasterio.open(str(temp_file), **options) as quality_ds:
+            blocks = list(quality_ds.block_windows())
+            profile = quality_ds.profile
+            nodata = profile.get('nodata') or 255
+            raster_merge = quality_ds.read(1)
+            for _, block in blocks:
+                nodata_positions = []
+
+                row_offset = block.row_off + block.height
+                col_offset = block.col_off + block.width
+
+                for band in bands:
+                    band_file = scenes[band.name]['file']
+
+                    with rasterio.open(str(band_file)) as ds:
+                        raster = ds.read(1, window=block)
+
+                    nodata_found = numpy.where(raster == -9999)
+                    raster_nodata_pos = numpy.ravel_multi_index(nodata_found, raster.shape)
+                    nodata_positions = numpy.union1d(nodata_positions, raster_nodata_pos)
+
+                if len(nodata_positions):
+                    raster_merge[block.row_off: row_offset, block.col_off: col_offset][
+                        numpy.unravel_index(nodata_positions.astype(numpy.int64), raster.shape)] = nodata
+
+        save_as_cog(str(temp_file), raster_merge, **profile)
+
+        # Move right place
+        shutil.move(str(temp_file), str(quality_file_path))
+
+
+def save_as_cog(destination: str, raster, mode='w', **profile):
+    """Save the raster file as Cloud Optimized GeoTIFF.
+
+    See Also:
+        Cloud Optimized GeoTiff https://gdal.org/drivers/raster/cog.html
+
+    Args:
+        destination: Path to store the data set.
+        raster: Numpy raster values to persist in disk
+        mode: Default rasterio mode. Default is 'w' but you also can set 'r+'.
+        **profile: Rasterio profile values to add in dataset.
+    """
+    with rasterio.open(str(destination), mode, **profile) as dataset:
+        if profile.get('nodata'):
+            dataset.nodata = profile['nodata']
+
+        dataset.write_band(1, raster)
+        dataset.build_overviews([2, 4, 8, 16, 32, 64], Resampling.nearest)
+        dataset.update_tags(ns='rio_overview', resampling='nearest')
+
+    generate_cogs(str(destination), str(destination))

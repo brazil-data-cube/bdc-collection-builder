@@ -12,13 +12,11 @@
 def initialize_factories():
     """Initialize Brazil Data Cube Collection Builder factories."""
     from .celery.cache import cache
-    from .collections.landsat.utils import factory as landsat_factory
     from .collections.sentinel.clients import sentinel_clients
     from .collections.sentinel.utils import factory as sentinel_factory
 
     cache.initialize()
     sentinel_clients.initialize()
-    landsat_factory.register()
     sentinel_factory.register()
 
 

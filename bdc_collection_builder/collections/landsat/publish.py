@@ -28,7 +28,7 @@ from ..forms import CollectionItemForm
 from ..models import RadcorActivity
 from ..utils import create_quick_look, generate_evi_ndvi, generate_cogs, is_valid_tif, create_asset_definition,\
     raster_extent, raster_convexhull
-from .utils import factory
+from .utils import LandsatProduct
 
 
 DEFAULT_QUICK_LOOK_BANDS = ["swir2", "nir", "red"]
@@ -98,7 +98,7 @@ def apply_valid_range(input_data_set_path: str, file_path: str) -> str:
     return file_path
 
 
-def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwargs):
+def publish(collection_item: Item, scene: RadcorActivity, **kwargs):
     """Publish Landsat collection.
 
     It works with both Digital Number (DN) and Surface Reflectance (SR).
@@ -109,10 +109,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
     """
     identifier = scene.sceneid
 
-    # Get collection level to publish. Default is l1
-    collection_level = scene.args.get('level') or 1
-
-    landsat_scene = factory.get_from_sceneid(identifier, level=collection_level)
+    landsat_scene = LandsatProduct(identifier, collection=scene.collection)
 
     productdir = scene.args.get('file')
 
@@ -141,6 +138,8 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
 
     bands = landsat_scene.get_band_map()
 
+    apply_data_range = scene.args.get('apply_data_range', False)
+
     for gband, band in bands.items():
         fs = landsat_scene.get_files()
 
@@ -160,7 +159,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
     for band, file_path in files.items():
         tif_file = str(file_path)
 
-        if landsat_scene.level == 2:
+        if apply_data_range:
             _ = apply_valid_range(tif_file, tif_file)
 
         # Set destination of COG file
@@ -194,10 +193,6 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
         }
         engine = engine_instance[instance]
 
-        # Skip catalog on aws for digital number
-        if landsat_scene.level == 1 and instance == 'aws':
-            continue
-
         if instance == 'aws':
             if Config.DISABLE_PUBLISH_SECOND_DB:
                 logging.info('Skipping publish in second db.')
@@ -230,7 +225,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                     .all()
 
                 assets = dict(
-                    thumbnail=create_asset_definition(str(asset_url), 'image/png', ['thumbnail'], str(pngname))
+                    thumbnail=create_asset_definition(str(pngname_relative), 'image/png', ['thumbnail'], str(pngname))
                 )
 
                 geom = min_convex_hull = None
@@ -239,7 +234,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                 for band in files:
                     template = resource_path.join(asset_url, Path(files[band]).name)
 
-                    band_model = next(filter(lambda b: band == b.common_name, collection_bands), None)
+                    band_model: Band = next(filter(lambda b: band == b.common_name, collection_bands), None)
 
                     if not band_model:
                         logging.warning('Band {} of collection {} not found in database. Skipping...'.format(
@@ -248,7 +243,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
 
                     if geom is None:
                         geom = raster_extent(files[band])
-                        min_convex_hull = raster_convexhull(files[band])
+                        min_convex_hull = raster_convexhull(files[band], no_data=band_model.nodata)
 
                     assets[band_model.name] = create_asset_definition(
                         template, COG_MIME_TYPE,

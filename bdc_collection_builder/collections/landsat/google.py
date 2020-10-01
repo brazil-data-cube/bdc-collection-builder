@@ -16,15 +16,15 @@ from typing import Tuple
 from google.cloud import storage
 # Collection Builder
 from .download import remove_tile_compression
-from .utils import compress_landsat_scene, factory
+from .utils import compress_landsat_scene, LandsatProduct
 
 
-def download_from_google(scene_id: str, destination: str, bucket_name: str = 'gcp-public-data-landsat') -> Tuple[str, str]:
+def download_from_google(scene_id: str, collection, destination: str, bucket_name: str = 'gcp-public-data-landsat') -> Tuple[str, str]:
     """Download files from Google Cloud Storage."""
     # Creates a GCS Client
     storage_client = storage.Client()
 
-    scene = factory.get_from_sceneid(scene_id, level=1)
+    scene = LandsatProduct(scene_id, collection)
 
     pathrow = scene.scene_fragments[2]
 

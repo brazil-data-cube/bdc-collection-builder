@@ -12,7 +12,9 @@ import logging
 import tarfile
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
+from bdc_catalog.models import Collection
 from bdc_core.decorators.utils import working_directory
 
 from ...config import Config
@@ -21,10 +23,20 @@ from ...config import Config
 class LandsatProduct:
     """Define base class for handling Landsat data products."""
 
-    def __init__(self, scene_id: str):
+    collection: Collection
+    band_map: dict = None
+
+    def __init__(self, scene_id: str, collection: Collection):
         """Build a Landsat class."""
         self.scene_id = scene_id
         self._fragments = LandsatProduct.parse_scene_id(scene_id)
+
+        if not isinstance(collection, Collection):
+            raise RuntimeError(f'The attribute "collection" ({collection}) must be a {Collection}')
+
+        self.collection = collection
+
+        self.get_band_map()
 
     @property
     def scene_fragments(self):
@@ -45,7 +57,7 @@ class LandsatProduct:
     @property
     def id(self) -> str:
         """Retrieve Landsat Collection ID on Brazil Data Cube."""
-        raise NotImplementedError()
+        return self.collection.name
 
     @property
     def level(self) -> int:
@@ -71,7 +83,11 @@ class LandsatProduct:
         return datetime.strptime(self._fragments[3], '%Y%m%d')
 
     def get_band_map(self) -> dict:
-        raise NotImplementedError()
+        if not self.band_map:
+            band_map = {band.common_name: band.name for band in self.collection.bands}
+            self.band_map = band_map
+
+        return self.band_map
 
     def google_path(self) -> Path:
         """Retrieve a formal path for Landsat on Google Provider.
@@ -100,7 +116,7 @@ class LandsatProduct:
         """
         year_month = self.sensing_date().strftime('%Y-%m')
 
-        scene_path = Path(prefix or '') / 'Repository/Archive' / self.id / year_month / self.tile_id()
+        scene_path = Path(prefix or '') / 'Repository/Archive' / self.collection.name / year_month / self.tile_id()
 
         return scene_path
 
@@ -138,10 +154,11 @@ class LandsatProduct:
             The scene must be published in order to retrieve the file list.
 
         Example:
-            >>> scene = LandsatDigitalNumber08('LC08_L1TP_220069_20180618_20180703_01_T1')
+            >>> collection_l1 = Collection.query().filter(Collection.name == 'LC8_DN').first_or_404()
+            >>> scene = LandsatProduct('LC08_L1TP_220069_20180618_20180703_01_T1', collection=collection_l1)
             >>> print(str(scene.path()))
-            ... ['/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B1.TIF',
-            ...  '/gfs/Repository/Archive/LC8DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B2.TIF']
+            ... ['/gfs/Repository/Archive/LC8_DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B1.TIF',
+            ...  '/gfs/Repository/Archive/LC8_DN/2018-06/220069/LC08_L1TP_220069_20180618_20180703_01_T1_B2.TIF']
         """
         scene_path = self.path()
 
@@ -154,150 +171,6 @@ class LandsatProduct:
         files = scene_path.glob(scene_id_without_processing_date)
 
         return list([f for f in files if f.suffix.lower() == '.tif'])
-
-
-class LandsatDigitalNumber08(LandsatProduct):
-    """Landsat 8 Digital Number."""
-    id = 'LC8DN'
-    level = 1
-
-    def get_band_map(self) -> dict:
-        return dict(
-            coastal='B1', blue='B2', green='B3', red='B4', nir='B5', swir1='B6', swir2='B7',
-            quality='BQA', panchromatic='B8', cirrus='B9', tirs1='B10', tirs2='B11'
-        )
-
-
-class LandsatSurfaceReflectance08(LandsatProduct):
-    """Landsat 8 Surface Reflectance."""
-    id = 'LC8SR'
-    level = 2
-
-    def get_band_map(self) -> dict:
-        return dict(
-            coastal='sr_band1', blue='sr_band2', green='sr_band3', red='sr_band4', nir='sr_band5',
-            swir1='sr_band6', swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
-        )
-
-
-class LandsatNBAR08(LandsatProduct):
-    """Landsat 8 Nadir BRDF Adjusted Reflectance."""
-    id = 'LC8NBAR'
-    level = 3
-
-    def get_band_map(self) -> dict:
-        return dict(
-            blue='sr_band2', green='sr_band3', red='sr_band4', nir='sr_band5',
-            swir1='sr_band6', swir2='sr_band7', quality='pixel_qa'
-        )
-
-
-class LandsatDigitalNumber07(LandsatProduct):
-    """Landsat 7 Digital Number."""
-
-    id = 'L7DN'
-    level = 1
-
-    def get_band_map(self) -> dict:
-        return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5', tirs1='B6_VCID_1', tirs2='B6_VCID_2',
-            swir2='B7', panchromatic='B8', quality='BQA'
-        )
-
-
-class LandsatSurfaceReflectance07(LandsatProduct):
-    """Landsat 7 Surface Reflectance."""
-
-    id = 'L7SR'
-    level = 2
-
-    def get_band_map(self) -> dict:
-        return dict(
-            blue='sr_band1', green='sr_band2', red='sr_band3', nir='sr_band4', swir1='sr_band5',
-            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
-        )
-
-
-class LandsatDigitalNumber05(LandsatProduct):
-    """Landsat 5 Digital Number."""
-
-    id = 'L5DN'
-    level = 1
-
-    def get_band_map(self) -> dict:
-        return dict(
-            blue='B1', green='B2', red='B3', nir='B4', swir1='B5',
-            tirs='B6', swir2='B7', quality='BQA'
-        )
-
-
-class LandsatSurfaceReflectance05(LandsatProduct):
-    """Landsat 5 Surface Reflectance."""
-
-    id = 'L5SR'
-    level = 2
-
-    def get_band_map(self) -> dict:
-        return dict(
-            blue='sr_band1', green='sr_band2', red='sr_band3', nir='sr_band4', swir1='sr_band5',
-            swir2='sr_band7', evi='sr_evi', ndvi='sr_ndvi', quality='Fmask4'
-        )
-
-
-class LandsatFactory:
-    """Define a factory to identify a Landsat product based on scene identifier."""
-
-    map = dict(
-        l1=dict(),
-        l2=dict(),
-        l3=dict()
-    )
-
-    def register(self):
-        """Initialize factory object."""
-        self.map['l1'][LandsatDigitalNumber05.id] = LandsatDigitalNumber05
-        self.map['l2'][LandsatSurfaceReflectance05.id] = LandsatSurfaceReflectance05
-        self.map['l1'][LandsatDigitalNumber07.id] = LandsatDigitalNumber07
-        self.map['l2'][LandsatSurfaceReflectance07.id] = LandsatSurfaceReflectance07
-        self.map['l1'][LandsatDigitalNumber08.id] = LandsatDigitalNumber08
-        self.map['l2'][LandsatSurfaceReflectance08.id] = LandsatSurfaceReflectance08
-        self.map['l3'][LandsatNBAR08.id] = LandsatNBAR08
-
-    def get_from_collection(self, collection: str):
-        """Retrieve the respective Landsat driver from given collection."""
-        for drivers_by_level in self.map.values():
-            for driver_name in drivers_by_level:
-                if collection == driver_name:
-                    return drivers_by_level[driver_name]
-
-        raise ValueError('Not found a valid driver for {}.'.format(collection))
-
-    def get_from_sceneid(self, scene_id: str, level=1) -> LandsatProduct:
-        """Retrieve the respective Landsat driver from given scene id."""
-        fragments = LandsatProduct.parse_scene_id(scene_id)
-
-        drivers_by_level = self.map.get('l{}'.format(level)) or dict()
-
-        scene_satellite = int(fragments[0][-2:])
-
-        for key in drivers_by_level:
-            satellite = key[1]
-
-            if not satellite.isdigit():
-                satellite = key[2]
-
-            satellite = int(satellite)
-
-            if scene_satellite == satellite:
-                driver = drivers_by_level[key]
-
-                if driver.level == level:
-                    return driver(scene_id)
-
-        raise ValueError('Not found a valid driver for {}'.format(scene_id))
-
-
-factory = LandsatFactory()
 
 
 def compress_landsat_scene(scene: LandsatProduct, data_dir: str):

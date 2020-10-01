@@ -20,7 +20,6 @@ from werkzeug.exceptions import BadRequest, abort
 # Builder
 from bdc_collection_builder.config import Config
 from .forms import SimpleActivityForm
-from .landsat.utils import factory as landsat_factory
 from .models import RadcorActivity, RadcorActivityHistory, db
 from .sentinel.utils import factory as sentinel_factory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
@@ -37,7 +36,7 @@ class RadcorBusiness:
     def start(cls, activity, skip_l1=None, **kwargs):
         """Dispatch the celery tasks."""
         activity['args'].update(kwargs)
-        return dispatch(activity, skip_l1)
+        return dispatch(activity, skip_l1, **kwargs)
 
     @classmethod
     def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None, **kwargs):
@@ -130,7 +129,9 @@ class RadcorBusiness:
         action = args.get('action', 'preview')
         do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
 
-        extra_args = args.get('args', dict())
+        processing_collections = args.get('processing_collections', [])
+
+        extra_args = args.get('args', dict(processing_collections=processing_collections))
 
         activities = []
 
@@ -141,26 +142,19 @@ class RadcorBusiness:
 
         scenes = {}
 
-        def __get_collection(name: str) -> str:
-            """Ensure collection name exists on database."""
-            collection = collections_map.get(name)
+        collection_id = collections_map.get(args['collection'])
 
-            if collection is None:
-                abort(404, f'Collection {collection} not found.')
-
-            return collection
+        if collection_id is None:
+            abort(404, f'Collection {args["collection"]} not found.')
 
         try:
             if 'landsat' in sat.lower():
                 result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
                 scenes.update(result)
+
                 for id in result:
                     scene = result[id]
                     sceneid = scene['sceneid']
-
-                    landsat_scene_level_2 = landsat_factory.get_from_sceneid(sceneid, level=2)
-
-                    collection_id = __get_collection(landsat_scene_level_2.id)
 
                     # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
                     activity = dict(
@@ -187,13 +181,10 @@ class RadcorBusiness:
             if 'S2' in sat:
                 result = get_sentinel_scenes(w, n, e, s, rstart, rend, cloud, limit)
                 scenes.update(result)
+
                 for id in result:
                     scene = result[id]
                     sceneid = scene['sceneid']
-
-                    sentinel_scene_level_2 = sentinel_factory.get_from_sceneid(sceneid, level=2)
-
-                    collection_id = __get_collection(sentinel_scene_level_2.id)
 
                     activity = dict(
                         collection_id=collection_id,

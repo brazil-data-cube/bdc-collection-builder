@@ -15,7 +15,7 @@ from flask_restplus import Namespace, Resource
 from werkzeug.exceptions import BadRequest, RequestURITooLarge
 # Builder
 from ..celery.utils import list_pending_tasks, list_running_tasks
-from .forms import RadcorActivityForm
+from .forms import RadcorActivityForm, SearchImageForm
 from .business import RadcorBusiness
 
 
@@ -52,19 +52,20 @@ class RadcorController(Resource):
         """
         args = request.get_json()
 
-        if 'w' not in args or \
-                'n' not in args or \
-                'e' not in args or \
-                's' not in args:
-            raise BadRequest('Datacube or Bounding Box must be given')
+        form = SearchImageForm()
+
+        errors = form.validate(args)
+
+        if errors:
+            return errors
+
+        data = form.load(args)
 
         # Prepare radcor activity and start
-        result = RadcorBusiness.radcor(args)
-
-        tile = '{}-{}-{}'.format(args['tileid'], args['start'], args['end'])
+        result = RadcorBusiness.radcor(data)
 
         scenes = {
-            tile: result,
+            'tiles': result,
             'Results': len(result)
         }
 

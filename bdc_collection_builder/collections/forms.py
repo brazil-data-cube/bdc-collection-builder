@@ -13,7 +13,7 @@
 from marshmallow import Schema, fields, validates_schema, ValidationError, post_load
 from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_catalog.models import db, Item
+from bdc_catalog.models import db, Item, Collection
 # Builder
 from .models import RadcorActivity, RadcorActivityHistory
 
@@ -90,13 +90,20 @@ class RadcorActivityForm(SimpleActivityForm):
         return HistoryForm().dump(obj.history[0]) if len(obj.history) > 0 else None
 
 
+class CollectionParameter(Schema):
+    collection = fields.String(required=True, allow_none=False)
+    args = fields.Dict(required=False, allow_none=False)
+
+
 class SearchImageForm(Schema):
     """Define the schema to search for images on Remote Providers."""
 
     satsen = fields.String(required=True, allow_none=False)
+    collection = fields.String(required=True, allow_none=False)
+    processing_collections = fields.Nested(CollectionParameter, required=False, allow_none=None, many=True)
     start = fields.Date(required=True, allow_none=False)
     end = fields.Date(required=True, allow_none=False)
-    tags = fields.List(fields.String, required=True, allow_none=False)
+    tags = fields.List(fields.String, allow_none=False)
     cloud = fields.Float(default=100, allow_nan=False)
     action = fields.String(required=True, validate=OneOf(['preview', 'start']))
     w = fields.Float(allow_none=False, allow_nan=False)
@@ -138,3 +145,17 @@ class SearchImageForm(Schema):
 
             if s > n:
                 raise ValidationError('Ymin is greater than YMax')
+
+        if 'processing_collections' in data:
+            collections = []
+
+            for entry in data['processing_collections']:
+                # TODO: Change to collection_id
+                collection = Collection.query().filter(Collection.name == entry['collection']).first()
+
+                if collection is None:
+                    raise ValidationError(f'The processing collection "{entry["collection"]}" does not exists.')
+
+                collections.append(dict(**entry, id=collection.id))
+
+            data['processing_collections'] = collections

@@ -21,7 +21,6 @@ from werkzeug.exceptions import BadRequest, abort
 from bdc_collection_builder.config import Config
 from .forms import SimpleActivityForm
 from .models import RadcorActivity, RadcorActivityHistory, db
-from .sentinel.utils import factory as sentinel_factory
 from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
 
 # Consts

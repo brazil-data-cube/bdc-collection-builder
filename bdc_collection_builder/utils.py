@@ -13,11 +13,9 @@ def initialize_factories():
     """Initialize Brazil Data Cube Collection Builder factories."""
     from .celery.cache import cache
     from .collections.sentinel.clients import sentinel_clients
-    from .collections.sentinel.utils import factory as sentinel_factory
 
     cache.initialize()
     sentinel_clients.initialize()
-    sentinel_factory.register()
 
 
 def finalize_factories():

@@ -16,6 +16,7 @@ from pathlib import Path
 import requests
 
 # 3rdparty
+from bdc_catalog.models import Collection
 from bdc_core.decorators import working_directory
 from sentinelhub import AwsProductRequest, SHConfig
 
@@ -130,7 +131,7 @@ def download_sentinel_from_creodias(scene_id: str, file_path: str):
         _download(file_path, response)
 
 
-def download_from_aws(scene_id: str, destination: str):
+def download_from_aws(scene_id: str, destination: str, **kwargs):
     """Download the Sentinel Scene from AWS.
 
     It uses the library `sentinelhub-py <https://sentinelhub-py.readthedocs.io>`_ to download
@@ -144,6 +145,7 @@ def download_from_aws(scene_id: str, destination: str):
     Args:
         scene_id - Sentinel-2 Product Id (We call as scene_id)
         destination - Path to store data. We recommend to use python `tempfile.TemporaryDirectory` and then move.
+        collection - The collection which refer to the `scene_id`
 
     Returns:
         Path to the downloaded file when success or None when an error occurred.

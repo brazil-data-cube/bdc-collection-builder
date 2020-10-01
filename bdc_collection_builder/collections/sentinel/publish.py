@@ -28,10 +28,10 @@ from ..forms import CollectionItemForm
 from ..utils import generate_cogs, generate_evi_ndvi, is_valid_tif, create_quick_look, create_asset_definition, \
     raster_extent, raster_convexhull
 from ..models import RadcorActivity
-from .utils import get_jp2_files, get_tif_files, factory
+from .utils import get_jp2_files, get_tif_files, SentinelProduct
 
 
-def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwargs):
+def publish(collection_item: Item, scene: RadcorActivity, **kwargs):
     """Publish Sentinel collection.
 
     It works with both L1C and L2A.
@@ -42,23 +42,16 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
     """
     qlband = 'TCI'
 
-    # Get collection level to publish. Default is l1
-    # TODO: Check in database the scenes level 2 already published. We must set to level 2
-    collection_level = scene.args.get('level') or 1
+    collection = scene.collection
 
-    if collection_level == 1 and skip_l1:
-        logging.info(f'Skipping publish skip_l1={skip_l1} L1 - {collection_item.collection_id}')
-        return dict()
-
-    sentinel_scene = factory.get_from_sceneid(scene.sceneid, level=collection_level)
-    harmonized_scene = factory.get_from_sceneid(scene.sceneid, level=3)
+    sentinel_scene = SentinelProduct(scene.sceneid, collection=collection)
 
     product_uri = sentinel_scene.path()
     product_uri.mkdir(parents=True, exist_ok=True)
 
     band_map = sentinel_scene.get_band_map()
 
-    if scene.collection_id == harmonized_scene.id:
+    if scene.collection_id == 'S2NBAR':
         # Retrieves all tif files from scene
         tiffiles = get_tif_files(scene)
 
@@ -84,11 +77,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
         copy(pngname, str(product_uri))
     else:
         # Retrieves all jp2 files from scene
-
-        if sentinel_scene.level == 1:
-            files_list = get_jp2_files(scene)
-        else:
-            files_list = sentinel_scene.get_files()
+        files_list = sentinel_scene.get_files()
 
         # Find the desired files to be published and put then in files
         bands = []
@@ -125,12 +114,6 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
     # Create vegetation index
     generate_vi(file_basename, str(product_uri), files)
 
-    bands.append('NDVI')
-    bands.append('EVI')
-
-    band_map['NDVI'] = 'ndvi'
-    band_map['EVI'] = 'evi'
-
     for sband in bands:
         band = band_map[sband]
         file = files[band]
@@ -151,10 +134,6 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
             'aws': db_aws
         }
         engine = engine_instance[instance]
-
-        # Skip catalog on aws for digital number
-        if sentinel_scene.level == 1 and instance == 'aws':
-            continue
 
         base_file_prefix = 'Repository/Archive'
 
@@ -208,7 +187,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                     cog_file_name = '{}_{}.tif'.format(file_basename, sband)
                     cog_file_path = product_uri / cog_file_name
 
-                    band_model = next(filter(lambda b: b.name == sband, collection_bands), None)
+                    band_model: Band = next(filter(lambda b: b.name == sband, collection_bands), None)
 
                     if band_model is None:
                         logging.warning('Band {} not registered on database. Skipping'.format(sband))
@@ -216,7 +195,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
 
                     if geom is None:
                         geom = raster_extent(cog_file_path)
-                        min_convex_hull = raster_convexhull(cog_file_path)
+                        min_convex_hull = raster_convexhull(cog_file_path, no_data=band_model.nodata)
 
                     assets[band_model.name] = create_asset_definition(
                         f'{str(asset_url)}/{cog_file_name}', COG_MIME_TYPE,
@@ -246,8 +225,8 @@ def create_quick_look_from_tci(pngname, qlfile):
 
 def generate_vi(identifier, productdir, files):
     """Prepare and generate Vegetation Index of Sentinel Products."""
-    ndvi_name = os.path.join(productdir, identifier+"_NDVI.tif")
-    evi_name = os.path.join(productdir, identifier+"_EVI.tif")
+    ndvi_name = os.path.join(productdir, identifier+"_sr_ndvi.tif")
+    evi_name = os.path.join(productdir, identifier+"_sr_evi.tif")
     files['ndvi'] = ndvi_name
     files['evi'] = evi_name
 

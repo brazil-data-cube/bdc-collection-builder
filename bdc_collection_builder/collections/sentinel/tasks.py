@@ -8,7 +8,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from urllib3.exceptions import NewConnectionError, MaxRetryError
-from zipfile import ZipFile
 import logging
 import os
 import re
@@ -29,14 +28,14 @@ from ...celery.cache import lock_handler
 from ...config import Config
 from ...db import db_aws
 from ..base_task import RadcorTask
-from ..utils import extract_and_get_internal_name, refresh_assets_view, is_valid_compressed, upload_file
+from ..utils import extract_and_get_internal_name, is_valid_compressed, upload_file, post_processing
 from .clients import sentinel_clients
 from .download import download_sentinel_images, download_sentinel_from_creodias, download_from_aws
 from .harmonization import sentinel_harmonize
 from .publish import publish
 from .correction import correction_laSRC
 from .onda import download_from_onda
-from .utils import factory, post_processing, DataSynchronizer
+from .utils import DataSynchronizer, SentinelProduct
 
 
 class SentinelTask(RadcorTask):
@@ -94,11 +93,13 @@ class SentinelTask(RadcorTask):
         Returns:
             dict Scene with sentinel file path
         """
-        # Get Sentinel collection handler
-        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=1)
-
         # Create/update activity
         activity_history = self.create_execution(scene)
+
+        collection: Collection = activity_history.activity.collection
+
+        # Get Sentinel collection handler
+        sentinel_scene = SentinelProduct(scene['sceneid'], collection=collection)
 
         with db.session.no_autoflush:
             activity_args = scene.get('args', dict())
@@ -150,7 +151,7 @@ class SentinelTask(RadcorTask):
                                 try:
                                     # Google / Safe generator
                                     for _download in download_handler:
-                                        downloaded_file = _download(scene_id, tmp)
+                                        downloaded_file = _download(scene_id, tmp, collection=collection)
 
                                         if downloaded_file:
                                             break
@@ -195,7 +196,7 @@ class SentinelTask(RadcorTask):
 
         return scene
 
-    def correction(self, scene):
+    def correction(self, scene, collection_id=None, **kwargs):
         """Apply atmospheric correction on collection.
 
         Args:
@@ -203,17 +204,18 @@ class SentinelTask(RadcorTask):
         """
         logging.debug('Starting Correction Sentinel...')
 
-        # Get Resolver for Landsat scene level 2
-        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=2)
+        if collection_id:
+            scene['collection_id'] = collection_id
 
-        collection = Collection.query().filter(Collection.name == sentinel_scene.id).first()
-
-        # Set Collection to the Sentinel Surface Reflectance
-        scene['collection_id'] = collection.id
         scene['activity_type'] = 'correctionS2'
 
         # Create/update activity
-        self.create_execution(scene)
+        execution = self.create_execution(scene)
+
+        collection: Collection = execution.activity.collection
+
+        # Get Resolver for Landsat scene level 2
+        sentinel_scene = SentinelProduct(scene['sceneid'], collection=collection)
 
         synchronizer = DataSynchronizer(scene['args']['compressed_file'])
 
@@ -236,13 +238,12 @@ class SentinelTask(RadcorTask):
 
                 logging.info(f'File {scene["args"].get("compressed_file")} removed.')
 
-        scene['args']['level'] = 2
         scene['args']['file'] = correction_result
         scene['activity_type'] = 'publishS2'
 
         return scene
 
-    def publish(self, scene, **kwargs):
+    def publish(self, scene, collection_id=None, **kwargs):
         """Publish and persist collection on database.
 
         Args:
@@ -250,7 +251,8 @@ class SentinelTask(RadcorTask):
         """
         scene['activity_type'] = 'publishS2'
 
-        sentinel_scene = factory.get_from_sceneid(scene['sceneid'], level=scene['args'].get('level') or 1)
+        if collection_id:
+            scene['collection_id'] = collection_id
 
         # Create/update activity
         activity_history = self.create_execution(scene)
@@ -298,7 +300,7 @@ class SentinelTask(RadcorTask):
 
         return scene
 
-    def upload(self, scene):
+    def upload(self, scene, **kwargs):
         """Upload collection to AWS.
 
         Make sure to set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
@@ -325,7 +327,7 @@ class SentinelTask(RadcorTask):
         except BaseException as e:
             logging.error(f'Cannot remove {scene["args"]["file"]} - {str(e)}')
 
-    def harmonize(self, scene):
+    def harmonize(self, scene, **kwargs):
         """Apply Harmonization on Sentinel-2 collection.
 
         Args:
@@ -383,7 +385,7 @@ class SentinelTask(RadcorTask):
 
         return scene
 
-    def post_publish(self, scene):
+    def post_publish(self, scene, **kwargs):
         logging.info(f'Applying post-processing for {scene["sceneid"]}')
         collection = Collection.query().filter(Collection.id == scene['collection_id']).first()
 
@@ -481,15 +483,15 @@ def upload_sentinel(scene):
 
 
 @celery_app.task(base=SentinelTask, queue='harmonization')
-def harmonization_sentinel(scene):
+def harmonization_sentinel(scene, **kwargs):
     """Represent a celery task definition for harmonizing Sentinel2.
     This celery tasks listen only for queues 'harmonizeS2'.
     Args:
         scene (dict): Radcor Activity with "harmonizeS2" app context
     """
-    return harmonization_sentinel.harmonize(scene)
+    return harmonization_sentinel.harmonize(scene, **kwargs)
 
 
 @celery_app.task(base=SentinelTask, queue='post-processing')
-def apply_post_processing(scene):
-    return apply_post_processing.post_publish(scene)
+def apply_post_processing(scene, **kwargs):
+    return apply_post_processing.post_publish(scene, **kwargs)

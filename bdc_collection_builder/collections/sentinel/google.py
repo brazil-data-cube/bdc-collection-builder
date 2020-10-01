@@ -13,21 +13,20 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Tuple
 # 3rdparty
 from bdc_core.decorators import working_directory
 from google.cloud import storage
 
-from .utils import factory
+from .utils import SentinelProduct
 
 
-def download_from_google(scene_id: str, destination: str, bucket_name: str = 'gcp-public-data-sentinel-2'):
+def download_from_google(scene_id: str, destination: str, collection, bucket_name: str = 'gcp-public-data-sentinel-2'):
     """Download files from Google Cloud Storage."""
     try:
         # Creates a GCS Client
         storage_client = storage.Client()
 
-        scene = factory.get_from_sceneid(scene_id, level=1)
+        scene = SentinelProduct(scene_id, collection=collection)
 
         tile_id = scene.tile_id()
 

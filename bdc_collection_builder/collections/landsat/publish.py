@@ -230,7 +230,7 @@ def publish(collection_item: Item, scene: RadcorActivity, skip_l1=False, **kwarg
                     .all()
 
                 assets = dict(
-                    thumbnail=create_asset_definition(str(asset_url), 'image/png', ['thumbnail'], str(pngname))
+                    thumbnail=create_asset_definition(str(pngname_relative), 'image/png', ['thumbnail'], str(pngname))
                 )
 
                 geom = min_convex_hull = None

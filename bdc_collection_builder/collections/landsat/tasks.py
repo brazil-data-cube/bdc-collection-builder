@@ -316,7 +316,7 @@ class LandsatTask(RadcorTask):
 
         return scene
 
-    def post_publish(self, scene):
+    def post_publish(self, scene, **kwargs):
         logging.info(f'Applying post-processing for {scene["sceneid"]}')
         collection = Collection.query().filter(Collection.id == scene['collection_id']).first()
 
@@ -417,5 +417,5 @@ def harmonization_landsat(scene):
 
 
 @celery_app.task(base=LandsatTask, queue='post-processing')
-def apply_post_processing(scene):
-    return apply_post_processing.post_publish(scene)
+def apply_post_processing(scene, **kwargs):
+    return apply_post_processing.post_publish(scene, **kwargs)

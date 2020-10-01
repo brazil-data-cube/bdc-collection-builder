@@ -250,7 +250,7 @@ def publish(collection_item: Item, scene: RadcorActivity, **kwargs):
                         ['data'], files[band], is_raster=True
                     )
 
-                    assets_to_upload[band] = dict(file=files[band], asset=template)
+                    assets_to_upload[band_model.name] = dict(file=files[band], asset=template)
 
                 collection_item.assets = assets
                 collection_item.geom = from_shape(geom, srid=4326)

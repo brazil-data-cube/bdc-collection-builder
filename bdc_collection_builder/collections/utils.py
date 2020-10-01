@@ -181,7 +181,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
             atm_corr_chain = landsat_tasks.atm_correction_landsat.s(**copy_kwargs)
             # Publish ATM Correction
             publish_atm_chain = landsat_tasks.publish_landsat.s(**copy_kwargs) | \
-                                landsat_tasks.upload_landsat.s(**copy_kwargs)
+                                landsat_tasks.apply_post_processing.s(**copy_kwargs)
 
             inner_group = publish_atm_chain
 
@@ -190,7 +190,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
                 # Harmonization chain
                 harmonize_chain = landsat_tasks.harmonization_landsat.s(**copy_kwargs) | \
                                   landsat_tasks.publish_landsat.s(**copy_kwargs) | \
-                                  landsat_tasks.upload_landsat.s(**copy_kwargs)
+                                  landsat_tasks.apply_post_processing.s(**copy_kwargs)
 
                 inner_group = group(publish_atm_chain, harmonize_chain)
 
@@ -206,7 +206,7 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         # Atm Correction chain
         atm_corr_chain = landsat_tasks.atm_correction_landsat.s(activity)
         # Publish ATM Correction
-        publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.upload_landsat.s()
+        publish_atm_chain = landsat_tasks.publish_landsat.s() | landsat_tasks.apply_post_processing.s()
 
         inner_group = publish_atm_chain
 
@@ -220,12 +220,12 @@ def dispatch(activity: dict, skip_l1=None, **kwargs):
         task_chain = atm_corr_chain | inner_group
         return chain(task_chain).apply_async()
     elif app == 'publishLC8':
-        task_chain = landsat_tasks.publish_landsat.s(activity)
+        task_chain = landsat_tasks.publish_landsat.s(activity) | landsat_tasks.apply_post_processing.s()
 
         return chain(task_chain).apply_async()
     elif app == 'harmonizeLC8':
         task_chain = landsat_tasks.harmonization_landsat.s(activity) | landsat_tasks.publish_landsat.s() | \
-                    landsat_tasks.upload_landsat.s()
+                    landsat_tasks.apply_post_processing.s()
         return chain(task_chain).apply_async()
     elif app == 'uploadLC8':
         return landsat_tasks.upload_landsat.s(activity).apply_async()

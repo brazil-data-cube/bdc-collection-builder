@@ -8,6 +8,8 @@
 
 """Python Brazil Data Cube Collection Builder."""
 
+from json import JSONEncoder
+
 from bdc_catalog.ext import BDCCatalog
 from flask import Flask
 
@@ -25,6 +27,8 @@ def create_app(config_name='DevelopmentConfig'):
     Returns:
         Flask Application with config instance scope
     """
+    from bdc_collectors.ext import CollectorExtension
+
     app = Flask(__name__)
     conf = config.get_settings(config_name)
     app.config.from_object(conf)
@@ -32,6 +36,8 @@ def create_app(config_name='DevelopmentConfig'):
     with app.app_context():
         # Initialize Flask SQLAlchemy
         BDCCatalog(app)
+
+        CollectorExtension(app)
 
         from bdc_collection_builder.db import db_aws
         db_aws.initialize()
@@ -59,6 +65,21 @@ def create_app(config_name='DevelopmentConfig'):
             response.headers.add('Access-Control-Allow-Origin', '*')
             response.headers.add('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
             return response
+
+
+        class ImprovedJSONEncoder(JSONEncoder):
+            def default(self, o):
+                from datetime import datetime
+
+                if isinstance(o, set):
+                    return list(o)
+                if isinstance(o, datetime):
+                    return o.isoformat()
+                return super(ImprovedJSONEncoder, self).default(o)
+
+        app.config['RESTPLUS_JSON'] = {'cls': ImprovedJSONEncoder}
+
+    app.json_encoder = ImprovedJSONEncoder
 
     return app
 

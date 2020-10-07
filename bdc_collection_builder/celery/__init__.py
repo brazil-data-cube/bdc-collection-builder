@@ -9,16 +9,17 @@
 """Celery module used in Brazil Data Cube."""
 
 import logging
+
+import flask
 from celery import Celery
 from flask import Flask
 from bdc_catalog.models import db
-import flask
-from bdc_collection_builder.config import Config
+
+from ..config import Config
 
 
 CELERY_TASKS = [
-    'bdc_collection_builder.collections.sentinel',
-    'bdc_collection_builder.collections.landsat'
+    f'{__package__}.tasks'
 ]
 
 celery_app = None

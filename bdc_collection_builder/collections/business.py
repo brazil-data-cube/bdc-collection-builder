@@ -11,17 +11,22 @@
 
 # Python Native
 from datetime import datetime
-import logging
 # 3rdparty
-from bdc_catalog.models import Collection
+from bdc_catalog.models import Collection, Provider
+from bdc_collectors.ext import CollectorExtension, BaseProvider
+from flask import current_app
+from celery import chain, group
 from celery.backends.database import Task
 from sqlalchemy import func, Date
-from werkzeug.exceptions import BadRequest, abort
+from werkzeug.exceptions import BadRequest
 # Builder
-from bdc_collection_builder.config import Config
-from .forms import SimpleActivityForm
+from ..config import Config
+from ..celery.tasks import download, correction, publish, post
+from .forms import RadcorActivityForm, SimpleActivityForm
 from .models import RadcorActivity, RadcorActivityHistory, db
-from .utils import dispatch, get_landsat_scenes, get_sentinel_scenes, get_or_create_model
+from .utils import get_or_create_model
+
+from .models import ActivitySRC
 
 # Consts
 CLOUD_DEFAULT = 100
@@ -76,18 +81,21 @@ class RadcorBusiness:
         activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
         # Define a start wrapper in order to preview or start activity
-        start_activity = cls.start if str(action).lower() == 'start' else lambda _: _
+        start_activity = cls.dispatch if str(action).lower() == 'start' else lambda _: _
 
         serialized_activities = SimpleActivityForm().dump(activities, many=True)
 
         for activity in serialized_activities:
-            activity['args'].update(kwargs)
-            start_activity(activity)
+            start_activity(activity['id'])
+
+        # for activity in serialized_activities:
+        #     activity['args'].update(kwargs)
+        #     start_activity(activity)
 
         return serialized_activities
 
     @classmethod
-    def create_activity(cls, activity):
+    def create_activity(cls, activity, parent=None):
         """Persist an activity on database."""
         where = dict(
             sceneid=activity['sceneid'],
@@ -100,127 +108,193 @@ class RadcorBusiness:
         if created:
             db.session.add(model)
 
-        return created
+        if parent:
+            relation_defaults = dict(
+                activity=model,
+                parent=parent
+            )
+
+            _relation, _created = get_or_create_model(
+                ActivitySRC,
+                defaults=relation_defaults,
+                **relation_defaults
+            )
+
+        return model, created
+
+    @classmethod
+    def dispatch(cls, activity_id, skip_collection_id=None):
+        """Search by activity and dispatch the respective task.
+
+        TODO: Support object to skip tasks using others values.
+
+        Args:
+            activity_id - Activity Identifier
+            skip_collection_id - Skip the tasks with has the given collection id.
+        """
+        act = RadcorActivity.query().filter(RadcorActivity.id == activity_id).first()
+
+        if act is None:
+            raise RuntimeError(f'Not found activity {activity_id}')
+
+        def _dispatch_task(activity):
+            dump = RadcorActivityForm().dump(activity)
+
+            task = cls._task_definition(activity.activity_type).si(dump)
+
+            if not activity.children:
+                return task
+
+            tasks = []
+
+            for child in activity.children:
+                if skip_collection_id == child.activity.collection_id:
+                    continue
+
+                tasks.append(_dispatch_task(child.activity))
+
+            return task | chain(*tasks)
+
+        task = _dispatch_task(act)
+        task.apply_async()
+
+    @classmethod
+    def _task_definition(cls, task_type):
+        """Get a task by string.
+
+        TODO: We should consider to import dynamically using importlib or factory method.
+        """
+        if task_type == 'download':
+            _task = download
+        elif task_type == 'correction':
+            _task = correction
+        elif task_type == 'publish':
+            _task = publish
+        elif task_type == 'post':
+            _task = post
+        else:
+            raise RuntimeError(f'Task {task_type} not supported.')
+
+        return _task
+
+    @classmethod
+    def _activity_definition(cls, collection_id, activity_type, scene, **kwargs):
+        return dict(
+            collection_id=collection_id,
+            activity_type=activity_type,
+            tags=kwargs.get('tags', []),
+            sceneid=scene.scene_id,
+            scene_type='SCENE',
+            args=dict(
+                cloud=scene.cloud_cover,
+                **kwargs
+            )
+        )
 
     @classmethod
     def radcor(cls, args: dict):
         """Search for Landsat/Sentinel Images and dispatch download task."""
         args.setdefault('limit', 299)
         args.setdefault('cloud', CLOUD_DEFAULT)
-        args['tileid'] = 'notile'
-        args['satsen'] = args['satsen']
-        args['start'] = args.get('start')
-        args['end'] = args.get('end')
 
         # Get bbox
         w = float(args['w'])
         e = float(args['e'])
         s = float(args['s'])
         n = float(args['n'])
+        bbox = [w, s, e, n]
 
-        # Get the requested period to be processed
-        rstart = args['start']
-        rend = args['end']
-
-        sat = args['satsen']
         cloud = float(args['cloud'])
-        limit = args['limit']
         action = args.get('action', 'preview')
-        do_harmonization = (args['harmonize'].lower() == 'true') if 'harmonize' in args else False
-
-        processing_collections = args.get('processing_collections', [])
-
-        extra_args = args.get('args', dict(processing_collections=processing_collections))
-
-        activities = []
 
         collections = Collection.query().filter(Collection.collection_type == 'collection').all()
 
         # TODO: Review this code. The collection name is not unique anymore.
         collections_map = {c.name: c.id for c in collections}
 
-        scenes = {}
-
-        collection_id = collections_map.get(args['collection'])
-
-        if collection_id is None:
-            abort(404, f'Collection {args["collection"]} not found.')
+        tasks = args.get('tasks', [])
 
         try:
-            if 'landsat' in sat.lower():
-                result = get_landsat_scenes(w, n, e, s, rstart, rend, cloud, sat)
-                scenes.update(result)
+            collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
 
-                for id in result:
-                    scene = result[id]
-                    sceneid = scene['sceneid']
+            catalog_provider: Provider = Provider.query().filter(Provider.name == args['catalog']).first_or_404()
 
-                    # Set collection_id as L1 by default. Change to L2 when skip L1 tasks (AWS)
-                    activity = dict(
-                        collection_id=collection_id,
-                        activity_type='downloadLC8',
-                        tags=args.get('tags', []),
-                        sceneid=sceneid,
-                        scene_type='SCENE',
-                        args=dict(
-                            link=scene['link'],
-                            cloud=scene.get('cloud'),
-                            harmonize=do_harmonization
-                        )
-                    )
+            provider_class = collector_extension.get_provider(catalog_provider.name)
 
-                    created = cls.create_activity(activity)
+            provider: BaseProvider = provider_class(**catalog_provider.credentials)
 
-                    if action == 'start' and not created:
-                        logging.warning('radcor - activity already done {}'.format(activity['sceneid']))
-                        continue
+            result = provider.search(
+                query=args['dataset'],
+                bbox=bbox,
+                start_date=args['start'],
+                end_date=args['end'],
+                cloud_cover=cloud
+            )
 
-                    activities.append(activity)
+            def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
+                collection_id = collections_map[task['collection']]
 
-            if 'S2' in sat:
-                result = get_sentinel_scenes(w, n, e, s, rstart, rend, cloud, limit)
-                scenes.update(result)
+                activity = cls._activity_definition(collection_id, task['type'], scene, **task['args'])
+                activity['args'].update(dict(catalog=args['catalog'], dataset=args['dataset']))
 
-                for id in result:
-                    scene = result[id]
-                    sceneid = scene['sceneid']
+                _task = cls._task_definition(task['type'])
 
-                    activity = dict(
-                        collection_id=collection_id,
-                        activity_type='downloadS2',
-                        tags=args.get('tags', []),
-                        sceneid=sceneid,
-                        scene_type='SCENE',
-                        args=dict(
-                            link=scene['link'],
-                            cloud=scene.get('cloud'),
-                            harmonize=do_harmonization
-                        )
-                    )
+                instance, created = cls.create_activity(activity, parent)
+                dump = RadcorActivityForm().dump(instance)
+                dump['args'].update(activity['args'])
 
-                    created = cls.create_activity(activity)
+                keywords = dict(collection_id=collection_id, activity_type=task['type'])
 
-                    if action == 'start' and not created:
-                        logging.warning('radcor - activity already done {}'.format(sceneid))
-                        continue
+                if not task.get('tasks'):
+                    return _task.s(**keywords)
 
-                    scenes[id] = scene
+                res = []
 
-                    activities.append(activity)
+                for child in task['tasks']:
+                    # When triggering children, use parallel=False to use chain workflow
+                    res.append(_recursive(scene, child, parent=instance, parallel=False, pass_args=False))
+
+                handler = group(*res) if parallel else chain(*res)
+
+                arguments = []
+
+                if pass_args:
+                    arguments.append(dump)
+
+                return _task.s(*arguments, **keywords) | handler
 
             if action == 'start':
+                to_dispatch = []
+
+                with db.session.begin_nested():
+                    for scene_result in result:
+                        for task in tasks:
+                            if task['type'] == 'download':
+                                cls.validate_provider(collections_map[task['collection']])
+
+                            children_task = _recursive(scene_result, task, parent=None)
+
+                            to_dispatch.append(children_task)
+
                 db.session.commit()
 
-                for activity in activities:
-                    cls.start(activity, **extra_args)
-            else:
-                db.session.rollback()
-
+                group(to_dispatch).apply_async()
         except BaseException:
             db.session.rollback()
             raise
 
-        return scenes
+        return result
+
+    @classmethod
+    def validate_provider(cls, collection_id):
+        collection = Collection.query().filter(Collection.id == collection_id).first_or_404()
+
+        collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
+
+        download_order = collector_extension.get_provider_order(collection)
+
+        if len(download_order) == 0:
+            raise RuntimeError(f'Collection {collection.name} does not have any data provider set.')
 
     @classmethod
     def list_activities(cls, args: dict):

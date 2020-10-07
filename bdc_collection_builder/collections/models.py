@@ -11,7 +11,7 @@
 from bdc_catalog.models import Collection
 from bdc_catalog.models.base_sql import BaseModel, db
 from celery.backends.database import Task
-from sqlalchemy import ARRAY, Column, DateTime, Integer, ForeignKey, JSON, String
+from sqlalchemy import ARRAY, Column, DateTime, Integer, ForeignKey, JSON, String, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 
 from ..config import Config
@@ -29,6 +29,8 @@ class RadcorActivity(BaseModel):
     __tablename__ = 'activities'
     __table_args__ = dict(schema=Config.ACTIVITIES_SCHEMA)
 
+    # TODO: Index for scene_id, activity_type, collection_id (Combined??)
+
     id = Column(Integer, primary_key=True)
     collection_id = Column(ForeignKey(Collection.id), nullable=False)
     activity_type = Column('activity_type', String(64), nullable=False)
@@ -40,6 +42,29 @@ class RadcorActivity(BaseModel):
     # Relations
     collection = relationship('Collection')
     history = relationship('RadcorActivityHistory', back_populates='activity', order_by='desc(RadcorActivityHistory.start)')
+
+    children = relationship('ActivitySRC', primaryjoin='RadcorActivity.id == ActivitySRC.activity_src_id')
+
+
+class ActivitySRC(BaseModel):
+    """Model for collection provenance/lineage."""
+
+    __tablename__ = 'activity_src'
+
+    activity_id = db.Column(db.Integer(),
+              db.ForeignKey(RadcorActivity.id, onupdate='CASCADE', ondelete='CASCADE'),
+              nullable=False)
+
+    activity_src_id = db.Column(db.Integer(),
+              db.ForeignKey(RadcorActivity.id, onupdate='CASCADE', ondelete='CASCADE'),
+              nullable=False)
+
+    activity = relationship(RadcorActivity, primaryjoin='ActivitySRC.activity_id == RadcorActivity.id')
+    parent = relationship(RadcorActivity, primaryjoin='ActivitySRC.activity_src_id == RadcorActivity.id')
+
+    __table_args__ = (
+        PrimaryKeyConstraint(activity_id, activity_src_id),
+    )
 
 
 class RadcorActivityHistory(BaseModel):

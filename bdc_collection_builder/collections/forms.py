@@ -90,22 +90,24 @@ class RadcorActivityForm(SimpleActivityForm):
         return HistoryForm().dump(obj.history[0]) if len(obj.history) > 0 else None
 
 
-class CollectionParameter(Schema):
+class TaskDispatcher(Schema):
+    type = fields.String(required=True, allow_none=False, validate=OneOf(['download', 'correction', 'publish', 'post', 'harmonization']))
     collection = fields.String(required=True, allow_none=False)
     args = fields.Dict(required=False, allow_none=False)
+    tasks = fields.Nested('TaskDispatcher', required=False, allow_none=None, many=True)
 
 
 class SearchImageForm(Schema):
     """Define the schema to search for images on Remote Providers."""
 
-    satsen = fields.String(required=True, allow_none=False)
-    collection = fields.String(required=True, allow_none=False)
-    processing_collections = fields.Nested(CollectionParameter, required=False, allow_none=None, many=True)
+    dataset = fields.String(required=True, allow_none=False)
+    catalog = fields.String(required=True, allow_none=False)
+    tasks = fields.Nested(TaskDispatcher, required=False, allow_none=None, many=True)
     start = fields.Date(required=True, allow_none=False)
     end = fields.Date(required=True, allow_none=False)
     tags = fields.List(fields.String, allow_none=False)
     cloud = fields.Float(default=100, allow_nan=False)
-    action = fields.String(required=True, validate=OneOf(['preview', 'start']))
+    action = fields.String(required=True, validate=OneOf(['preview', 'start']), default='preview')
     w = fields.Float(allow_none=False, allow_nan=False)
     s = fields.Float(allow_none=False, allow_nan=False)
     e = fields.Float(allow_none=False, allow_nan=False)

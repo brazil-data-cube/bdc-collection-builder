@@ -99,7 +99,7 @@ def _restart(args: dict):
 
 
 @bp.route('/radcor/restart', methods=('GET', 'POST',))
-def restart(self):
+def restart():
     """Restart Task.
 
     The request is limited to 4Kb.
@@ -108,7 +108,7 @@ def restart(self):
     """
     if request.method == 'POST':
         args = request.get_json()
-        return self._restart(args)
+        return _restart(args)
 
     # Limit request query string to 4KB on GET
     if len(request.query_string) > 4096:
@@ -116,7 +116,7 @@ def restart(self):
 
     args = request.args.to_dict()
 
-    return self._restart(args)
+    return _restart(args)
 
 
 @bp.route('/stats/active')

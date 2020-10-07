@@ -21,7 +21,7 @@ from ..constants import COG_MIME_TYPE
 def guess_mime_type(extension: str) -> Optional[str]:
     mime = mimetypes.guess_type(extension)
 
-    if mime in COG_MIME_TYPE:
+    if mime[0] in COG_MIME_TYPE:
         return COG_MIME_TYPE
 
     return mime[0]

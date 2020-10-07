@@ -20,27 +20,15 @@ from celery.backends.database import Task
 from sqlalchemy import func, Date
 from werkzeug.exceptions import BadRequest
 # Builder
-from ..config import Config
-from ..celery.tasks import download, correction, publish, post
+from .config import Config
+from .celery.tasks import download, correction, publish, post
 from .forms import RadcorActivityForm, SimpleActivityForm
-from .models import RadcorActivity, RadcorActivityHistory, db
-from .utils import get_or_create_model
-
-from .models import ActivitySRC
-
-# Consts
-CLOUD_DEFAULT = 100
-DESTINATION_DIR = Config.DATA_DIR
+from .collections.models import ActivitySRC, RadcorActivity, RadcorActivityHistory, db
+from .collections.utils import get_or_create_model
 
 
 class RadcorBusiness:
     """Define an interface for handling entire module business."""
-
-    @classmethod
-    def start(cls, activity, skip_l1=None, **kwargs):
-        """Dispatch the celery tasks."""
-        activity['args'].update(kwargs)
-        return dispatch(activity, skip_l1, **kwargs)
 
     @classmethod
     def restart(cls, ids=None, status=None, activity_type=None, sceneid=None, collection_id=None, action=None, **kwargs):
@@ -195,7 +183,7 @@ class RadcorBusiness:
     def radcor(cls, args: dict):
         """Search for Landsat/Sentinel Images and dispatch download task."""
         args.setdefault('limit', 299)
-        args.setdefault('cloud', CLOUD_DEFAULT)
+        args.setdefault('cloud', 100)
 
         # Get bbox
         w = float(args['w'])

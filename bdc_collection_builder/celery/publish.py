@@ -15,10 +15,14 @@ from skimage.transform import resize
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, get_or_create_model,
                                  raster_extent, raster_convexhull, generate_cogs)
+from ..constants import COG_MIME_TYPE
 
 
 def guess_mime_type(extension: str) -> Optional[str]:
     mime = mimetypes.guess_type(extension)
+
+    if mime in COG_MIME_TYPE:
+        return COG_MIME_TYPE
 
     return mime[0]
 

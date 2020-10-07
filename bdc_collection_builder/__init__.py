@@ -37,27 +37,18 @@ def create_app(config_name='DevelopmentConfig'):
         # Initialize Flask SQLAlchemy
         BDCCatalog(app)
 
+        # Initialize Collector Extension
         CollectorExtension(app)
-
-        from bdc_collection_builder.db import db_aws
-        db_aws.initialize()
 
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)
         celery.celery_app = celery_app
 
         # Setup blueprint
-        from bdc_collection_builder.blueprint import bp
+        from .views import bp
         app.register_blueprint(bp)
 
         load_celery_models()
-
-        from .utils import initialize_factories
-
-        @app.before_first_request
-        def register_factories_on_init(*args):
-            """Load Brazil Data Cube factories on init."""
-            initialize_factories()
 
         @app.after_request
         def after_request(response):
@@ -65,7 +56,6 @@ def create_app(config_name='DevelopmentConfig'):
             response.headers.add('Access-Control-Allow-Origin', '*')
             response.headers.add('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
             return response
-
 
         class ImprovedJSONEncoder(JSONEncoder):
             def default(self, o):

@@ -44,6 +44,9 @@ class Config:
     COLLECTION_BUILDER_SYNC = strtobool(str(os.getenv('COLLECTION_BUILDER_SYNC', False)))
     COLLECTION_BUILDER_SYNC_BUCKET = os.getenv('COLLECTION_BUILDER_SYNC_BUCKET', None)
 
+    # Items - Use AWS_BUCKET_NAME as prefix.
+    USE_BUCKET_PREFIX = os.getenv('USE_BUCKET_PREFIX', strtobool(str(os.getenv('USE_BUCKET_PREFIX', False))))
+
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-archive')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'CHANGE_ME')

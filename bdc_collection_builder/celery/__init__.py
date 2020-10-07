@@ -72,7 +72,6 @@ def create_celery_app(flask_app: Flask):
                     # Following example of Flask
                     # Just make sure the task execution is running inside flask context
                     # https://flask.palletsprojects.com/en/1.1.x/patterns/celery/
-
                     return TaskBase.__call__(self, *args, **kwargs)
             else:
                 logging.warning('Not Call context Task')
@@ -96,7 +95,6 @@ def create_celery_app(flask_app: Flask):
 
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()
-
 
     celery.Task = ContextTask
 

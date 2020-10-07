@@ -15,7 +15,7 @@ from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
 from bdc_catalog.models import db, Item, Collection
 # Builder
-from .models import RadcorActivity, RadcorActivityHistory
+from .collections.models import RadcorActivity, RadcorActivityHistory
 
 
 class TaskSchema(Schema):

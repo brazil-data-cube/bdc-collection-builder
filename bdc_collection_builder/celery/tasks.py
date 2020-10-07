@@ -58,10 +58,13 @@ def create_execution(activity):
     return model
 
 
-def execution_from_collection(activity, collection_id=None):
+def execution_from_collection(activity, collection_id=None, activity_type=None):
     """Create an task execution context and set the collection."""
     if collection_id:
         activity['collection_id'] = collection_id
+
+    if activity_type:
+        activity['activity_type'] = activity_type
 
     return create_execution(activity)
 
@@ -155,13 +158,15 @@ def download(activity: dict, **kwargs):
             temp_file.rename(str(download_file))
 
     activity['args']['compressed_file'] = str(download_file)
+    execution.activity.args['compressed_file'] = str(download_file)
+    execution.save()
 
     return activity
 
 
 @current_app.task(queue='correction')
 def correction(activity: dict, collection_id=None, **kwargs):
-    execution = execution_from_collection(activity, collection_id=collection_id)
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
 
     collection = execution.activity.collection
     scene_id = activity['sceneid']
@@ -195,6 +200,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
             assert process.returncode == 0
 
             activity['args']['file'] = str(output_path)
+            execution.activity.args['file'] = str(output_path)
     except Exception as e:
         logging.error(f'Error in correction {scene_id} - {str(e)}', exc_info=True)
         raise e
@@ -204,7 +210,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='publish')
 def publish(activity: dict, collection_id=None, **kwargs):
-    execution = execution_from_collection(activity, collection_id=collection_id)
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
 
     collection = execution.activity.collection
 
@@ -225,7 +231,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='post')
 def post(activity: dict, collection_id=None, **kwargs):
-    execution = execution_from_collection(activity, collection_id=collection_id)
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
 
     collection = execution.activity.collection
 

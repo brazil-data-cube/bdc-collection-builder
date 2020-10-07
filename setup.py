@@ -67,7 +67,6 @@ g = {}
 with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
     exec(fp.read(), g)
     version = g['__version__']
-
 setup(
     name='bdc-collection-builder',
     version=version,
@@ -90,8 +89,8 @@ setup(
             'bdc_collection_builder = bdc_collection_builder:alembic'
         ],
         'bdc_db.models': [
-            'bdc_collection_builder = bdc_collection_builder.collections.models',
             'celery = celery.backends.database.models',
+            'bdc_collection_builder = bdc_collection_builder.collections.models',
         ]
     },
     extras_require=extras_require,
@@ -110,3 +109,4 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
 )
+

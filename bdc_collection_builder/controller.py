@@ -18,9 +18,8 @@ from flask import current_app
 from celery import chain, group
 from celery.backends.database import Task
 from sqlalchemy import func, Date
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, abort
 # Builder
-from .config import Config
 from .celery.tasks import download, correction, publish, post
 from .forms import RadcorActivityForm, SimpleActivityForm
 from .collections.models import ActivitySRC, RadcorActivity, RadcorActivityHistory, db
@@ -58,27 +57,26 @@ class RadcorBusiness:
 
         if sceneid:
             if collection_id is None or activity_type is None:
-                raise BadRequest('The parameters "collection_id" and "activity_type" are required to search by sceneid.')
+                raise BadRequest('Requires "collection_id" and "activity_type" to search by scene id.')
 
             scenes = sceneid.split(',') if isinstance(sceneid, str) else sceneid
             restrictions.append(RadcorActivity.sceneid.in_(scenes))
 
         if len(restrictions) == 0:
-            raise BadRequest('Invalid restart. You must provide query restriction such "ids", "activity_type" or "status"')
+            raise BadRequest('Invalid restart. Requires "ids", "activity_type" or "status"')
 
         activities = db.session.query(RadcorActivity).filter(*restrictions).all()
 
         # Define a start wrapper in order to preview or start activity
         start_activity = cls.dispatch if str(action).lower() == 'start' else lambda _: _
 
-        serialized_activities = SimpleActivityForm().dump(activities, many=True)
+        serializer = SimpleActivityForm()
 
-        for activity in serialized_activities:
-            start_activity(activity['id'])
+        serialized_activities = []
 
-        # for activity in serialized_activities:
-        #     activity['args'].update(kwargs)
-        #     start_activity(activity)
+        for activity in activities:
+            start_activity(activity)
+            serialized_activities.append(serializer.dump(activity))
 
         return serialized_activities
 
@@ -111,39 +109,34 @@ class RadcorBusiness:
         return model, created
 
     @classmethod
-    def dispatch(cls, activity_id, skip_collection_id=None):
+    def dispatch(cls, activity: RadcorActivity, skip_collection_id=None):
         """Search by activity and dispatch the respective task.
 
         TODO: Support object to skip tasks using others values.
 
         Args:
-            activity_id - Activity Identifier
+            activity - Activity to dispatch
             skip_collection_id - Skip the tasks with has the given collection id.
         """
-        act = RadcorActivity.query().filter(RadcorActivity.id == activity_id).first()
+        def _dispatch_task(_activity):
+            dump = RadcorActivityForm().dump(_activity)
 
-        if act is None:
-            raise RuntimeError(f'Not found activity {activity_id}')
+            _task = cls._task_definition(_activity.activity_type).si(dump)
 
-        def _dispatch_task(activity):
-            dump = RadcorActivityForm().dump(activity)
-
-            task = cls._task_definition(activity.activity_type).si(dump)
-
-            if not activity.children:
-                return task
+            if not _activity.children:
+                return _task
 
             tasks = []
 
-            for child in activity.children:
+            for child in _activity.children:
                 if skip_collection_id == child.activity.collection_id:
                     continue
 
                 tasks.append(_dispatch_task(child.activity))
 
-            return task | chain(*tasks)
+            return _task | chain(*tasks)
 
-        task = _dispatch_task(act)
+        task = _dispatch_task(activity)
         task.apply_async()
 
     @classmethod
@@ -182,7 +175,6 @@ class RadcorBusiness:
     @classmethod
     def radcor(cls, args: dict):
         """Search for Landsat/Sentinel Images and dispatch download task."""
-        args.setdefault('limit', 299)
         args.setdefault('cloud', 100)
 
         # Get bbox
@@ -201,6 +193,9 @@ class RadcorBusiness:
         collections_map = {c.name: c.id for c in collections}
 
         tasks = args.get('tasks', [])
+
+        extra_args = args.get('args', dict())
+        force = extra_args.get('force', False)
 
         try:
             collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
@@ -267,7 +262,7 @@ class RadcorBusiness:
                 db.session.commit()
 
                 group(to_dispatch).apply_async()
-        except BaseException:
+        except Exception:
             db.session.rollback()
             raise
 
@@ -279,10 +274,10 @@ class RadcorBusiness:
 
         collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
 
-        download_order = collector_extension.get_provider_order(collection)
+        download_order = collector_extension.get_provider_order(collection, lazy=True)
 
         if len(download_order) == 0:
-            raise RuntimeError(f'Collection {collection.name} does not have any data provider set.')
+            abort(400, f'Collection {collection.name} does not have any data provider set.')
 
     @classmethod
     def list_activities(cls, args: dict):
@@ -310,14 +305,18 @@ class RadcorBusiness:
     def count_activities(cls, args: dict):
         """Count grouped by status on database."""
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
-        if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
-        if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
+        if args.get('start_date'):
+            filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'):
+            filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
+        if args.get('collection'):
+            filters.append(RadcorActivity.collection_id == args['collection'])
+        if args.get('type'):
+            filters.append(RadcorActivity.activity_type.contains(args['type']))
 
         result = db.session.query(Task.status, func.count('*'))\
-            .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\
-            .join(RadcorActivity, RadcorActivity.id==RadcorActivityHistory.activity_id)\
+            .join(RadcorActivityHistory, RadcorActivityHistory.task_id == Task.id)\
+            .join(RadcorActivity, RadcorActivity.id == RadcorActivityHistory.activity_id)\
             .filter(*filters)\
             .group_by(Task.status)\
             .all()
@@ -328,14 +327,18 @@ class RadcorBusiness:
     def count_activities_with_date(cls, args: dict):
         """Count activities by date."""
         filters = []
-        if args.get('start_date'): filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
-        if args.get('last_date'): filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
-        if args.get('collection'): filters.append(RadcorActivity.collection_id == args['collection'])
-        if args.get('type'): filters.append(RadcorActivity.activity_type.contains(args['type']))
+        if args.get('start_date'):
+            filters.append(RadcorActivityHistory.start >= '{}T00:00'.format(args['start_date']))
+        if args.get('last_date'):
+            filters.append(RadcorActivityHistory.start <= '{}T23:59'.format(args['last_date']))
+        if args.get('collection'):
+            filters.append(RadcorActivity.collection_id == args['collection'])
+        if args.get('type'):
+            filters.append(RadcorActivity.activity_type.contains(args['type']))
 
         result = db.session.query(RadcorActivityHistory.start.cast(Date), Task.status, func.count('*'))\
-            .join(RadcorActivityHistory, RadcorActivityHistory.task_id==Task.id)\
-            .join(RadcorActivity, RadcorActivity.id==RadcorActivityHistory.activity_id)\
+            .join(RadcorActivityHistory, RadcorActivityHistory.task_id == Task.id)\
+            .join(RadcorActivity, RadcorActivity.id == RadcorActivityHistory.activity_id)\
             .filter(*filters)\
             .group_by(RadcorActivityHistory.start.cast(Date), Task.status)\
             .order_by(RadcorActivityHistory.start.cast(Date))\

@@ -51,7 +51,7 @@ def create_execution(activity):
         model.start = datetime.utcnow()
 
     # Ensure that args values is always updated
-    model.activity.args = activity['args']
+    model.activity.args.update(activity['args'] or dict())
 
     model.save()
 
@@ -80,9 +80,11 @@ def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
         raise Exception(f'Provider {provider_name} not found.')
 
     if isinstance(instance.credentials, dict):
-        provider = provider_class(**instance.credentials)
+        options = dict(**instance.credentials)
+        options['lazy'] = True
+        provider = provider_class(**options)
     else:
-        provider = provider_class(instance.credentials)
+        provider = provider_class(instance.credentials, lazy=True)
 
     collection = provider.get_collector(dataset)
 
@@ -110,7 +112,7 @@ def download(activity: dict, **kwargs):
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
 
     # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
-    download_order = collector_extension.get_provider_order(collection, parallel=True)
+    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True)
 
     if len(download_order) == 0:
         raise RuntimeError(f'No provider set for collection {collection.id}({collection.name})')
@@ -159,7 +161,7 @@ def download(activity: dict, **kwargs):
 
     activity['args']['compressed_file'] = str(download_file)
     execution.activity.args['compressed_file'] = str(download_file)
-    execution.save()
+    execution.activity.save()
 
     return activity
 
@@ -197,10 +199,17 @@ def correction(activity: dict, collection_id=None, **kwargs):
             process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
             process.wait()
 
+            entry_folder = Path(f'/work/{entry}')
+
+            if entry_folder.exists():
+                logging.warning(f'Folder {str(entry_folder)} still exists. Removing.')
+                shutil.rmtree(entry_folder, ignore_errors=True)
+
             assert process.returncode == 0
 
             activity['args']['file'] = str(output_path)
             execution.activity.args['file'] = str(output_path)
+            execution.activity.save()
     except Exception as e:
         logging.error(f'Error in correction {scene_id} - {str(e)}', exc_info=True)
         raise e
@@ -221,7 +230,9 @@ def publish(activity: dict, collection_id=None, **kwargs):
     try:
         data_collection = get_provider_collection_from_activity(activity)
 
-        publish_collection(scene_id, data_collection, collection, activity['args'].get('cloud'))
+        file = activity['args'].get('file') or activity['args'].get('compressed_file')
+
+        publish_collection(scene_id, data_collection, collection, file, cloud_cover=activity['args'].get('cloud'))
     except RuntimeError as e:
         logging.error(f'Error in publish {scene_id} - {str(e)}', exc_info=True)
         raise
@@ -258,7 +269,13 @@ def post(activity: dict, collection_id=None, **kwargs):
 
         scenes[asset_name] = get_item_path(asset['href'])
 
-    post_processing(quality_path, collection, scenes)
+    # TODO: Look in bands and get resolution
+    resample = None
+
+    if activity['sceneid'].startswith('S2'):
+        resample = 10
+
+    post_processing(quality_path, collection, scenes, resample_to=resample)
     # TODO: Create new band
 
     return activity

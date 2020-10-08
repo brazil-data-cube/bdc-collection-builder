@@ -104,7 +104,7 @@ def get_item_path(relative: str) -> str:
     return str(data_dir / path)
 
 
-def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, cloud_cover=None) -> Item:
+def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str, cloud_cover=None) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -118,14 +118,16 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         scene_id - Scene id reference
         data - Provider collection structure
         collection - Current collection scope
+        file - Path to seek
 
     Returns:
         The created collection item.
     """
-    files = data.get_files(collection)
+    files = data.get_files(collection, path=file)
 
     assets = dict()
 
+    # TODO: Remove first_or_404. The tile property is not required.
     tile = Tile.query().filter(
         Tile.name == data.parser.tile_id(),
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id

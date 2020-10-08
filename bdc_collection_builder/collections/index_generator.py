@@ -96,7 +96,7 @@ def generate_band_indexes(scene_id: str, collection: Collection, scenes: dict) -
         for _, window in blocks:
             machine_context = {
                 # TODO: Should we multiply by scale before pass to the Python Machine?
-                k: ds.dataset.read(1, masked=True, window=window)
+                k: ds.dataset.read(1, masked=True, window=window).astype(numpy.float32)
                 for k, ds in map_data_set_context.items()
             }
 

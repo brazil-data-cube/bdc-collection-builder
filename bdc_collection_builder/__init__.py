@@ -12,6 +12,7 @@ from json import JSONEncoder
 
 from bdc_catalog.ext import BDCCatalog
 from flask import Flask
+from werkzeug.exceptions import HTTPException, InternalServerError
 
 from . import celery, config
 from .celery.utils import load_celery_models
@@ -71,7 +72,23 @@ def create_app(config_name='DevelopmentConfig'):
 
     app.json_encoder = ImprovedJSONEncoder
 
+    setup_error_handlers(app)
+
     return app
+
+
+def setup_error_handlers(app: Flask):
+    """Configure Cube Builder Error Handlers on Flask Application."""
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        """Handle exceptions."""
+        if isinstance(e, HTTPException):
+            return {'code': e.code, 'description': e.description}, e.code
+
+        app.logger.exception(e)
+
+        return {'code': InternalServerError.code,
+                'description': InternalServerError.description}, InternalServerError.code
 
 
 __all__ = (

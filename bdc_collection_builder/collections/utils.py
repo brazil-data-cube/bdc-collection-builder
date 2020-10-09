@@ -170,7 +170,7 @@ def extract_and_get_internal_name(zip_file_name, extract_to=None):
         # Get extracted zip folder name
         with ZipFile(zip_file_name) as zipObj:
             listOfiles = zipObj.namelist()
-            extracted_file_path = listOfiles[0]
+            extracted_file_path = listOfiles[0].split('/')[0] if listOfiles[0].endswith('/') else listOfiles[0]
 
         return extracted_file_path
 

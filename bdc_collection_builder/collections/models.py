@@ -34,7 +34,7 @@ class RadcorActivity(BaseModel):
     args = Column('args', JSON)
     tags = Column('tags', ARRAY(String))
     scene_type = Column('scene_type', String)
-    sceneid = Column('sceneid', String(64), nullable=False)
+    sceneid = Column('sceneid', String(255), nullable=False)
 
     # Relations
     collection = relationship('Collection')

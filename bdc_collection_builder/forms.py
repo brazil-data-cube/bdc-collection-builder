@@ -101,6 +101,8 @@ class SearchImageForm(Schema):
     """Define the schema to search for images on Remote Providers."""
 
     dataset = fields.String(required=True, allow_none=False)
+    platform = fields.String(required=False, allow_none=False)
+    force = fields.Boolean(required=False, allow_none=False, default=False)
     catalog = fields.String(required=True, allow_none=False)
     tasks = fields.Nested(TaskDispatcher, required=False, allow_none=None, many=True)
     start = fields.Date(required=True, allow_none=False)

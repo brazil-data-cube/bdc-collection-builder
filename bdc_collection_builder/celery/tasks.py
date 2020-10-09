@@ -51,7 +51,9 @@ def create_execution(activity):
         model.start = datetime.utcnow()
 
     # Ensure that args values is always updated
-    model.activity.args.update(activity['args'] or dict())
+    copy_args = dict(**model.activity.args)
+    copy_args.update(activity['args'] or dict())
+    model.activity.args = copy_args
 
     model.save()
 
@@ -95,6 +97,16 @@ def get_provider_collection_from_activity(activity: dict) -> BaseCollection:
     return get_provider_collection(activity['args']['catalog'], activity['args']['dataset'])(activity['sceneid'])
 
 
+def refresh_execution_args(execution: RadcorActivityHistory, activity: dict, **kwargs):
+    """Update new values to the execution activity."""
+    copy_args = execution.activity.args.copy()
+    copy_args.update(**kwargs)
+    activity['args'] = copy_args
+
+    execution.activity.args = copy_args
+    execution.save()
+
+
 @current_app.task(
     queue='download',
     max_retries=72,
@@ -112,7 +124,7 @@ def download(activity: dict, **kwargs):
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
 
     # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
-    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True)
+    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False)
 
     if len(download_order) == 0:
         raise RuntimeError(f'No provider set for collection {collection.id}({collection.name})')
@@ -159,9 +171,7 @@ def download(activity: dict, **kwargs):
 
             temp_file.rename(str(download_file))
 
-    activity['args']['compressed_file'] = str(download_file)
-    execution.activity.args['compressed_file'] = str(download_file)
-    execution.activity.save()
+    refresh_execution_args(execution, activity, compressed_file=str(download_file))
 
     return activity
 
@@ -207,9 +217,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
             assert process.returncode == 0
 
-            activity['args']['file'] = str(output_path)
-            execution.activity.args['file'] = str(output_path)
-            execution.activity.save()
+            refresh_execution_args(execution, activity, file=str(output_path))
     except Exception as e:
         logging.error(f'Error in correction {scene_id} - {str(e)}', exc_info=True)
         raise e
@@ -233,6 +241,9 @@ def publish(activity: dict, collection_id=None, **kwargs):
         file = activity['args'].get('file') or activity['args'].get('compressed_file')
 
         publish_collection(scene_id, data_collection, collection, file, cloud_cover=activity['args'].get('cloud'))
+
+        if file:
+            refresh_execution_args(execution, activity, file=str(file))
     except RuntimeError as e:
         logging.error(f'Error in publish {scene_id} - {str(e)}', exc_info=True)
         raise

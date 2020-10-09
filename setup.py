@@ -67,6 +67,7 @@ g = {}
 with open(os.path.join('bdc_collection_builder', 'version.py'), 'rt') as fp:
     exec(fp.read(), g)
     version = g['__version__']
+
 setup(
     name='bdc-collection-builder',
     version=version,

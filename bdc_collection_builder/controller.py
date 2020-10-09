@@ -194,8 +194,11 @@ class RadcorBusiness:
 
         tasks = args.get('tasks', [])
 
-        extra_args = args.get('args', dict())
-        force = extra_args.get('force', False)
+        force = args.get('force', False)
+        options = dict()
+
+        if 'platform' in args:
+            options['platform'] = args['platform']
 
         try:
             collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
@@ -211,31 +214,43 @@ class RadcorBusiness:
                 bbox=bbox,
                 start_date=args['start'],
                 end_date=args['end'],
-                cloud_cover=cloud
+                cloud_cover=cloud,
+                **options
             )
 
             def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
+                """Create task dispatcher recursive."""
                 collection_id = collections_map[task['collection']]
-
+                # Create activity definition example
                 activity = cls._activity_definition(collection_id, task['type'], scene, **task['args'])
                 activity['args'].update(dict(catalog=args['catalog'], dataset=args['dataset']))
 
                 _task = cls._task_definition(task['type'])
-
+                # Try to create activity in database and the parent if there is.
                 instance, created = cls.create_activity(activity, parent)
+
+                # When activity already exists and force is not set, skips to avoid collect multiple times
+                if not created and not force:
+                    return None
+
                 dump = RadcorActivityForm().dump(instance)
                 dump['args'].update(activity['args'])
 
                 keywords = dict(collection_id=collection_id, activity_type=task['type'])
-
+                # If no children
                 if not task.get('tasks'):
+                    if parent is None:
+                        return _task.s(dump, force=force)
                     return _task.s(**keywords)
 
                 res = []
 
                 for child in task['tasks']:
                     # When triggering children, use parallel=False to use chain workflow
-                    res.append(_recursive(scene, child, parent=instance, parallel=False, pass_args=False))
+                    child_task = _recursive(scene, child, parent=instance, parallel=False, pass_args=False)
+
+                    if child_task:
+                        res.append(child_task)
 
                 handler = group(*res) if parallel else chain(*res)
 
@@ -250,18 +265,20 @@ class RadcorBusiness:
                 to_dispatch = []
 
                 with db.session.begin_nested():
-                    for scene_result in result:
-                        for task in tasks:
-                            if task['type'] == 'download':
-                                cls.validate_provider(collections_map[task['collection']])
+                    for task in tasks:
+                        if task['type'] == 'download':
+                            cls.validate_provider(collections_map[task['collection']])
 
+                        for scene_result in result:
                             children_task = _recursive(scene_result, task, parent=None)
 
-                            to_dispatch.append(children_task)
+                            if children_task:
+                                to_dispatch.append(children_task)
 
                 db.session.commit()
 
-                group(to_dispatch).apply_async()
+                if len(to_dispatch) > 0:
+                    group(to_dispatch).apply_async()
         except Exception:
             db.session.rollback()
             raise

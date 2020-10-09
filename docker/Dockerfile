@@ -9,4 +9,5 @@ WORKDIR /app
 
 RUN pip3 install pip --upgrade && \
     pip install wheel && \
-    pip install -e .[all]
+    pip install --use-feature=2020-resolver -e bdc-collectors && \
+    pip install --use-feature=2020-resolver -e .[all]

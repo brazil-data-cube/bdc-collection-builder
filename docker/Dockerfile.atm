@@ -23,4 +23,5 @@ RUN pip3 install GDAL==2.4 && \
     pip3 install pip --upgrade && \
     pip install --upgrade setuptools && \
     pip install wheel && \
-    pip install -e .[all]
+    pip install --use-feature=2020-resolver -e bdc-collectors && \
+    pip install --use-feature=2020-resolver -e .[all]

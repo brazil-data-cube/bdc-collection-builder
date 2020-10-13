@@ -154,7 +154,7 @@ def download(activity: dict, **kwargs):
             for collector in download_order:
                 try:
                     logging.info(f'Trying to download from {collector.provider_name}(id={collector.instance.id})')
-                    temp_file = Path(collector.download(scene_id, output=tmp))
+                    temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))
 
                     activity['args']['provider_id'] = collector.instance.id
 
@@ -167,7 +167,7 @@ def download(activity: dict, **kwargs):
             if temp_file is None or not temp_file.exists():
                 if should_retry:
                     raise DataOfflineError(scene_id)
-                raise RuntimeError('Download fails.')
+                raise RuntimeError(f'Download fails {activity["sceneid"]}.')
 
             temp_file.rename(str(download_file))
 

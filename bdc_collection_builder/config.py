@@ -25,24 +25,35 @@ class Config:
 
     DEBUG = False
     TESTING = False
-    ENABLE_REFRESH_VIEW = strtobool(str(os.environ.get('ENABLE_REFRESH_VIEW', False)))
 
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
         'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
     )
-    SQLALCHEMY_DATABASE_URI_AWS = os.environ.get(
-        'SQLALCHEMY_DATABASE_URI_AWS',
-        'postgresql://postgres:postgres@localhost:5432/bdc_catalog_aws?application_name=local-collection'
+
+    # LaSRC/Fmask4 Processor
+    LASRC_CONFIG = dict(
+        LASRC_DOCKER_IMAGE=os.getenv('LASRC_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:1.0.2'),
+        LASRC_AUX_DIR=os.getenv('LASRC_AUX_DIR', '/data/auxiliaries/lasrc'),
+        LEDAPS_AUX_DIR=os.getenv('LEDAPS_AUX_DIR', '/data/auxiliaries/ledaps'),
     )
-    ITEM_ASSET_PREFIX = os.getenv('ITEM_ASSET_PREFIX', '/Repository/Archive')
-    DISABLE_PUBLISH_SECOND_DB = strtobool(str(os.getenv('DISABLE_PUBLISH_SECOND_DB', True)))
+    # Sen2Cor/Fmask Processor
+    SEN2COR_CONFIG = dict(
+        SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
+        SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
+        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8')
+    )
+
+    # Google Credentials support (Deprecated, use Provider.credentials instead.)
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
 
     # Feature to synchronize data with AWS Buckets.
     COLLECTION_BUILDER_SYNC = strtobool(str(os.getenv('COLLECTION_BUILDER_SYNC', False)))
     COLLECTION_BUILDER_SYNC_BUCKET = os.getenv('COLLECTION_BUILDER_SYNC_BUCKET', None)
+
+    # Items - Use AWS_BUCKET_NAME as prefix.
+    USE_BUCKET_PREFIX = os.getenv('USE_BUCKET_PREFIX', strtobool(str(os.getenv('USE_BUCKET_PREFIX', False))))
 
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'bdc-archive')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'CHANGE_ME')
@@ -52,11 +63,7 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
-    AUXILIARIES_DIR = os.environ.get('AUXILIARIES_DIR', os.path.join(DATA_DIR, 'ds_data'))
-    ESPA_URL = os.environ.get('ESPA_URL', 'http://127.0.0.1:5032')
-    SEN2COR_URL = os.environ.get('SEN2COR_URL', 'http://127.0.0.1:5031')
-    CLIENT_SECRET_KEY = os.environ.get('CLIENT_SECRET_KEY', 'CHANGE_ME')
-    CLIENT_AUDIENCE = os.environ.get('CLIENT_AUDIENCE', 'CHANGE_ME')
+
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 
     CELERYD_PREFETCH_MULTIPLIER = 1  # disable

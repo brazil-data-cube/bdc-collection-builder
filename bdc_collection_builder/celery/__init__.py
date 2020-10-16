@@ -9,16 +9,17 @@
 """Celery module used in Brazil Data Cube."""
 
 import logging
+
+import flask
 from celery import Celery
 from flask import Flask
 from bdc_catalog.models import db
-import flask
-from bdc_collection_builder.config import Config
+
+from ..config import Config
 
 
 CELERY_TASKS = [
-    'bdc_collection_builder.collections.sentinel',
-    'bdc_collection_builder.collections.landsat'
+    f'{__package__}.tasks'
 ]
 
 celery_app = None
@@ -71,7 +72,6 @@ def create_celery_app(flask_app: Flask):
                     # Following example of Flask
                     # Just make sure the task execution is running inside flask context
                     # https://flask.palletsprojects.com/en/1.1.x/patterns/celery/
-
                     return TaskBase.__call__(self, *args, **kwargs)
             else:
                 logging.warning('Not Call context Task')
@@ -95,7 +95,6 @@ def create_celery_app(flask_app: Flask):
 
             if not celery.conf.CELERY_ALWAYS_EAGER:
                 db.session.remove()
-
 
     celery.Task = ContextTask
 

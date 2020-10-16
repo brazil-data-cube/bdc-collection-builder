@@ -8,8 +8,11 @@
 
 """Python Brazil Data Cube Collection Builder."""
 
+from json import JSONEncoder
+
 from bdc_catalog.ext import BDCCatalog
 from flask import Flask
+from werkzeug.exceptions import HTTPException, InternalServerError
 
 from . import celery, config
 from .celery.utils import load_celery_models
@@ -25,6 +28,8 @@ def create_app(config_name='DevelopmentConfig'):
     Returns:
         Flask Application with config instance scope
     """
+    from bdc_collectors.ext import CollectorExtension
+
     app = Flask(__name__)
     conf = config.get_settings(config_name)
     app.config.from_object(conf)
@@ -33,25 +38,18 @@ def create_app(config_name='DevelopmentConfig'):
         # Initialize Flask SQLAlchemy
         BDCCatalog(app)
 
-        from bdc_collection_builder.db import db_aws
-        db_aws.initialize()
+        # Initialize Collector Extension
+        CollectorExtension(app)
 
         # Just make sure to initialize db before celery
         celery_app = celery.create_celery_app(app)
         celery.celery_app = celery_app
 
         # Setup blueprint
-        from bdc_collection_builder.blueprint import bp
+        from .views import bp
         app.register_blueprint(bp)
 
         load_celery_models()
-
-        from .utils import initialize_factories
-
-        @app.before_first_request
-        def register_factories_on_init(*args):
-            """Load Brazil Data Cube factories on init."""
-            initialize_factories()
 
         @app.after_request
         def after_request(response):
@@ -60,7 +58,37 @@ def create_app(config_name='DevelopmentConfig'):
             response.headers.add('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
             return response
 
+        class ImprovedJSONEncoder(JSONEncoder):
+            def default(self, o):
+                from datetime import datetime
+
+                if isinstance(o, set):
+                    return list(o)
+                if isinstance(o, datetime):
+                    return o.isoformat()
+                return super(ImprovedJSONEncoder, self).default(o)
+
+        app.config['RESTPLUS_JSON'] = {'cls': ImprovedJSONEncoder}
+
+    app.json_encoder = ImprovedJSONEncoder
+
+    setup_error_handlers(app)
+
     return app
+
+
+def setup_error_handlers(app: Flask):
+    """Configure Cube Builder Error Handlers on Flask Application."""
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        """Handle exceptions."""
+        if isinstance(e, HTTPException):
+            return {'code': e.code, 'description': e.description}, e.code
+
+        app.logger.exception(e)
+
+        return {'code': InternalServerError.code,
+                'description': InternalServerError.description}, InternalServerError.code
 
 
 __all__ = (

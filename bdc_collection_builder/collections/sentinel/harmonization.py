@@ -7,15 +7,12 @@ import shutil
 import xml.etree.ElementTree as ET
 
 # 3rd-party
-from osgeo import gdal, osr, ogr
-from pathlib import Path
 import numpy
 
 # BDC Scripts
-from ...config import Config
 from ..nbar import process_NBAR
-from ..utils import load_img, generate_cogs
-from .utils import get_jp2_files, load_img_resampled_to_half
+from ..utils import load_img
+from .utils import load_img_resampled_to_half
 ################################################################################
 ## Generate Sentinel Angle view bands
 ################################################################################

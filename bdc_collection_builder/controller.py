@@ -118,13 +118,15 @@ class RadcorBusiness:
             activity - Activity to dispatch
             skip_collection_id - Skip the tasks with has the given collection id.
         """
-        def _dispatch_task(_activity):
+        def _dispatch_task(_activity, parent=None):
             dump = RadcorActivityForm().dump(_activity)
 
-            _task = cls._task_definition(_activity.activity_type).si(dump)
+            _task = cls._task_definition(_activity.activity_type)
 
             if not _activity.children:
-                return _task
+                if parent is None:
+                    return _task.s(dump)
+                return _task.s()
 
             tasks = []
 
@@ -132,11 +134,11 @@ class RadcorBusiness:
                 if skip_collection_id == child.activity.collection_id:
                     continue
 
-                tasks.append(_dispatch_task(child.activity))
+                tasks.append(_dispatch_task(child.activity, parent=_activity))
 
-            return _task | chain(*tasks)
+            return _task.s(dump) | chain(*tasks)
 
-        task = _dispatch_task(activity)
+        task = _dispatch_task(activity, parent=None)
         task.apply_async()
 
     @classmethod

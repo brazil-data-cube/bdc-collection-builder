@@ -65,10 +65,10 @@ def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, co
     write_png(str(file_output), image, transparent=(0, 0, 0))
 
 
-def _asset_definition(path, band, is_raster):
+def _asset_definition(path, band=None, is_raster=False):
     href = _item_prefix(path)
 
-    if band.mime_type:
+    if band and band.mime_type:
         mime_type = band.mime_type.name
     else:
         mime_type = guess_mime_type(path.name)
@@ -125,6 +125,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     """
     files = data.get_files(collection, path=file)
 
+    extra_assets = data.get_assets(collection, path=file)
+
     assets = dict()
 
     # TODO: Remove first_or_404. The tile property is not required.
@@ -139,7 +141,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     collection_band_map = {b.name: b for b in collection.bands}
 
-    for file in files:
+    for band_name, file in files.items():
         path = Path(file)
         file = str(file)
 
@@ -150,7 +152,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             generate_cogs(file, file)
 
         for band in collection.bands:
-            if path.stem.endswith(band.name):
+            if band.name == band_name:
                 file_band_map[band.name] = file
 
                 if geom is None or convex_hull is None:
@@ -164,6 +166,10 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                 assets[band.name] = _asset_definition(path, band, is_raster)
 
                 break
+
+    if extra_assets:
+        for asset_name, asset_file in extra_assets.items():
+            assets[asset_name] = _asset_definition(Path(asset_file))
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 

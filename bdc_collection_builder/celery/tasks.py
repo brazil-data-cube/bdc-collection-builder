@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from bdc_catalog.models import Provider, Item
+from bdc_catalog.models import Provider, Item, Collection
 from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
@@ -180,7 +180,7 @@ def download(activity: dict, **kwargs):
 def correction(activity: dict, collection_id=None, **kwargs):
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
 
-    collection = execution.activity.collection
+    collection: Collection = execution.activity.collection
     scene_id = activity['sceneid']
 
     logging.info(f'Starting Correction Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
@@ -191,33 +191,70 @@ def correction(activity: dict, collection_id=None, **kwargs):
         output_path = data_collection.path(collection)
         output_path.mkdir(exist_ok=True, parents=True)
 
-        with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}') as tmp:
-            shutil.unpack_archive(activity['args']['compressed_file'], tmp)
+        if collection._metadata and collection._metadata.get('processors'):
+            processor_name = collection._metadata['processors'][0]['name']
 
-            entries = list(Path(tmp).iterdir())
+            with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}') as tmp:
+                shutil.unpack_archive(activity['args']['compressed_file'], tmp)
 
-            entry = scene_id
+                # Process environment
+                env = dict(**os.environ, INDIR=str(tmp), OUTDIR=str(output_path))
 
-            if len(entries) == 1 and entries[0].suffix == '.SAFE':
-                entry = entries[0].name
+                if processor_name.lower() == 'sen2cor':
+                    sen2cor_conf = Config.SEN2COR_CONFIG
+                    # TODO: Use custom sen2cor version (2.5 or 2.8)
+                    cmd = f'''docker run --rm -i \
+                        -v $INDIR:/mnt/input-dir \
+                        -v $OUTDIR:/mnt/output-dir \
+                        -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
+                        -v {sen2cor_conf["SEN2COR_CONFIG_DIR"]}:/root/sen2cor/2.8 \
+                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {scene_id}.SAFE'''
+                    env['OUTDIR'] = str(Path(tmp) / 'output')
+                else:
+                    entry = scene_id
 
-            cmd = 'run_lasrc_ledaps_fmask.sh {}'.format(entry)
+                    entries = list(Path(tmp).iterdir())
 
-            logging.debug('cmd {}'.format(cmd))
+                    if len(entries) == 1 and entries[0].suffix == '.SAFE':
+                        entry = entries[0].name
 
-            env = dict(**os.environ, INDIR=str(tmp), OUTDIR=str(output_path))
-            process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
-            process.wait()
+                    lasrc_conf = Config.LASRC_CONFIG
 
-            entry_folder = Path(f'/work/{entry}')
+                    cmd = f'''docker run --rm -i \
+                        -v $INDIR:/mnt/input-dir \
+                        -v $OUTDIR:/mnt/output-dir \
+                        -v {lasrc_conf["LASRC_AUX_DIR"]}:/mnt/lasrc-aux:ro \
+                        -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
+                        {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
 
-            if entry_folder.exists():
-                logging.warning(f'Folder {str(entry_folder)} still exists. Removing.')
-                shutil.rmtree(entry_folder, ignore_errors=True)
+                # subprocess
+                process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
+                process.wait()
 
-            assert process.returncode == 0
+                assert process.returncode == 0
 
-            refresh_execution_args(execution, activity, file=str(output_path))
+                # TODO: We should be able to get output name from execution
+                if processor_name.lower() == 'sen2cor':
+                    # Since sen2cor creates an custom directory name (based in scene_id) and changing processing date
+                    # we create it inside "output" folder. After that, get first entry of that directory
+                    output_tmp = list(Path(env['OUTDIR']).iterdir())[0]
+
+                    output_path = output_path.parent / output_tmp.name
+
+                    if execution.activity.args.get('file'):
+                        last_processed_file = execution.activity.args['file']
+
+                        if last_processed_file and os.path.exists(last_processed_file) and \
+                                last_processed_file.endswith('.SAFE'):
+                            # TODO: validate scene id (without processing_date)
+                            if len(os.listdir(last_processed_file)) < 9:
+                                shutil.rmtree(last_processed_file, ignore_errors=True)
+
+                    shutil.move(output_tmp, output_path)
+
+                refresh_execution_args(execution, activity, file=str(output_path))
+        else:
+            raise RuntimeError(f'Processor not supported. Check collection {collection.name} metadata processors')
     except Exception as e:
         logging.error(f'Error in correction {scene_id} - {str(e)}', exc_info=True)
         raise e
@@ -227,7 +264,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='publish')
 def publish(activity: dict, collection_id=None, **kwargs):
-    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=publish.__name__)
 
     collection = execution.activity.collection
 
@@ -253,7 +290,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='post')
 def post(activity: dict, collection_id=None, **kwargs):
-    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=post.__name__)
 
     collection = execution.activity.collection
 

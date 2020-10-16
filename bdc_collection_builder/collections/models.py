@@ -41,6 +41,7 @@ class RadcorActivity(BaseModel):
     history = relationship('RadcorActivityHistory', back_populates='activity', order_by='desc(RadcorActivityHistory.start)')
 
     children = relationship('ActivitySRC', primaryjoin='RadcorActivity.id == ActivitySRC.activity_src_id')
+    parents = relationship('ActivitySRC', primaryjoin='RadcorActivity.id == ActivitySRC.activity_id')
 
     __table_args__ = (
         UniqueConstraint(collection_id, activity_type, sceneid),

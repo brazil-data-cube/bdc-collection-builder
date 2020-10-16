@@ -31,9 +31,18 @@ class Config:
         'SQLALCHEMY_DATABASE_URI',
         'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
     )
-    SQLALCHEMY_DATABASE_URI_AWS = os.environ.get(
-        'SQLALCHEMY_DATABASE_URI_AWS',
-        'postgresql://postgres:postgres@localhost:5432/bdc_catalog_aws?application_name=local-collection'
+
+    # LaSRC/Fmask4 Processor
+    LASRC_CONFIG = dict(
+        LASRC_DOCKER_IMAGE=os.getenv('LASRC_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:1.0.2'),
+        LASRC_AUX_DIR=os.getenv('LASRC_AUX_DIR', '/data/auxiliaries/lasrc'),
+        LEDAPS_AUX_DIR=os.getenv('LEDAPS_AUX_DIR', '/data/auxiliaries/ledaps'),
+    )
+    # Sen2Cor/Fmask Processor
+    SEN2COR_CONFIG = dict(
+        SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
+        SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
+        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8')
     )
 
     # Google Credentials support (Deprecated, use Provider.credentials instead.)

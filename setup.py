@@ -49,7 +49,6 @@ install_requires = [
     'marshmallow-sqlalchemy>=0.19.0',
     'rasterio>=1.1.2',
     'rio-cogeo>=1.1,<2',
-    'requests>=2.22.0',
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
@@ -57,7 +56,6 @@ install_requires = [
     'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.2#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
-    'sentinelhub>3.0,<4',
     'shapely>=1.7,<2'
 ]
 

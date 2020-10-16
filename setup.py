@@ -54,6 +54,7 @@ install_requires = [
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
     'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.2#egg=bdc-catalog',
+    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
     'shapely>=1.7,<2'

@@ -223,9 +223,13 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     cmd = f'''docker run --rm -i \
                         -v $INDIR:/mnt/input-dir \
                         -v $OUTDIR:/mnt/output-dir \
+                        --env INDIR=/mnt/input-dir \
+                        --env OUTDIR=/mnt/output-dir \
                         -v {lasrc_conf["LASRC_AUX_DIR"]}:/mnt/lasrc-aux:ro \
                         -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
                         {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
+
+                logging.debug(cmd)
 
                 # subprocess
                 process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)

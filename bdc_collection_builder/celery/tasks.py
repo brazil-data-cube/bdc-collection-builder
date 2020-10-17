@@ -209,24 +209,24 @@ def correction(activity: dict, collection_id=None, **kwargs):
                 # Process environment
                 env = dict(**os.environ, INDIR=str(tmp), OUTDIR=str(output_path))
 
+                entry = scene_id
+                entries = list(Path(tmp).iterdir())
+                                   
+                if len(entries) == 1 and entries[0].suffix == '.SAFE':
+                    entry = entries[0].name
+
                 if processor_name.lower() == 'sen2cor':
                     sen2cor_conf = Config.SEN2COR_CONFIG
+                    logging.info(f'Using {entry} of sceneid {scene_id}')
                     # TODO: Use custom sen2cor version (2.5 or 2.8)
                     cmd = f'''docker run --rm -i \
                         -v $INDIR:/mnt/input-dir \
                         -v $OUTDIR:/mnt/output-dir \
                         -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
                         -v {sen2cor_conf["SEN2COR_CONFIG_DIR"]}:/root/sen2cor/2.8 \
-                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {scene_id}.SAFE'''
+                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:
-                    entry = scene_id
-
-                    entries = list(Path(tmp).iterdir())
-
-                    if len(entries) == 1 and entries[0].suffix == '.SAFE':
-                        entry = entries[0].name
-
                     lasrc_conf = Config.LASRC_CONFIG
 
                     cmd = f'''docker run --rm -i \

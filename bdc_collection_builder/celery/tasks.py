@@ -178,7 +178,7 @@ def download(activity: dict, **kwargs):
                     raise DataOfflineError(scene_id)
                 raise RuntimeError(f'Download fails {activity["sceneid"]}.')
 
-            temp_file.rename(str(download_file))
+            shutil.move(str(temp_file), str(download_file))
 
     refresh_execution_args(execution, activity, compressed_file=str(download_file))
 

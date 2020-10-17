@@ -105,8 +105,8 @@ class SearchImageForm(Schema):
     force = fields.Boolean(required=False, allow_none=False, default=False)
     catalog = fields.String(required=True, allow_none=False)
     tasks = fields.Nested(TaskDispatcher, required=False, allow_none=None, many=True)
-    start = fields.Date(required=True, allow_none=False)
-    end = fields.Date(required=True, allow_none=False)
+    start = fields.DateTime(required=True, allow_none=False)
+    end = fields.DateTime(required=True, allow_none=False)
     tags = fields.List(fields.String, allow_none=False)
     cloud = fields.Float(default=100, allow_nan=False)
     action = fields.String(required=True, validate=OneOf(['preview', 'start']), default='preview')
@@ -120,10 +120,10 @@ class SearchImageForm(Schema):
     def pre_load_dates(self, data, **kwargs) -> dict:
         """Format the parsed data and serialize the 'start' and 'end' as 'Y-m-d' string."""
         if 'start' in data:
-            data['start'] = data['start'].strftime('%Y-%m-%d')
+            data['start'] = data['start'].isoformat()
 
         if 'end' in data:
-            data['end'] = data['end'].strftime('%Y-%m-%d')
+            data['end'] = data['end'].isoformat()
 
         return data
 
@@ -141,6 +141,9 @@ class SearchImageForm(Schema):
         if 'scenes' in data and bbox_given:
             raise ValidationError('"scenes" and bbox ("w", "s", "e", "n") given. Please refer one of those.')
 
+        if 'scenes' not in data and not bbox_given:
+            raise ValidationError('Missing bbox ("w", "s", "e", "n") or "scenes" property.')
+
         if bbox_given:
             w, s, e, n = data['w'], data['s'], data['e'], data['n']
 
@@ -149,17 +152,3 @@ class SearchImageForm(Schema):
 
             if s > n:
                 raise ValidationError('Ymin is greater than YMax')
-
-        if 'processing_collections' in data:
-            collections = []
-
-            for entry in data['processing_collections']:
-                # TODO: Change to collection_id
-                collection = Collection.query().filter(Collection.name == entry['collection']).first()
-
-                if collection is None:
-                    raise ValidationError(f'The processing collection "{entry["collection"]}" does not exists.')
-
-                collections.append(dict(**entry, id=collection.id))
-
-            data['processing_collections'] = collections

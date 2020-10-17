@@ -14,6 +14,7 @@ from datetime import datetime
 # 3rdparty
 from bdc_catalog.models import Collection, Provider
 from bdc_collectors.ext import CollectorExtension, BaseProvider
+from bdc_collectors.scihub import SciHub
 from flask import current_app
 from celery import chain, group
 from celery.backends.database import Task
@@ -182,13 +183,6 @@ class RadcorBusiness:
         """Search for Landsat/Sentinel Images and dispatch download task."""
         args.setdefault('cloud', 100)
 
-        # Get bbox
-        w = float(args['w'])
-        e = float(args['e'])
-        s = float(args['s'])
-        n = float(args['n'])
-        bbox = [w, s, e, n]
-
         cloud = float(args['cloud'])
         action = args.get('action', 'preview')
 
@@ -205,6 +199,12 @@ class RadcorBusiness:
         if 'platform' in args:
             options['platform'] = args['platform']
 
+        if 'scenes' not in args:
+            w, e = float(args['w']), float(args['e'])
+            s, n = float(args['s']), float(args['n'])
+            bbox = [w, s, e, n]
+            options['bbox'] = bbox
+
         try:
             collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
 
@@ -217,14 +217,31 @@ class RadcorBusiness:
             else:
                 provider: BaseProvider = provider_class(*catalog_provider.credentials)
 
-            result = provider.search(
-                query=args['dataset'],
-                bbox=bbox,
-                start_date=args['start'],
-                end_date=args['end'],
-                cloud_cover=cloud,
-                **options
-            )
+            if 'scenes' in args:
+                result = []
+
+                # TODO: Implement on BDC-Collectors. Temp workaround for search by image
+                if not isinstance(provider, SciHub):
+                    abort(400, f'The provider {args["catalog"]} not implemented yet search by scene_id.')
+
+                unique_scenes = set(args['scenes'])
+
+                for scene in unique_scenes:
+                    query_result = provider.search(
+                        query=args['dataset'],
+                        filename=f'{scene}*',
+                        **options
+                    )
+
+                    result.extend(query_result)
+            else:
+                result = provider.search(
+                    query=args['dataset'],
+                    start_date=args['start'],
+                    end_date=args['end'],
+                    cloud_cover=cloud,
+                    **options
+                )
 
             def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
                 """Create task dispatcher recursive."""

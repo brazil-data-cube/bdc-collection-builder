@@ -123,7 +123,6 @@ class RadcorBusiness:
             dump = RadcorActivityForm().dump(_activity)
 
             _task = cls._task_definition(_activity.activity_type)
-            print(_activity.activity_type)
 
             if not _activity.children:
                 if parent is None:

@@ -36,11 +36,19 @@ def create_execution(activity):
             collection_id=activity.get('collection_id')
         )
 
+        defaults = dict(
+            tags=activity.get('tags', []),
+            scene_type=activity.get('scene_type'),
+            sceneid=activity['sceneid']
+        )
+
         activity.pop('history', None)
+        activity.pop('children', None)
+        activity.pop('parents', None)
         activity.pop('id', None)
         activity.pop('last_execution', None)
 
-        activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
+        activity_model, _ = get_or_create_model(RadcorActivity, defaults=defaults, **where)
 
         model = RadcorActivityHistory()
 
@@ -86,7 +94,7 @@ def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
         options['lazy'] = True
         provider = provider_class(**options)
     else:
-        provider = provider_class(instance.credentials, lazy=True)
+        provider = provider_class(*instance.credentials, lazy=True)
 
     collection = provider.get_collector(dataset)
 
@@ -142,7 +150,8 @@ def download(activity: dict, **kwargs):
 
     if not download_file.exists() or not is_valid_file:
         # Ensure file is removed since it may be corrupted
-        download_file.unlink(missing_ok=True)
+        if download_file.exists():
+            download_file.unlink()
 
         download_file.parent.mkdir(exist_ok=True, parents=True)
 

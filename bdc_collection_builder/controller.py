@@ -122,6 +122,7 @@ class RadcorBusiness:
             dump = RadcorActivityForm().dump(_activity)
 
             _task = cls._task_definition(_activity.activity_type)
+            print(_activity.activity_type)
 
             if not _activity.children:
                 if parent is None:
@@ -136,7 +137,9 @@ class RadcorBusiness:
 
                 tasks.append(_dispatch_task(child.activity, parent=_activity))
 
-            return _task.s(dump) | chain(*tasks)
+            handler = _task.s(dump) if parent is None else _task.s()
+
+            return handler | chain(*tasks)
 
         task = _dispatch_task(activity, parent=None)
         task.apply_async()
@@ -209,7 +212,10 @@ class RadcorBusiness:
 
             provider_class = collector_extension.get_provider(catalog_provider.name)
 
-            provider: BaseProvider = provider_class(**catalog_provider.credentials)
+            if isinstance(catalog_provider.credentials, dict):
+                provider: BaseProvider = provider_class(**catalog_provider.credentials)
+            else:
+                provider: BaseProvider = provider_class(*catalog_provider.credentials)
 
             result = provider.search(
                 query=args['dataset'],

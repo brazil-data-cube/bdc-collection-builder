@@ -76,45 +76,51 @@ def generate_band_indexes(scene_id: str, collection: Collection, scenes: dict) -
     for band_index in collection_band_indexes:
         band_name = band_index.name
 
-        band_expression = band_index._metadata['expression']['value']
-
-        band_data_type = band_index.data_type
-
-        data_type_info = numpy.iinfo(band_data_type)
-
-        data_type_max_value = data_type_info.max
-        data_type_min_value = data_type_info.min
-
-        profile['dtype'] = band_data_type
-
         custom_band_path = base_path / f'{scene_id}_{band_name}.tif'
 
-        output_dataset = AutoCloseDataSet(str(custom_band_path), mode='w', **profile)
+        try:
+            band_expression = band_index._metadata['expression']['value']
 
-        logging.info(f'Generating band {band_name} for collection {collection.name}...')
+            band_data_type = band_index.data_type
 
-        for _, window in blocks:
-            machine_context = {
-                # TODO: Should we multiply by scale before pass to the Python Machine?
-                k: ds.dataset.read(1, masked=True, window=window).astype(numpy.float32)
-                for k, ds in map_data_set_context.items()
-            }
+            data_type_info = numpy.iinfo(band_data_type)
 
-            expr = f'{band_name} = {band_expression}'
+            data_type_max_value = data_type_info.max
+            data_type_min_value = data_type_info.min
 
-            result = execute_expression(expr, context=machine_context)
-            raster = result[band_name]
-            raster[raster == numpy.ma.masked] = profile['nodata']
-            # Persist the expected band data type to cast value safelly.
-            raster[raster < data_type_min_value] = data_type_min_value
-            raster[raster > data_type_max_value] = data_type_max_value
+            profile['dtype'] = band_data_type
 
-            output_dataset.dataset.write(raster.astype(band_data_type), window=window, indexes=1)
+            output_dataset = AutoCloseDataSet(str(custom_band_path), mode='w', **profile)
 
-        output_dataset.close()
+            logging.info(f'Generating band {band_name} for collection {collection.name}...')
 
-        generate_cogs(str(custom_band_path), str(custom_band_path))
+            for _, window in blocks:
+                machine_context = {
+                    # TODO: Should we multiply by scale before pass to the Python Machine?
+                    k: ds.dataset.read(1, masked=True, window=window).astype(numpy.float32)
+                    for k, ds in map_data_set_context.items()
+                }
 
-        output[band_name] = str(custom_band_path)
+                expr = f'{band_name} = {band_expression}'
+
+                result = execute_expression(expr, context=machine_context)
+                raster = result[band_name]
+                raster[raster == numpy.ma.masked] = profile['nodata']
+                # Persist the expected band data type to cast value safelly.
+                raster[raster < data_type_min_value] = data_type_min_value
+                raster[raster > data_type_max_value] = data_type_max_value
+
+                output_dataset.dataset.write(raster.astype(band_data_type), window=window, indexes=1)
+
+            output_dataset.close()
+
+            generate_cogs(str(custom_band_path), str(custom_band_path))
+
+            output[band_name] = str(custom_band_path)
+        except Exception as e:
+            logging.warning(f'Could not generate band {band_name} due {str(e)}')
+
+            if custom_band_path.exists():
+                custom_band_path.unlink()
 
     return output

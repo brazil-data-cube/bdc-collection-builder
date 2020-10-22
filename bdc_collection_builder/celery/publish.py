@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 from pathlib import Path
 from typing import Optional
@@ -179,24 +180,28 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True)
 
     if collection.quicklook:
-        collection_bands = {b.id: b.name for b in collection.bands}
+        # TODO: Add try/catch on quicklook generation
+        try:
+            collection_bands = {b.id: b.name for b in collection.bands}
 
-        red_file = file_band_map[collection_bands[collection.quicklook[0].red]]
-        green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
-        blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
+            red_file = file_band_map[collection_bands[collection.quicklook[0].red]]
+            green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
+            blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
-        quicklook = Path(red_file).parent / f'{scene_id}.png'
+            quicklook = Path(red_file).parent / f'{scene_id}.png'
 
-        create_quick_look(str(quicklook), red_file, green_file, blue_file)
+            create_quick_look(str(quicklook), red_file, green_file, blue_file)
 
-        relative_quicklook = _item_prefix(quicklook)
+            relative_quicklook = _item_prefix(quicklook)
 
-        assets['thumbnail'] = create_asset_definition(
-            href=relative_quicklook,
-            mime_type='.png',
-            role=['thumbnail'],
-            absolute_path=str(quicklook)
-        )
+            assets['thumbnail'] = create_asset_definition(
+                href=relative_quicklook,
+                mime_type='.png',
+                role=['thumbnail'],
+                absolute_path=str(quicklook)
+            )
+        except Exception as e:
+            logging.warning(f'Could not generate quicklook for {scene_id} due {str(e)}')
 
     # TODO: Log files/bands which was not published.
 

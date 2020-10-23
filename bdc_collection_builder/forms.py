@@ -109,7 +109,7 @@ class SearchImageForm(Schema):
     end = fields.DateTime(required=True, allow_none=False)
     tags = fields.List(fields.String, allow_none=False)
     cloud = fields.Float(default=100, allow_nan=False)
-    action = fields.String(required=True, validate=OneOf(['preview', 'start']), default='preview')
+    action = fields.String(required=False, validate=OneOf(['preview', 'start']), default='preview')
     w = fields.Float(allow_none=False, allow_nan=False)
     s = fields.Float(allow_none=False, allow_nan=False)
     e = fields.Float(allow_none=False, allow_nan=False)

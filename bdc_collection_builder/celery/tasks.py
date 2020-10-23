@@ -141,16 +141,20 @@ def download(activity: dict, **kwargs):
 
     download_file = data_collection.compressed_file(collection)
 
+    # For files that does not have compressed file (Single file/folder), use native path
+    if download_file is None:
+        download_file = data_collection.path(collection)
+
     is_valid_file = False
 
     if download_file.exists():
         logging.info('File {} downloaded. Checking file integrity...'.format(str(download_file)))
         # TODO: Should we validate using Factory Provider.is_valid() ?
-        is_valid_file = is_valid_compressed_file(str(download_file))
+        is_valid_file = is_valid_compressed_file(str(download_file)) if download_file.is_file() else False
 
     if not download_file.exists() or not is_valid_file:
         # Ensure file is removed since it may be corrupted
-        if download_file.exists():
+        if download_file.exists() and download_file.is_file():
             download_file.unlink()
 
         download_file.parent.mkdir(exist_ok=True, parents=True)
@@ -198,7 +202,6 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
     try:
         output_path = data_collection.path(collection)
-        output_path.mkdir(exist_ok=True, parents=True)
 
         if collection._metadata and collection._metadata.get('processors'):
             processor_name = collection._metadata['processors'][0]['name']
@@ -216,6 +219,8 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     entry = entries[0].name
 
                 if processor_name.lower() == 'sen2cor':
+                    output_path.parent.mkdir(exist_ok=True, parents=True)
+
                     sen2cor_conf = Config.SEN2COR_CONFIG
                     logging.info(f'Using {entry} of sceneid {scene_id}')
                     # TODO: Use custom sen2cor version (2.5 or 2.8)
@@ -227,6 +232,8 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:
+                    output_path.mkdir(exist_ok=True, parents=True)
+
                     lasrc_conf = Config.LASRC_CONFIG
 
                     cmd = f'''docker run --rm -i \

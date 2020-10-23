@@ -211,6 +211,9 @@ class RadcorBusiness:
 
             provider_class = collector_extension.get_provider(catalog_provider.name)
 
+            if provider_class is None:
+                abort(400, f'Catalog {args["catalog"]} not supported.')
+
             if isinstance(catalog_provider.credentials, dict):
                 provider: BaseProvider = provider_class(**catalog_provider.credentials)
             else:

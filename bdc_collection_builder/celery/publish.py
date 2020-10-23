@@ -134,7 +134,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     tile = Tile.query().filter(
         Tile.name == data.parser.tile_id(),
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id
-    ).first_or_404()
+    ).first()
 
     geom = convex_hull = None
 
@@ -214,11 +214,14 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         where = dict(name=scene_id, collection_id=collection.id)
         item, created = get_or_create_model(Item, defaults=item_defaults, **where)
         item.assets = assets
-        item.convex_hull = convex_hull
+        item.cloud_cover = cloud_cover
         item.geom = geom
         item.srid = 4326  # TODO: Add it dynamically
-        item.cloud_cover = cloud_cover
-        item.tile_id = tile.id
+        item.convex_hull = convex_hull
+
+        if tile is not None:
+            item.tile_id = tile.id
+
         item.save(commit=False)
 
     db.session.commit()

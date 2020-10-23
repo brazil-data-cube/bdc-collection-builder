@@ -36,11 +36,19 @@ def create_execution(activity):
             collection_id=activity.get('collection_id')
         )
 
+        defaults = dict(
+            tags=activity.get('tags', []),
+            scene_type=activity.get('scene_type'),
+            sceneid=activity['sceneid']
+        )
+
         activity.pop('history', None)
+        activity.pop('children', None)
+        activity.pop('parents', None)
         activity.pop('id', None)
         activity.pop('last_execution', None)
 
-        activity_model, _ = get_or_create_model(RadcorActivity, defaults=activity, **where)
+        activity_model, _ = get_or_create_model(RadcorActivity, defaults=defaults, **where)
 
         model = RadcorActivityHistory()
 
@@ -86,7 +94,7 @@ def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
         options['lazy'] = True
         provider = provider_class(**options)
     else:
-        provider = provider_class(instance.credentials, lazy=True)
+        provider = provider_class(*instance.credentials, lazy=True)
 
     collection = provider.get_collector(dataset)
 
@@ -133,16 +141,21 @@ def download(activity: dict, **kwargs):
 
     download_file = data_collection.compressed_file(collection)
 
+    # For files that does not have compressed file (Single file/folder), use native path
+    if download_file is None:
+        download_file = data_collection.path(collection)
+
     is_valid_file = False
 
     if download_file.exists():
         logging.info('File {} downloaded. Checking file integrity...'.format(str(download_file)))
         # TODO: Should we validate using Factory Provider.is_valid() ?
-        is_valid_file = is_valid_compressed_file(str(download_file))
+        is_valid_file = is_valid_compressed_file(str(download_file)) if download_file.is_file() else False
 
     if not download_file.exists() or not is_valid_file:
         # Ensure file is removed since it may be corrupted
-        download_file.unlink(missing_ok=True)
+        if download_file.exists() and download_file.is_file():
+            download_file.unlink()
 
         download_file.parent.mkdir(exist_ok=True, parents=True)
 
@@ -169,7 +182,7 @@ def download(activity: dict, **kwargs):
                     raise DataOfflineError(scene_id)
                 raise RuntimeError(f'Download fails {activity["sceneid"]}.')
 
-            temp_file.rename(str(download_file))
+            shutil.move(str(temp_file), str(download_file))
 
     refresh_execution_args(execution, activity, compressed_file=str(download_file))
 
@@ -189,7 +202,6 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
     try:
         output_path = data_collection.path(collection)
-        output_path.mkdir(exist_ok=True, parents=True)
 
         if collection._metadata and collection._metadata.get('processors'):
             processor_name = collection._metadata['processors'][0]['name']
@@ -200,23 +212,27 @@ def correction(activity: dict, collection_id=None, **kwargs):
                 # Process environment
                 env = dict(**os.environ, INDIR=str(tmp), OUTDIR=str(output_path))
 
+                entry = scene_id
+                entries = list(Path(tmp).iterdir())
+                                   
+                if len(entries) == 1 and entries[0].suffix == '.SAFE':
+                    entry = entries[0].name
+
                 if processor_name.lower() == 'sen2cor':
+                    output_path.parent.mkdir(exist_ok=True, parents=True)
+
                     sen2cor_conf = Config.SEN2COR_CONFIG
+                    logging.info(f'Using {entry} of sceneid {scene_id}')
                     # TODO: Use custom sen2cor version (2.5 or 2.8)
                     cmd = f'''docker run --rm -i \
                         -v $INDIR:/mnt/input-dir \
                         -v $OUTDIR:/mnt/output-dir \
                         -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
                         -v {sen2cor_conf["SEN2COR_CONFIG_DIR"]}:/root/sen2cor/2.8 \
-                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {scene_id}.SAFE'''
+                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:
-                    entry = scene_id
-
-                    entries = list(Path(tmp).iterdir())
-
-                    if len(entries) == 1 and entries[0].suffix == '.SAFE':
-                        entry = entries[0].name
+                    output_path.mkdir(exist_ok=True, parents=True)
 
                     lasrc_conf = Config.LASRC_CONFIG
 

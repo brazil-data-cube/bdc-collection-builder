@@ -7,6 +7,9 @@ ADD . /app
 
 WORKDIR /app
 
-RUN pip3 install pip --upgrade && \
+RUN apt-get update && \
+    apt-get install --yes nano && \
+    pip3 install pip --upgrade && \
+    rm -rf /var/lib/apt/lists/* && \
     pip install wheel && \
     pip install -e .[all] --use-feature=2020-resolver

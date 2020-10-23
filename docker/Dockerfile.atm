@@ -17,7 +17,8 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - && \
         docker-ce-cli \
         git \
         python3 \
-        python3-pip && \
+        python3-pip \
+        nano && \
         rm -rf /var/lib/apt/lists/*
 
 ADD . /app

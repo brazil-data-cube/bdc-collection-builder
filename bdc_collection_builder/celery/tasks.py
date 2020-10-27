@@ -92,9 +92,10 @@ def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
     if isinstance(instance.credentials, dict):
         options = dict(**instance.credentials)
         options['lazy'] = True
+        options['progress'] = False
         provider = provider_class(**options)
     else:
-        provider = provider_class(*instance.credentials, lazy=True)
+        provider = provider_class(*instance.credentials, lazy=True, progress=False)
 
     collection = provider.get_collector(dataset)
 
@@ -141,13 +142,15 @@ def download(activity: dict, **kwargs):
 
     download_file = data_collection.compressed_file(collection)
 
+    has_compressed_file = download_file is not None
+
     # For files that does not have compressed file (Single file/folder), use native path
     if download_file is None:
         download_file = data_collection.path(collection)
 
     is_valid_file = False
 
-    if download_file.exists():
+    if download_file.exists() and has_compressed_file:
         logging.info('File {} downloaded. Checking file integrity...'.format(str(download_file)))
         # TODO: Should we validate using Factory Provider.is_valid() ?
         is_valid_file = is_valid_compressed_file(str(download_file)) if download_file.is_file() else False
@@ -157,7 +160,10 @@ def download(activity: dict, **kwargs):
         if download_file.exists() and download_file.is_file():
             download_file.unlink()
 
-        download_file.parent.mkdir(exist_ok=True, parents=True)
+        if not has_compressed_file:
+            download_file.mkdir(exist_ok=True, parents=True)
+        else:
+            download_file.parent.mkdir(exist_ok=True, parents=True)
 
         with TemporaryDirectory(prefix='download_', suffix=f'_{scene_id}') as tmp:
             temp_file: Path = None
@@ -214,7 +220,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
                 entry = scene_id
                 entries = list(Path(tmp).iterdir())
-                                   
+
                 if len(entries) == 1 and entries[0].suffix == '.SAFE':
                     entry = entries[0].name
 

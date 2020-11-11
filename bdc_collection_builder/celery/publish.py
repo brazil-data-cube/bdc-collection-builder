@@ -185,7 +185,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                     if convex_hull.area > 0.0:
                         convex_hull = from_shape(convex_hull, srid=4326)
 
-                assets[band.name] = _asset_definition(path, band, is_raster, cog=False)
+                assets[band.name] = _asset_definition(path, band, is_raster, cog=True)
 
                 break
 

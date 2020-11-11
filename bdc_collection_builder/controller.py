@@ -222,10 +222,6 @@ class RadcorBusiness:
             if 'scenes' in args:
                 result = []
 
-                # TODO: Implement on BDC-Collectors. Temp workaround for search by image
-                if not isinstance(provider, SciHub):
-                    abort(400, f'The provider {args["catalog"]} not implemented yet search by scene_id.')
-
                 unique_scenes = set(args['scenes'])
 
                 for scene in unique_scenes:

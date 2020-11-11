@@ -1,6 +1,8 @@
 import logging
 import mimetypes
+import shutil
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Optional
 
 import numpy
@@ -19,10 +21,10 @@ from ..collections.utils import (create_asset_definition, get_or_create_model,
 from ..constants import COG_MIME_TYPE
 
 
-def guess_mime_type(extension: str) -> Optional[str]:
+def guess_mime_type(extension: str, cog=False) -> Optional[str]:
     mime = mimetypes.guess_type(extension)
 
-    if mime[0] in COG_MIME_TYPE:
+    if mime[0] in COG_MIME_TYPE and cog:
         return COG_MIME_TYPE
 
     return mime[0]
@@ -66,13 +68,33 @@ def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, co
     write_png(str(file_output), image, transparent=(0, 0, 0))
 
 
-def _asset_definition(path, band=None, is_raster=False):
+def compress_raster(input_path: str, output_path: str, algorithm: str = 'lzw'):
+    """Compress a raster using GDAL compression algorithm."""
+    with TemporaryDirectory() as tmp:
+        tmp_file = Path(tmp) / Path(input_path).name
+
+        with rasterio.open(str(input_path)) as dataset:
+            profile = dataset.profile.copy()
+
+            array = dataset.read(1)
+
+        profile.update(
+            compress=algorithm
+        )
+
+        with rasterio.open(str(tmp_file), 'w', **profile) as ds:
+            ds.write(array, 1)
+
+        shutil.move(tmp_file, output_path)
+
+
+def _asset_definition(path, band=None, is_raster=False, cog=False):
     href = _item_prefix(path)
 
     if band and band.mime_type:
         mime_type = band.mime_type.name
     else:
-        mime_type = guess_mime_type(path.name)
+        mime_type = guess_mime_type(path.name, cog=cog)
 
     return create_asset_definition(
         href=href,
@@ -130,7 +152,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     assets = dict()
 
-    # TODO: Remove first_or_404. The tile property is not required.
     tile = Tile.query().filter(
         Tile.name == data.parser.tile_id(),
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id
@@ -164,13 +185,20 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                     if convex_hull.area > 0.0:
                         convex_hull = from_shape(convex_hull, srid=4326)
 
-                assets[band.name] = _asset_definition(path, band, is_raster)
+                assets[band.name] = _asset_definition(path, band, is_raster, cog=False)
 
                 break
 
     if extra_assets:
         for asset_name, asset_file in extra_assets.items():
-            assets[asset_name] = _asset_definition(Path(asset_file))
+            asset_file_path = Path(asset_file)
+
+            is_raster = asset_file_path.suffix.lower() in ('.tif', '.jp2')
+
+            if is_raster:
+                compress_raster(str(asset_file_path), str(asset_file_path))
+
+            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 
@@ -178,6 +206,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         path = Path(band_file)
 
         assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True)
+
+    # TODO: Remove un-necessary files
 
     if collection.quicklook:
         # TODO: Add try/catch on quicklook generation

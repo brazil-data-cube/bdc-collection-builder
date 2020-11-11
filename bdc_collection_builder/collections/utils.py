@@ -250,7 +250,7 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
             chunk_x, chunk_y = data_set.profile.get('blockxsize'), data_set.profile.get('blockxsize')
 
             if chunk_x is None or chunk_x is None:
-                raise RuntimeError('Can\'t compute raster chunk size. Is it a tiled/ valid Cloud Optimized GeoTIFF?')
+                return asset
 
             asset['bdc:chunk_size'] = dict(x=chunk_x, y=chunk_y)
 

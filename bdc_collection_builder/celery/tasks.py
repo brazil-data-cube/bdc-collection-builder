@@ -353,3 +353,59 @@ def post(activity: dict, collection_id=None, **kwargs):
     # TODO: Create new band
 
     return activity
+
+
+@current_app.task(queue='harmonization')
+def harmonization(activity: dict, collection_id=None, **kwargs):
+    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=harmonization.__name__)
+
+    collection = execution.activity.collection
+
+    from sensorharm import sentinel_harmonize
+    from sensorharm import landsat_harmonize
+
+    with TemporaryDirectory(prefix='harmonization', suffix=activity['sceneid']) as tmp:
+        data_collection = get_provider_collection_from_activity(activity)
+
+        data_collection.path(collection)
+
+        target_dir = str(data_collection.path(collection))
+
+        target_tmp_dir = Path(tmp) / 'target'
+
+        target_tmp_dir.mkdir(exist_ok=True, parents=True)
+
+        if activity['sceneid'].startswith('S2'):
+            shutil.unpack_archive(activity['args']['compressed_file'], tmp)
+
+            entry = activity['sceneid']
+            entries = list(Path(tmp).glob('*.SAFE'))
+
+            if len(entries) == 1 and entries[0].suffix == '.SAFE':
+                entry = entries[0].name
+
+            l1 = Path(tmp) / entry
+
+            sentinel_harmonize(l1, activity['args']['file'], target_tmp_dir, apply_bandpass=True)
+        else:
+            product_version = int(data_collection.parser.satellite())
+            sat_sensor = '{}{}'.format(data_collection.parser.source()[:2], product_version)
+
+            landsat_harmonize(sat_sensor, activity['args']['file'], str(target_tmp_dir))
+
+        reflectance_dir = Path(activity['args']['file'])
+
+        glob = list(reflectance_dir.glob('**/*_Fmask4.tif'))
+
+        fmask = glob[0]
+
+        shutil.copy(str(fmask), target_tmp_dir)
+
+        Path(target_dir).mkdir(exist_ok=True, parents=True)
+
+        for entry in Path(target_tmp_dir).iterdir():
+            shutil.move(str(entry), target_dir)
+
+    activity['args']['file'] = target_dir
+
+    return activity

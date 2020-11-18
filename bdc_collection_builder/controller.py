@@ -14,14 +14,13 @@ from datetime import datetime
 # 3rdparty
 from bdc_catalog.models import Collection, Provider
 from bdc_collectors.ext import CollectorExtension, BaseProvider
-from bdc_collectors.scihub import SciHub
 from flask import current_app
 from celery import chain, group
 from celery.backends.database import Task
 from sqlalchemy import func, Date
 from werkzeug.exceptions import BadRequest, abort
 # Builder
-from .celery.tasks import download, correction, publish, post
+from .celery.tasks import download, correction, publish, post, harmonization
 from .forms import RadcorActivityForm, SimpleActivityForm
 from .collections.models import ActivitySRC, RadcorActivity, RadcorActivityHistory, db
 from .collections.utils import get_or_create_model
@@ -158,6 +157,8 @@ class RadcorBusiness:
             _task = publish
         elif task_type == 'post':
             _task = post
+        elif task_type == 'harmonization':
+            _task = harmonization
         else:
             raise RuntimeError(f'Task {task_type} not supported.')
 

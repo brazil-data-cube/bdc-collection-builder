@@ -205,7 +205,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     for band_name, band_file in index_bands.items():
         path = Path(band_file)
 
-        assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True)
+        assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True, cog=True)
 
     # TODO: Remove un-necessary files
 
@@ -226,7 +226,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             assets['thumbnail'] = create_asset_definition(
                 href=relative_quicklook,
-                mime_type='.png',
+                mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
                 absolute_path=str(quicklook)
             )

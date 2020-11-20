@@ -21,11 +21,9 @@ The Brazil Data Cube Collection Builder (``bdc-collection-builder``) depends ess
 
 - `RabbitMQ <https://www.rabbitmq.com/>`_
 
-- `GDAL <https://gdal.org/>`_ ``Version 2+``: make sure that ``gdal-config`` is installed and available in the ``PATH``.
-
 - `Brazil Data Cube Database Module <https://github.com/brazil-data-cube/bdc-db>`_
 
-- `Brazil Data Cube Core Module <https://github.com/brazil-data-cube/bdc-core>`_
+- `Brazil Data Cube Collectors <https://github.com/brazil-data-cube/bdc-collectors>`_
 
 
 Development Installation
@@ -51,34 +49,6 @@ Install in development mode:
 
     $ pip3 install -e .[all]
 
-.. note::
-
-    If you have problems during the GDAL Python package installation, please, make sure to have the GDAL library support installed in your system with its command line tools.
-
-
-    You can check the GDAL version with:
-
-    .. code-block:: shell
-
-        $ gdal-config --version
-
-
-    Then, if you want to install a specific version (example: 2.4.2), try:
-
-    .. code-block:: shell
-
-        $ pip install "gdal==2.4.2"
-
-
-    If you still having problems with GDAL installation, you can generate a log in order to check what is happening with your installation. Use the following pip command:
-
-    .. code-block:: shell
-
-        $ pip install --verbose --log my.log "gdal==2.4.2"
-
-
-    For more information, please, see [#f1]_ e [#f2]_.
-
 
 .. note::
 
@@ -89,7 +59,7 @@ Install in development mode:
         $ sudo apt install autoconf
 
 
-    For more information, please, see [#f3]_.
+    For more information, please, see [#f1]_.
 
 
 Generate the documentation:
@@ -195,31 +165,26 @@ Once the database is updated, we have prepared a command utility on Brazil Data 
     bdc-db fixtures init
 
 
-Launching Sen2Cor and LaSRC 1.3.0
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Prepare the containers Sen2Cor and LaSRC 1.3.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Before launching Sen2Cor and LaSRC processors, please, read the `CONFIG.rst <./CONFIG.rst>`_ documentation and make sure you have the right layout of auxiliary data in your filesystem.
 
 
-If you have all the auxiliary data, use ``docker-compose`` to launch the surface reflectance processors as Docker containers:
+If you have all the auxiliary data, edit `docker-compose.yml` the section `atm-correction` and fill the following configuration based in the directory where auxiliaries are stored::
 
-.. code-block:: shell
+    - "LASRC_AUX_DIR=/path/to/landsat/auxiliaries/L8"
+    - "LEDAPS_AUX_DIR=/path/to/landsat/ledaps_auxiliaries"
 
-    docker-compose up -d sen2cor espa-science
+    - "SEN2COR_AUX_DIR=/path/to/sen2cor/CCI4SEN2COR"
+    - "SEN2COR_CONFIG_DIR=/path/to/sen2cor/config/2.8"
 
 
-Then, check if all containers are up and running:
+.. note::
 
-.. code-block:: shell
+    Remember that these variables are relative inside container. You may change the mount volume in the section `volumes`.
 
-    $ docker container ls
-
-    CONTAINER ID   IMAGE                                   COMMAND                  CREATED              STATUS              PORTS                                                                                        NAMES
-    7af90085acd4   registry.dpi.inpe.br/rc_espa-science    "/entrypoint.sh pyth…"   About a minute ago   Up About a minute   0.0.0.0:5032->5032/tcp                                                                       bdc-collection-builder-espa-science
-    ab58e9f6a7a3   registry.dpi.inpe.br/rc_sen2cor:2.8.0   "python rc_sen2cor.py"   About a minute ago   Up About a minute   0.0.0.0:5031->5031/tcp, 9764/tcp                                                             bdc-collection-builder-sen2cor
-    8c94877e7017   rabbitmq:3-management                   "docker-entrypoint.s…"   4 days ago           Up 23 hours         4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, 15671/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp   bdc-collection-builder-rabbitmq
-    acc51ff02295   mdillon/postgis                         "docker-entrypoint.s…"   4 days ago           Up 23 hours         0.0.0.0:5432->5432/tcp                                                                       bdc-collection-builder-pg
-    84bae6370fbb   redis                                   "docker-entrypoint.s…"   4 days ago           Up 23 hours         0.0.0.0:6379->6379/tcp                                                                       bdc-collection-builder-redis
+    The 'SEN2COR_CONFIG_DIR` is base configuration of Sen2Cor instance with folder `cfg` and file `L2A_GIPP.xml`.
 
 
 Launching Collection Builder Workers
@@ -257,14 +222,11 @@ As soon as the worker is launched, it will present a message like:
 
 
     [tasks]
-      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
-      . bdc_collection_builder.collections.landsat.tasks.download_landsat
-      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
-      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
-      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
-      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+      . bdc_collection_builder.celery.tasks.correction
+      . bdc_collection_builder.celery.tasks.download
+      . bdc_collection_builder.celery.tasks.harmonization
+      . bdc_collection_builder.celery.tasks.post
+      . bdc_collection_builder.celery.tasks.publish
 
     [2020-04-30 08:51:18,737: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
     [2020-04-30 08:51:18,746: INFO/MainProcess] mingle: searching for neighbors
@@ -307,14 +269,11 @@ As soon as the worker is launched, it will present a message like:
 
 
     [tasks]
-      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
-      . bdc_collection_builder.collections.landsat.tasks.download_landsat
-      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
-      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
-      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
-      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+      . bdc_collection_builder.celery.tasks.correction
+      . bdc_collection_builder.celery.tasks.download
+      . bdc_collection_builder.celery.tasks.harmonization
+      . bdc_collection_builder.celery.tasks.post
+      . bdc_collection_builder.celery.tasks.publish
 
     [2020-04-30 08:53:57,977: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
     [2020-04-30 08:53:58,055: INFO/MainProcess] mingle: searching for neighbors
@@ -361,14 +320,11 @@ As soon as the worker is launched, it will present a message like:
 
 
     [tasks]
-      . bdc_collection_builder.collections.landsat.tasks.atm_correction_landsat
-      . bdc_collection_builder.collections.landsat.tasks.download_landsat
-      . bdc_collection_builder.collections.landsat.tasks.publish_landsat
-      . bdc_collection_builder.collections.landsat.tasks.upload_landsat
-      . bdc_collection_builder.collections.sentinel.tasks.atm_correction
-      . bdc_collection_builder.collections.sentinel.tasks.download_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.publish_sentinel
-      . bdc_collection_builder.collections.sentinel.tasks.upload_sentinel
+      . bdc_collection_builder.celery.tasks.correction
+      . bdc_collection_builder.celery.tasks.download
+      . bdc_collection_builder.celery.tasks.harmonization
+      . bdc_collection_builder.celery.tasks.post
+      . bdc_collection_builder.celery.tasks.publish
 
     [2020-04-30 08:54:19,361: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
     [2020-04-30 08:54:19,400: INFO/MainProcess] mingle: searching for neighbors
@@ -420,68 +376,6 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
 .. rubric:: Footnotes
 
 .. [#f1]
-
-    During GDAL installation, if you have a build message such as the one showed below:
-
-    .. code-block:: shell
-
-        Skipping optional fixer: ws_comma
-        running build_ext
-        building 'osgeo._gdal' extension
-        creating build/temp.linux-x86_64-3.7
-        creating build/temp.linux-x86_64-3.7/extensions
-        x86_64-linux-gnu-gcc -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -g -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -fPIC -I../../port -I../../gcore -I../../alg -I../../ogr/ -I../../ogr/ogrsf_frmts -I../../gnm -I../../apps -I/home/gribeiro/Devel/github/brazil-data-cube/wtss/venv/include -I/usr/include/python3.7m -I. -I/usr/include -c extensions/gdal_wrap.cpp -o build/temp.linux-x86_64-3.7/extensions/gdal_wrap.o
-        extensions/gdal_wrap.cpp:3168:10: fatal error: cpl_port.h: No such file or directory
-         #include "cpl_port.h"
-                  ^~~~~~~~~~~~
-        compilation terminated.
-        error: command 'x86_64-linux-gnu-gcc' failed with exit status 1
-        Running setup.py install for gdal ... error
-        Cleaning up...
-
-    You can instruct ``pip`` to look at the right place for header files when building GDAL:
-
-    .. code-block:: shell
-
-        $ C_INCLUDE_PATH="/usr/include/gdal" \
-          CPLUS_INCLUDE_PATH="/usr/include/gdal" \
-          pip install "gdal==2.4.2"
-
-
-.. [#f2]
-
-    On Linux Ubuntu 18.04 LTS you can install GDAL 2.4.2 from the UbuntuGIS repository:
-
-    1. Create a file named ``/etc/apt/sources.list.d/ubuntugis-ubuntu-ppa-bionic.list`` and add the following content:
-
-    .. code-block:: shell
-
-        deb http://ppa.launchpad.net/ubuntugis/ppa/ubuntu bionic main
-        deb-src http://ppa.launchpad.net/ubuntugis/ppa/ubuntu bionic main
-
-
-    2. Then add the following key:
-
-    .. code-block:: shell
-
-        $ sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B827C12C2D425E227EDCA75089EBE08314DF160
-
-
-    3. Then, update your repository index:
-
-    .. code-block:: shell
-
-        $ sudo apt-get update
-
-
-    4. Finally, install GDAL:
-
-    .. code-block:: shell
-
-        $ sudo apt-get install libgdal-dev=2.4.2+dfsg-1~bionic0
-
-
-.. [#f3]
 
     During ``librabbitmq`` installation, if you have a build message such as the one showed below:
 

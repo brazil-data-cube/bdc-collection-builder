@@ -13,29 +13,51 @@ Collection Builder Configuration
 Setting up the Credentials for EO Data Providers
 ------------------------------------------------
 
+The `Collection Builder` uses `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors.git>`_ to consume the remote data providers.
+
+.. note::
+
+    Make sure you have initialized ``BDC-Collectors`` before.
+
+    Use ``SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost/bdc bdc-db db load-scripts`` to
+    load the supported providers on Brazil Data Cube.
+
+After the Provider configuration, remember to attach the collections to the respective data providers.
 
 Copernicus (Sentinel 2A and 2B)
 +++++++++++++++++++++++++++++++
 
 In order to search and obtain images from Copernicus SciHub (e.g. Sentinel-2A and 2B images), users must have a registered account at: `<https://scihub.copernicus.eu/dhus/#/self-registration>`_ and confirm validation through email. This account may take a few days to be operational when using it in scripts.
 
-The credentials should be inserted into ``secrets.json`` file as showed below:
+Ensure that provider `SciHub` exists.
 
-.. code-block:: shell
+.. code-block:: sql
 
-    nano secrets.json
+    SELECT * FROM bdc.providers WHERE name = 'SciHub'
+
+Update the field `credentials` for the provider `SciHub` with the following command:
+
+.. code-block:: sql
+
+    UPDATE bdc.providers
+       SET credentials = '{"username": "theuser", "password": "thepass"}'
+     WHERE name = 'SciHub'
 
 
-.. code-block:: json
+.. note::
 
-    {
-        "sentinel": {
-            "USERNAME_HERE": {
-                "password": "PASSWORD_HERE",
-                "count": 2
-            }
-        }
-    }
+    Remember that an SciHub account can download only 2 scenes in parallel.
+    You can also set multiple accounts in `credentials` to have more parallel download support. Just make sure Redis is running.
+
+    .. code-block:: sql
+
+        UPDATE bdc.providers
+           SET credentials = '[
+                   {"username": "theuser1", "password": "thepass1"},
+                   {"username": "theuser2", "password": "thepass2"},
+                   {"username": "theuser3", "password": "thepass3"},
+               ]'
+         WHERE name = 'SciHub'
 
 
 CREODIAS (Sentinel 2A and 2B)
@@ -51,21 +73,19 @@ to allow ``bdc-collection-builder`` download from `CREODIAS <https://creodias.eu
 
 In order to search and obtain images from SciHub mirror CREODIAS, users must have a registered account at: https://creodias.eu/ and confirm validation through email.
 
-After that, you can edit the file ``secrets.json`` as following:
+Ensure that provider `CREODIAS` exists.
 
-.. code-block:: shell
+.. code-block:: sql
 
-        nano secrets.json
+    SELECT * FROM bdc.providers WHERE name = 'CREODIAS'
 
+Update the field `credentials` for the provider `CREODIAS` with the following command:
 
-.. code-block:: json
+.. code-block:: sql
 
-    {
-        "creodias": {
-            "username": "CREODIAS_EMAIL",
-            "password": "PASSWORD"
-        }
-    }
+    UPDATE bdc.providers
+       SET credentials = '{"username": "theuser", "password": "thepass"}'
+     WHERE name = 'CREODIAS'
 
 
 USGS (Landsat)
@@ -75,21 +95,19 @@ USGS (Landsat)
 In order to search and obtain images from USGS Earth Explorer (e. g. Landsat-8 images), users must have a registered account at: `<https://ers.cr.usgs.gov/register/>`_ and confirm validation through email.
 
 
-This information should be inserted into secrets.json
+Ensure that provider `USGS` exists.
 
-.. code-block:: shell
+.. code-block:: sql
 
-    nano secrets.json
+    SELECT * FROM bdc.providers WHERE name = 'USGS'
 
+Update the field `credentials` for the provider `USGS` with the following command:
 
-.. code-block:: json
+.. code-block:: sql
 
-    {
-        "landsat": {
-            "username": "USGS_EMAIL",
-            "password": "PASSWORD_HERE"
-        }
-    }
+    UPDATE bdc.providers
+       SET credentials = '{"username": "theuser", "password": "thepass"}'
+     WHERE name = 'USGS'
 
 
 Google Cloud Storage
@@ -105,6 +123,22 @@ You must have a Google Account in order to use any ``Google Cloud Services``. In
 After that, you must also register an service account key in `Create a Service Account Key <https://console.cloud.google.com/apis/credentials/serviceaccountkey>`_ and download the service key.
 
 You must set the environment variable ``GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account_key.json`` in order to enable the Google Provider in ``Collection Builder`` application.
+
+If you prefer to set the `GOOGLE_APPLICATION_CREDENTIALS` in database instead export environment variable, use the following steps:
+
+Ensure that provider `Google` exists.
+
+.. code-block:: sql
+
+    SELECT * FROM bdc.providers WHERE name = 'Google'
+
+Update the field `credentials` for the provider `Google` with the following command:
+
+.. code-block:: sql
+
+    UPDATE bdc.providers
+       SET credentials = '{"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service_account_key.json"}'
+     WHERE name = 'Google'
 
 
 Setting up Auxiliary Data for Surface Reflectance Processors

@@ -361,8 +361,8 @@ def harmonization(activity: dict, collection_id=None, **kwargs):
 
     collection = execution.activity.collection
 
-    from sensorharm import sentinel_harmonize
-    from sensorharm import landsat_harmonize
+    from sensor_harm import sentinel_harmonize
+    from sensor_harm import landsat_harmonize
 
     with TemporaryDirectory(prefix='harmonization', suffix=activity['sceneid']) as tmp:
         data_collection = get_provider_collection_from_activity(activity)

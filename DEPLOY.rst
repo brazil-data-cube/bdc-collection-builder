@@ -14,8 +14,8 @@ Configuration
 -------------
 
 
-secrets.json
-~~~~~~~~~~~~
+Collector Providers
+~~~~~~~~~~~~~~~~~~~
 
 Please, refer to the section "Setting up the Credentials for EO Data Providers" in the `CONFIG.rst <./CONFIG.rst>`_ documentation.
 

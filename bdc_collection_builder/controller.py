@@ -158,6 +158,14 @@ class RadcorBusiness:
         elif task_type == 'post':
             _task = post
         elif task_type == 'harmonization':
+            try:
+                import sensor_harm
+            except ImportError:
+                raise RuntimeError(
+                    'The task harmonization is not installed.'
+                    'Please install with command "pip install -e .[harmonization]"'
+                )
+
             _task = harmonization
         else:
             raise RuntimeError(f'Task {task_type} not supported.')

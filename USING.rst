@@ -24,16 +24,16 @@ The resource `/api/radcor` is used to dispatch tasks for both data collect, proc
     - `cloud`: Cloud cover factor. Default is `100`;
     - `action`: Argument to dispatch execution. The supported values are:
 
-        - `start` which search and dispatches the matched scenes;
-        - `preview` search in catalog with given parameters and return the matched values;
+        - `start` - which search and dispatches the matched scenes;
+        - `preview` - search in catalog with given parameters and return the matched values;
 
     - `tasks`: Define the intent execution and which the collection to store data. The supported values are:
 
-        - `download` Tries to download data from remote server using the `bdc-collectors` and models `bdc.collections_providers` for download priorities;
-        - `correction` Apply Surface Reflectance Processor according the model `Collection.metadata` in `BDC-Catalog <https://bdc-catalog.readthedocs.io/en/latest/>`_;
-        - `publish` Publish the collection in database. This step also generates the `bdc.quicklook` and band indexes from `bdc.bands`;
-        - `post` Apply post processing step in datasets;
-        - `harmonization` Apply Data Harmonization on Landsat-5, Landsat-7, Landsat-8 and Sentinel-2 products using the module `sensor-harm <https://github.com/brazil-data-cube/sensor-harm>`_;
+        - `download` - Tries to download data from remote server using the `bdc-collectors` and models `bdc.collections_providers` for download priorities;
+        - `correction` - Apply Surface Reflectance Processor according the model `Collection.metadata` in `BDC-Catalog <https://bdc-catalog.readthedocs.io/en/latest/>`_;
+        - `publish` - Publish the collection in database. This step also generates the `bdc.quicklook` and band indexes from `bdc.bands`;
+        - `post` - Apply post processing step in datasets;
+        - `harmonization` - Apply Data Harmonization on Landsat-5, Landsat-7, Landsat-8 and Sentinel-2 products using the module `sensor-harm <https://github.com/brazil-data-cube/sensor-harm>`_;
 
         The tasks parameter can be nested in order to given an order of execution. For example,
         if you need to `download` data, generates a Surface Reflectance (`correction`) and then publish data `publish`,
@@ -55,7 +55,7 @@ The resource `/api/radcor` is used to dispatch tasks for both data collect, proc
                                 "type": "publish",
                                 "collection": "LC8_SR",
                                 "args": {},
-                                "tasks": [}
+                                "tasks": []
                             }
                         ]
                     }

@@ -29,10 +29,14 @@ tests_require = [
     'isort>4.3',
 ]
 
+harmonization_require = [
+    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git',
+]
 
 extras_require = {
     'docs': docs_require,
-    "tests": tests_require
+    'tests': tests_require,
+    'harmonization': harmonization_require
 }
 
 extras_require['all'] = [req for exts, reqs in extras_require.items() for req in reqs]
@@ -54,7 +58,6 @@ install_requires = [
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
     'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.2#egg=bdc-catalog',
-    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git',
     'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',

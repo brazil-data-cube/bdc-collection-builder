@@ -10,10 +10,13 @@
 
 Creates a python click context and inject it to the global flask commands.
 """
+import warnings
 
 import click
 from bdc_catalog.cli import cli
-from flask.cli import FlaskGroup
+from flask import current_app
+from flask.cli import FlaskGroup, with_appcontext
+from sqlalchemy.sql.ddl import CreateSchema
 
 from . import create_app
 
@@ -22,6 +25,33 @@ from . import create_app
 @click.group(cls=FlaskGroup, create_app=create_app)
 def cli():
     """Command line for Collection Builder."""
+
+
+@cli.command()
+@click.pass_context
+@with_appcontext
+def create_namespaces(ctx):
+    warnings.simplefilter('always', DeprecationWarning)
+    warnings.warn(
+        '\nThis command line utility is deprecated.'
+        '\nUse latest `BDC-DB` and `BDC-Catalog` package with command line: '
+        '\n\n\tbdc-db db create-namespaces'
+        '\n\nSee more in https://bdc-db.readthedocs.io/en/latest/.',
+        category=DeprecationWarning,
+        stacklevel=1
+    )
+
+    from bdc_db.cli import create_namespace
+
+    _db = current_app.extensions['bdc-catalog'].db
+
+    if not _db.engine.dialect.has_schema(_db.engine, _db.metadata.schema):
+        ctx.invoke(create_namespace)
+
+    if not _db.engine.dialect.has_schema(_db.engine, 'bdc'):
+        with _db.session.begin_nested():
+            _db.session.execute(CreateSchema('bdc'))
+        _db.session.commit()
 
 
 def main(as_module=False):

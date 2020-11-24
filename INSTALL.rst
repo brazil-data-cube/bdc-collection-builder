@@ -21,40 +21,55 @@ The Brazil Data Cube Collection Builder (``bdc-collection-builder``) depends ess
 
 - `RabbitMQ <https://www.rabbitmq.com/>`_
 
-- `Brazil Data Cube Database Module <https://github.com/brazil-data-cube/bdc-db>`_
+- `Brazil Data Cube Catalog Module <https://github.com/brazil-data-cube/bdc-catalog>`_
 
 - `Brazil Data Cube Collectors <https://github.com/brazil-data-cube/bdc-collectors>`_
+
+- `Sensor Harmonization <https://github.com/brazil-data-cube/sensor-harm>`_ (Optional)
 
 
 Development Installation
 ------------------------
 
-Clone the software repository:
+BDC-Collectors
+~~~~~~~~~~~~~~
 
-.. code-block:: shell
+Clone the `BDC-Collectors` and install in mode development (This step is required since the repository is still private)::
+
+    $ git clone https://github.com/brazil-data-cube/bdc-collectors.git
+
+
+Go to source code folder::
+
+    $ cd bdc-collectors
+
+
+Install in development mode::
+
+    $ pip3 install -e .
+    $ cd ..
+
+BDC-Collection-Builder
+~~~~~~~~~~~~~~~~~~~~~~
+
+Clone the software repository::
 
     $ git clone https://github.com/brazil-data-cube/bdc-collection-builder.git
 
 
-Go to the source code folder:
-
-.. code-block:: shell
+Go to the source code folder::
 
     $ cd bdc-collection-builder
 
 
-Install in development mode:
-
-.. code-block:: shell
+Install in development mode::
 
     $ pip3 install -e .[all]
 
 
 .. note::
 
-    If you have problems during the ``librabbitmq`` install with ``autoreconf``, please, install the ``autoconf`` build system. In Debian based systems (Ubuntu), you can install ``autoconf`` with:
-
-    .. code-block:: shell
+    If you have problems during the ``librabbitmq`` install with ``autoreconf``, please, install the ``autoconf`` build system. In Debian based systems (Ubuntu), you can install ``autoconf`` with::
 
         $ sudo apt install autoconf
 
@@ -62,16 +77,12 @@ Install in development mode:
     For more information, please, see [#f1]_.
 
 
-Generate the documentation:
-
-.. code-block:: shell
+Generate the documentation::
 
     $ python setup.py build_sphinx
 
 
-The above command will generate the documentation in HTML and it will place it under:
-
-.. code-block:: shell
+The above command will generate the documentation in HTML and it will place it under::
 
     doc/sphinx/_build/html/
 
@@ -82,9 +93,7 @@ Running in Development Mode
 Launch Redis, RabbitMQ and PostgreSQL Containers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``docker-compose`` command can be used to launch the Redis and RabbitMQ containers:
-
-.. code-block:: shell
+The ``docker-compose`` command can be used to launch the Redis and RabbitMQ containers::
 
     $ docker-compose up -d redis mq postgres
 
@@ -109,14 +118,12 @@ Let's take a look at each parameter in the above command:
 
 .. note::
 
-    If you have a PostgreSQL DBMS you can ommit the ``postgres`` service in the above command.
+    If you have a PostgreSQL DBMS you can omit the ``postgres`` service in the above command.
 
 
 .. note::
 
-    After launching the containers, check if they are up and running:
-
-    .. code-block:: shell
+    After launching the containers, check if they are up and running::
 
         $ docker container ls
 
@@ -136,33 +143,37 @@ You will need an instance of a PostgreSQL DBMS with a database prepared with the
 The following steps will show how to prepare the data model:
 
 
-**1.** Create a PostgreSQL database and enable the PostGIS extension:
-
-.. code-block:: shell
+**1.** Create a PostgreSQL database and enable the PostGIS extension::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-    bdc-collection-builder db create-db
+    bdc-db db init
 
 
-**2.** After that, run Flask-Migrate command to prepare the Collection Builder data model:
-
-.. code-block:: shell
+**2.** Create extension `PostGIS`::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-    bdc-collection-builder db upgrade
+    bdc-db db create-extension-postgis
 
-
-Loading Demo Data
-~~~~~~~~~~~~~~~~~
-
-Load default fixtures of Brazil Data Cube data model:
-
-Once the database is updated, we have prepared a command utility on Brazil Data Cube Database module to load some collection examples:
-
-.. code-block:: shell
+**3.** Create table namespaces::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-    bdc-db fixtures init
+    bdc-db db create-namespace
+    # The following command is to create namespace for bdc-collection-builder models.
+    # It is deprecated and will be removed in the next release
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-collection-builder create-namespaces
+
+
+**3.** After that, run Flask-Migrate command to prepare the Collection Builder data model::
+
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-collection-builder alembic upgrade
+
+
+**3.** Load `BDC-Catalog` triggers with command::
+
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-db db create-triggers
 
 
 Prepare the containers Sen2Cor and LaSRC 1.3.0
@@ -173,9 +184,10 @@ Before launching Sen2Cor and LaSRC processors, please, read the `CONFIG.rst <./C
 
 If you have all the auxiliary data, edit `docker-compose.yml` the section `atm-correction` and fill the following configuration based in the directory where auxiliaries are stored::
 
+    # LaSRC / LEDAPS
     - "LASRC_AUX_DIR=/path/to/landsat/auxiliaries/L8"
     - "LEDAPS_AUX_DIR=/path/to/landsat/ledaps_auxiliaries"
-
+    # Sen2Cor
     - "SEN2COR_AUX_DIR=/path/to/sen2cor/CCI4SEN2COR"
     - "SEN2COR_CONFIG_DIR=/path/to/sen2cor/config/2.8"
 
@@ -190,21 +202,16 @@ If you have all the auxiliary data, edit `docker-compose.yml` the section `atm-c
 Launching Collection Builder Workers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**1.** In order to launch the worker responsible for downloading data, run the following ``Celery`` command:
-
-.. code-block:: shell
+**1.** In order to launch the worker responsible for downloading data, run the following ``Celery`` command::
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
       SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
-      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
 
 
-As soon as the worker is launched, it will present a message like:
-
-.. code-block:: shell
+As soon as the worker is launched, it will present a message like::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -235,23 +242,18 @@ As soon as the worker is launched, it will present a message like:
 
 
 
-**2.** To launch the worker responsible for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8), use the following ``Celery`` command:
-
-.. code-block:: shell
+**2.** To launch the worker responsible for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8), use the following ``Celery`` command::
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
       SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
-      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
-      ESPA_URL="http://localhost:5032" \
-      SEN2COR_URL="http://localhost:5031" \
-      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q atm-correction
+      LASRC_AUX_DIR=/path/to/auxiliaries/L8 \
+      LEDAPS_AUX_DIR=/path/to/auxiliaries/ledaps \
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q correction
 
 
-As soon as the worker is launched, it will present a message like:
-
-.. code-block:: shell
+As soon as the worker is launched, it will present a message like::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -278,31 +280,24 @@ As soon as the worker is launched, it will present a message like:
     [2020-04-30 08:53:57,977: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
     [2020-04-30 08:53:58,055: INFO/MainProcess] mingle: searching for neighbors
     [2020-04-30 08:53:59,389: INFO/MainProcess] mingle: all alone
-    [2020-04-30 08:53:59,455: WARNING/MainProcess] /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/lib/python3.7/site-packages/kombu/pidbox.py:74: UserWarning: A node named celery@enghaw-dell-note is already using this process mailbox!
-
-    Maybe you forgot to shutdown the other node or did not do so properly?
-    Or if you meant to start multiple nodes on the same host please make sure
-    you give each node a unique node name!
-
-      warnings.warn(W_PIDBOX_IN_USE.format(node=self))
     [2020-04-30 08:53:59,457: INFO/MainProcess] celery@enghaw-dell-note ready.
 
+.. note::
 
-**3.** To launch the worker responsible for publishing the generated surface reflection data products, use the following ``Celery`` command:
+    This configuration is only for LaSRC/LEDAPS with Fmask4. If you would like to run with Sen2Cor,
+    check `CONFIG <./CONFIG.rst>`_.
 
-.. code-block:: shell
+
+**3.** To launch the worker responsible for publishing the generated surface reflection data products, use the following ``Celery`` command::
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
       SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
-      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q publish
 
 
-As soon as the worker is launched, it will present a message like:
-
-.. code-block:: shell
+As soon as the worker is launched, it will present a message like::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -329,34 +324,22 @@ As soon as the worker is launched, it will present a message like:
     [2020-04-30 08:54:19,361: INFO/MainProcess] Connected to amqp://guest:**@127.0.0.1:5672//
     [2020-04-30 08:54:19,400: INFO/MainProcess] mingle: searching for neighbors
     [2020-04-30 08:54:20,504: INFO/MainProcess] mingle: all alone
-    [2020-04-30 08:54:20,595: WARNING/MainProcess] /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/lib/python3.7/site-packages/kombu/pidbox.py:74: UserWarning: A node named celery@enghaw-dell-note is already using this process mailbox!
-
-    Maybe you forgot to shutdown the other node or did not do so properly?
-    Or if you meant to start multiple nodes on the same host please make sure
-    you give each node a unique node name!
-
-      warnings.warn(W_PIDBOX_IN_USE.format(node=self))
     [2020-04-30 08:54:20,602: INFO/MainProcess] celery@enghaw-dell-note ready.
 
 
 Launching Collection Builder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To launch the ``Flask`` application responsible for orchestrating the collection builder components, use the following command:
-
-.. code-block:: shell
+To launch the ``Flask`` application responsible for orchestrating the collection builder components, use the following command::
 
     $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
       SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
-      SQLALCHEMY_DATABASE_URI_AWS="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       bdc-collection-builder run
 
 
-As soon as the ``Flask`` application is up and running, it will present a message like:
-
-.. code-block:: shell
+As soon as the ``Flask`` application is up and running, it will present a message like::
 
      * Environment: production
        WARNING: This is a development server. Do not use it in a production deployment.
@@ -377,9 +360,7 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
 
 .. [#f1]
 
-    During ``librabbitmq`` installation, if you have a build message such as the one showed below:
-
-    .. code-block::
+    During ``librabbitmq`` installation, if you have a build message such as the one showed below::
 
         ...
         Running setup.py install for SQLAlchemy-Utils ... done
@@ -411,8 +392,6 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
         /bin/sh: 0: Can't open configure
 
 
-    You will need to install ``autoconf``:
-
-    .. code-block:: shell
+    You will need to install ``autoconf``::
 
         $ sudo apt install autoconf

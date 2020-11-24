@@ -107,7 +107,7 @@ You can download a Sentinel 2 scene from the provider `SciHub` with dataset `S2M
                     }
                 ]
             }' \
-            localhost:5000/api/radcor/
+            localhost:5000/api/radcor
 
 The output of the above request can be seen below:
 
@@ -188,7 +188,7 @@ You can download a Landsat-8 scene using the following example:
                     }
                 ]
             }' \
-            localhost:5000/api/radcor/
+            localhost:5000/api/radcor
 
 
 Output:

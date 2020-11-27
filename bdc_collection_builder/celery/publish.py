@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy
 import rasterio
-from bdc_catalog.models import Collection, Item, Tile, db
+from bdc_catalog.models import Collection, Item, Provider, Tile, db
 from bdc_collectors.base import BaseCollection
 from flask import current_app
 from geoalchemy2.shape import from_shape
@@ -127,7 +127,8 @@ def get_item_path(relative: str) -> str:
     return str(data_dir / path)
 
 
-def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str, cloud_cover=None) -> Item:
+def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
+                       cloud_cover=None, provider_id: Optional[int] = None) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -233,6 +234,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         except Exception as e:
             logging.warning(f'Could not generate quicklook for {scene_id} due {str(e)}')
 
+    provider = Provider.query().filter(Provider.id == provider_id).first()
+
     # TODO: Log files/bands which was not published.
 
     with db.session.begin_nested():
@@ -248,6 +251,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item.geom = geom
         item.srid = 4326  # TODO: Add it dynamically
         item.convex_hull = convex_hull
+        item.provider = provider
 
         if tile is not None:
             item.tile_id = tile.id

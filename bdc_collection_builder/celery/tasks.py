@@ -303,7 +303,11 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
         file = activity['args'].get('file') or activity['args'].get('compressed_file')
 
-        publish_collection(scene_id, data_collection, collection, file, cloud_cover=activity['args'].get('cloud'))
+        provider_id = activity['args'].get('provider_id')
+
+        publish_collection(scene_id, data_collection, collection, file,
+                           cloud_cover=activity['args'].get('cloud'),
+                           provider_id=provider_id)
 
         if file:
             refresh_execution_args(execution, activity, file=str(file))

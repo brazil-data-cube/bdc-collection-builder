@@ -158,22 +158,28 @@ The following steps will show how to prepare the data model:
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
     bdc-db db create-namespace
-    # The following command is to create namespace for bdc-collection-builder models.
-    # It is deprecated and will be removed in the next release
+    # The following command is to create namespace for bdc-collection-builder models. You must use it.
+    # However, it is deprecated and will be removed in the next release
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
     bdc-collection-builder create-namespaces
 
 
-**3.** After that, run Flask-Migrate command to prepare the Collection Builder data model::
+**4.** After that, run Flask-Migrate command to prepare the Collection Builder data model::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
     bdc-collection-builder alembic upgrade
 
 
-**3.** Load `BDC-Catalog` triggers with command::
+**5.** Load `BDC-Catalog` triggers with command::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
     bdc-db db create-triggers
+
+
+**6.** You may need to initialize default data for `BDC-Catalog` with command::
+
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    bdc-db db load-scripts
 
 
 Prepare the containers Sen2Cor and LaSRC 1.3.0
@@ -211,7 +217,9 @@ Launching Collection Builder Workers
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
 
 
-As soon as the worker is launched, it will present a message like::
+As soon as the worker is launched, it will present a message like:
+
+.. code-block::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -253,7 +261,9 @@ As soon as the worker is launched, it will present a message like::
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q correction
 
 
-As soon as the worker is launched, it will present a message like::
+As soon as the worker is launched, it will present a message like:
+
+.. code-block::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -297,7 +307,9 @@ As soon as the worker is launched, it will present a message like::
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q publish
 
 
-As soon as the worker is launched, it will present a message like::
+As soon as the worker is launched, it will present a message like:
+
+.. code-block::
 
      -------------- celery@enghaw-dell-note v4.4.2 (cliffs)
     --- ***** -----
@@ -360,7 +372,9 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
 
 .. [#f1]
 
-    During ``librabbitmq`` installation, if you have a build message such as the one showed below::
+    During ``librabbitmq`` installation, if you have a build message such as the one showed below:
+
+    .. code-block::
 
         ...
         Running setup.py install for SQLAlchemy-Utils ... done
@@ -395,3 +409,4 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
     You will need to install ``autoconf``::
 
         $ sudo apt install autoconf
+

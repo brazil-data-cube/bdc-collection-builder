@@ -10,6 +10,20 @@
 Changes
 =======
 
+
+Version 0.6.0
+-------------
+
+- Fix provider_id not being saved in `bdc.item' - provider_id `#202 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/202>`_, `#140 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/140>`_.
+- Fix publish item transaction error `#87 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/87>`_.
+- Fix wrong thumbnail path for Landsat products `#180 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/180>`_.
+- Add support with `BDC-Catalog 0.6.4 <http://bdc-catalog.readthedocs.io/>`_, `#174 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/174>`_.
+- Add support to change default name for collections `#182 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/182>`_.
+- Add support with `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors>`_ to search and collect data product from different providers `PR 187 <https://github.com/brazil-data-cube/bdc-collection-builder/pull/187>`_.
+- Add Harmonization support (using extras `pip install -e .[harmonization]`) `#138 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/138>`_.
+- Generate vegetation band indexes dynamically relying on `bdc.bands.metadata` `#164 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/164>`_, commit `0fe15de <https://github.com/brazil-data-cube/bdc-collection-builder/commit/0fe15debceb912144a995d82eb68a7a2b1595340>`_.
+
+
 Version 0.4.1
 -------------
 

@@ -5,4 +5,6 @@
     under the terms of the MIT License; see LICENSE file for more details.
 
 
+.. _Configuration:
+
 .. include:: ../../CONFIG.rst

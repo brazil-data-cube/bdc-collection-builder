@@ -8,15 +8,14 @@
 
 """Define flask views for collections."""
 
-
 # 3rdparty
 from flask import Blueprint, request
 from werkzeug.exceptions import RequestURITooLarge
+
 # Builder
 from .celery.utils import list_pending_tasks, list_running_tasks
-from .forms import RadcorActivityForm, SearchImageForm
 from .controller import RadcorBusiness
-
+from .forms import RadcorActivityForm, SearchImageForm
 
 bp = Blueprint('radcor', import_name=__name__, url_prefix='/api')
 

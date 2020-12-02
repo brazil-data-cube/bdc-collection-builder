@@ -1,3 +1,13 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Module to generate collection bands dynamically using bdc.bands.metadata property."""
+
 import logging
 from pathlib import Path
 from typing import List, Dict
@@ -18,17 +28,21 @@ class AutoCloseDataSet:
     """Class to wraps the rasterio.io.Dataset to auto close data set out of scope."""
 
     def __init__(self, file_path: str, mode='r', **options):
+        """Build an auto close dataset instance."""
         self.dataset = rasterio.open(str(file_path), mode=mode, **options)
         self.profile = options
 
     def close(self):
+        """Try to close a data set."""
         if self.dataset:
             self.dataset.close()
 
     def __del__(self):
+        """Destructor method that close datasets before object is destroyed."""
         self.close()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close data set when object out of scope."""
         self.close()
 
 

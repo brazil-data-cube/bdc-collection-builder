@@ -10,10 +10,12 @@
 
 
 # 3rdparty
-from marshmallow import Schema, fields, validates_schema, ValidationError, post_load
+from bdc_catalog.models import Collection, Item, db
+from marshmallow import (Schema, ValidationError, fields, post_load,
+                         validates_schema)
 from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
-from bdc_catalog.models import db, Item, Collection
+
 # Builder
 from .collections.models import RadcorActivity, RadcorActivityHistory
 
@@ -91,6 +93,8 @@ class RadcorActivityForm(SimpleActivityForm):
 
 
 class TaskDispatcher(Schema):
+    """Define the minimal structure for a Task."""
+
     type = fields.String(required=True, allow_none=False, validate=OneOf(['download', 'correction', 'publish', 'post', 'harmonization']))
     collection = fields.String(required=True, allow_none=False)
     args = fields.Dict(required=False, allow_none=False)

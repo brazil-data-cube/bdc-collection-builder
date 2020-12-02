@@ -8,22 +8,24 @@
 
 """Define base interface for Celery Tasks."""
 
-
 # Python Native
 from datetime import datetime
+
 # 3rdparty
 from bdc_catalog.models import Collection, Provider
-from bdc_collectors.ext import CollectorExtension, BaseProvider
-from flask import current_app
+from bdc_collectors.ext import BaseProvider, CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
-from sqlalchemy import func, Date
+from flask import current_app
+from sqlalchemy import Date, func
 from werkzeug.exceptions import BadRequest, abort
+
 # Builder
-from .celery.tasks import download, correction, publish, post, harmonization
-from .forms import RadcorActivityForm, SimpleActivityForm
-from .collections.models import ActivitySRC, RadcorActivity, RadcorActivityHistory, db
+from .celery.tasks import correction, download, harmonization, post, publish
+from .collections.models import (ActivitySRC, RadcorActivity,
+                                 RadcorActivityHistory, db)
 from .collections.utils import get_or_create_model
+from .forms import RadcorActivityForm, SimpleActivityForm
 
 
 class RadcorBusiness:
@@ -319,6 +321,7 @@ class RadcorBusiness:
 
     @classmethod
     def validate_provider(cls, collection_id):
+        """Check if the given collection has any provider set."""
         collection = Collection.query().filter(Collection.id == collection_id).first_or_404()
 
         collector_extension: CollectorExtension = current_app.extensions['bdc:collector']

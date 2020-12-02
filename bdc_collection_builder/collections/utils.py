@@ -257,8 +257,8 @@ def create_asset_definition(href: str, mime_type: str, role: List[str], absolute
     return asset
 
 
-def raster_extent(file_path: str, epsg = 'EPSG:4326') -> shapely.geometry.Polygon:
-    """Get raster extent in arbitrary CRS
+def raster_extent(file_path: str, epsg='EPSG:4326') -> shapely.geometry.Polygon:
+    """Get raster extent in arbitrary CRS.
 
     Args:
         file_path (str): Path to image
@@ -267,14 +267,13 @@ def raster_extent(file_path: str, epsg = 'EPSG:4326') -> shapely.geometry.Polygo
     Returns:
         dict: geojson-like geometry
     """
-
     with rasterio.open(str(file_path)) as data_set:
         _geom = shapely.geometry.mapping(shapely.geometry.box(*data_set.bounds))
         return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
 
 
 def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:
-    """get image footprint
+    """Get raster image footprint.
 
     Args:
         file_path (str): image file
@@ -438,6 +437,7 @@ def save_as_cog(destination: str, raster, mode='w', **profile):
 
 
 def is_valid_compressed_file(file_path: str) -> bool:
+    """Check if given file is a compressed file and hen check file integrity."""
     if file_path.endswith('.zip'):
         return is_valid_compressed(file_path)
     if file_path.endswith('.tar.gz'):

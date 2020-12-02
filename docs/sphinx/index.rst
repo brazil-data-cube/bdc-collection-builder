@@ -6,27 +6,32 @@
     under the terms of the MIT License; see LICENSE file for more details.
 
 .. include:: ../../README.rst
-   :end-before: Installation
+   :end-before: About
 
 
-Documentation
-=============
+A command line to manage collection metadata of bdc-catalog.
+
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :hidden:
 
-   installation
-   config
-   deploy
-   api
-   license
+    self
 
 
+.. toctree::
+    :maxdepth: 2
+    :caption: Documentation:
 
-Indices and tables
-==================
+    installation
+    usage
+    api
+    deploy
+    repository
+    history
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Additional Notes
+
+    license

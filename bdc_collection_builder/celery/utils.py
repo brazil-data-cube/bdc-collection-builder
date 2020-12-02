@@ -27,6 +27,7 @@ def list_pending_tasks():
 
 
 def load_celery_models():
+    """Prepare and load celery models in database backend."""
     session = SessionManager()
     engine = session.get_engine(current_app.backend.url)
     session.prepare_models(engine)

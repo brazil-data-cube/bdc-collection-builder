@@ -1,3 +1,13 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Module for Data Synchronization on AWS Buckets."""
+
 # Python Native
 import logging
 import shutil
@@ -20,7 +30,10 @@ def _s3_bucket_instance(bucket: str):
 
 
 class DataSynchronizer:
+    """Class for synchronize a folder with AWS Buckets."""
+
     def __init__(self, file_path: str, bucket: str = Config.COLLECTION_BUILDER_SYNC_BUCKET):
+        """Build instance object."""
         self.file_path = Path(file_path)
         self.bucket = bucket
         self.prefix = Path(Config.DATA_DIR) / 'Repository/Archive'
@@ -76,9 +89,11 @@ class DataSynchronizer:
 
     @staticmethod
     def is_remote_sync_configured():
+        """Check if DataSynchronizer is fully supported."""
         return Config.COLLECTION_BUILDER_SYNC
 
     def remove_data(self, raise_error=False):
+        """Try to remove any folder for both local and AWS buckets."""
         path = Path(self.file_path)
 
         if path.exists():
@@ -106,6 +121,7 @@ class DataSynchronizer:
                 raise e
 
     def sync_data(self, file_path: str = None, bucket: str = None, auto_remove=False):
+        """Synchronize data with buckets."""
         expected_file_path = Path(file_path or self.file_path)
 
         if not expected_file_path.exists():

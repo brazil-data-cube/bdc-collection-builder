@@ -1,3 +1,13 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Module to deal with Celery Tasks."""
+
 import logging
 import os
 import shutil
@@ -80,6 +90,7 @@ def execution_from_collection(activity, collection_id=None, activity_type=None):
 
 
 def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
+    """Retrieve a data collector class instance from given bdc-collector provider."""
     collector_extension = flask_app.extensions['bdc:collector']
 
     provider_class = collector_extension.get_provider(provider_name)
@@ -103,6 +114,7 @@ def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
 
 
 def get_provider_collection_from_activity(activity: dict) -> BaseCollection:
+    """Retrieve an instance of bdc_collectors.base.BaseCollection."""
     return get_provider_collection(activity['args']['catalog'], activity['args']['dataset'])(activity['sceneid'])
 
 
@@ -123,6 +135,7 @@ def refresh_execution_args(execution: RadcorActivityHistory, activity: dict, **k
     default_retry_delay=Config.TASK_RETRY_DELAY
 )
 def download(activity: dict, **kwargs):
+    """Celery tasks to deal with download data product from given providers."""
     execution = create_execution(activity)
 
     collector_extension = flask_app.extensions['bdc:collector']
@@ -197,6 +210,7 @@ def download(activity: dict, **kwargs):
 
 @current_app.task(queue='correction')
 def correction(activity: dict, collection_id=None, **kwargs):
+    """Celery task to deal with Surface Reflectance processors."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
 
     collection: Collection = execution.activity.collection
@@ -290,6 +304,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='publish')
 def publish(activity: dict, collection_id=None, **kwargs):
+    """Celery tasks to publish an item on database."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=publish.__name__)
 
     collection = execution.activity.collection
@@ -320,6 +335,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='post')
 def post(activity: dict, collection_id=None, **kwargs):
+    """Celery task to deal with data post processing."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=post.__name__)
 
     collection = execution.activity.collection
@@ -379,6 +395,14 @@ def harmonization(activity: dict, collection_id=None, **kwargs):
 
         target_tmp_dir.mkdir(exist_ok=True, parents=True)
 
+        reflectance_dir = Path(activity['args']['file'])
+
+        glob = list(reflectance_dir.glob(f'**/{activity["sceneid"]}_Fmask4.tif'))
+
+        fmask = glob[0]
+
+        shutil.copy(str(fmask), target_tmp_dir)
+
         if activity['sceneid'].startswith('S2'):
             shutil.unpack_archive(activity['args']['compressed_file'], tmp)
 
@@ -395,19 +419,18 @@ def harmonization(activity: dict, collection_id=None, **kwargs):
             product_version = int(data_collection.parser.satellite())
             sat_sensor = '{}{}'.format(data_collection.parser.source()[:2], product_version)
 
-            landsat_harmonize(sat_sensor, activity['args']['file'], str(target_tmp_dir))
-
-        reflectance_dir = Path(activity['args']['file'])
-
-        glob = list(reflectance_dir.glob('**/*_Fmask4.tif'))
-
-        fmask = glob[0]
-
-        shutil.copy(str(fmask), target_tmp_dir)
+            landsat_harmonize(sat_sensor, activity["sceneid"], activity['args']['file'], str(target_tmp_dir))
 
         Path(target_dir).mkdir(exist_ok=True, parents=True)
 
         for entry in Path(target_tmp_dir).iterdir():
+            entry_name = entry.name
+
+            target_entry = Path(target_dir) / entry_name
+
+            if target_entry.exists():
+                os.remove(str(target_entry))
+
             shutil.move(str(entry), target_dir)
 
     activity['args']['file'] = target_dir

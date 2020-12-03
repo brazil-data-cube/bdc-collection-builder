@@ -31,6 +31,7 @@ def cli():
 @click.pass_context
 @with_appcontext
 def create_namespaces(ctx):
+    """Create all namespaces used in BDC-Collection-Builder and BDC-Catalog."""
     warnings.simplefilter('always', DeprecationWarning)
     warnings.warn(
         '\nThis command line utility is deprecated.'

@@ -16,6 +16,8 @@ history = open('CHANGES.rst').read()
 
 docs_require = [
     'Sphinx>=2.1',
+    'sphinx_rtd_theme',
+    'sphinx-copybutton',
 ]
 
 tests_require = [
@@ -30,7 +32,7 @@ tests_require = [
 ]
 
 harmonization_require = [
-    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git',
+    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git@v0.2.0#egg=sensor-harm',
 ]
 
 extras_require = {
@@ -57,8 +59,8 @@ install_requires = [
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
-    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.2#egg=bdc-catalog',
-    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git#egg=bdc-catalog',
+    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.4#egg=bdc-catalog',
+    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.0#egg=bdc-collectors',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
     'shapely>=1.7,<2'

@@ -1,3 +1,13 @@
+#
+# This file is part of Brazil Data Cube Collection Builder.
+# Copyright (C) 2019-2020 INPE.
+#
+# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
+# under the terms of the MIT License; see LICENSE file for more details.
+#
+
+"""Module to publish an collection item on database."""
+
 import logging
 import mimetypes
 import shutil
@@ -22,6 +32,7 @@ from ..constants import COG_MIME_TYPE
 
 
 def guess_mime_type(extension: str, cog=False) -> Optional[str]:
+    """Try to identify file mimetype."""
     mime = mimetypes.guess_type(extension)
 
     if mime[0] in COG_MIME_TYPE and cog:
@@ -33,21 +44,21 @@ def guess_mime_type(extension: str, cog=False) -> Optional[str]:
 def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, cols=768, no_data=-9999):
     """Generate a Quick Look file (PNG based) from a list of files.
 
-        Note:
-            The file order in ``files`` represents the bands Red, Green and Blue, respectively.
+    Note:
+        The file order in ``files`` represents the bands Red, Green and Blue, respectively.
 
-        Exceptions:
-            RasterIOError when could not open a raster file band
+    Exceptions:
+        RasterIOError when could not open a raster file band
 
-        Args:
-            file_output: Path to store the quicklook file.
-            red_file: Path to the band attached into red channel.
-            green_file: Path to the band attached into green channel.
-            blue_file: Path to the band attached into blue channel.
-            rows: Image height. Default is 768.
-            cols: Image width. Default is 768.
-            no_data: Use custom value for nodata.
-        """
+    Args:
+        file_output: Path to store the quicklook file.
+        red_file: Path to the band attached into red channel.
+        green_file: Path to the band attached into green channel.
+        blue_file: Path to the band attached into blue channel.
+        rows: Image height. Default is 768.
+        cols: Image width. Default is 768.
+        no_data: Use custom value for nodata.
+    """
     image = numpy.zeros((rows, cols, 3,), dtype=numpy.uint8)
 
     nb = 0

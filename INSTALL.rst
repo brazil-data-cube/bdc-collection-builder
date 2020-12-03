@@ -84,7 +84,7 @@ Generate the documentation::
 
 The above command will generate the documentation in HTML and it will place it under::
 
-    doc/sphinx/_build/html/
+    docs/sphinx/_build/html/
 
 
 Running in Development Mode

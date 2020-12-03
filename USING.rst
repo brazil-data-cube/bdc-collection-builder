@@ -39,7 +39,7 @@ The resource `/api/radcor` is used to dispatch tasks for both data collect, proc
         if you need to `download` data, generates a Surface Reflectance (`correction`) and then publish data `publish`,
         you can chain the tasks as following:
 
-        .. code-block:: txt
+        .. code-block::
 
             "tasks": [
                 "type": "download",

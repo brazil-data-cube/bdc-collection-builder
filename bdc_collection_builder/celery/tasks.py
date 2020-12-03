@@ -377,7 +377,6 @@ def post(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='harmonization')
 def harmonization(activity: dict, collection_id=None, **kwargs):
-    """Celery Task for dealing with data harmonization."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=harmonization.__name__)
 
     collection = execution.activity.collection
@@ -396,6 +395,14 @@ def harmonization(activity: dict, collection_id=None, **kwargs):
 
         target_tmp_dir.mkdir(exist_ok=True, parents=True)
 
+        reflectance_dir = Path(activity['args']['file'])
+
+        glob = list(reflectance_dir.glob(f'**/{activity["sceneid"]}_Fmask4.tif'))
+
+        fmask = glob[0]
+
+        shutil.copy(str(fmask), target_tmp_dir)
+
         if activity['sceneid'].startswith('S2'):
             shutil.unpack_archive(activity['args']['compressed_file'], tmp)
 
@@ -412,19 +419,18 @@ def harmonization(activity: dict, collection_id=None, **kwargs):
             product_version = int(data_collection.parser.satellite())
             sat_sensor = '{}{}'.format(data_collection.parser.source()[:2], product_version)
 
-            landsat_harmonize(sat_sensor, activity['args']['file'], str(target_tmp_dir))
-
-        reflectance_dir = Path(activity['args']['file'])
-
-        glob = list(reflectance_dir.glob('**/*_Fmask4.tif'))
-
-        fmask = glob[0]
-
-        shutil.copy(str(fmask), target_tmp_dir)
+            landsat_harmonize(sat_sensor, activity["sceneid"], activity['args']['file'], str(target_tmp_dir))
 
         Path(target_dir).mkdir(exist_ok=True, parents=True)
 
         for entry in Path(target_tmp_dir).iterdir():
+            entry_name = entry.name
+
+            target_entry = Path(target_dir) / entry_name
+
+            if target_entry.exists():
+                os.remove(str(target_entry))
+
             shutil.move(str(entry), target_dir)
 
     activity['args']['file'] = target_dir

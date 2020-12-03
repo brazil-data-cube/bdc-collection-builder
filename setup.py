@@ -32,7 +32,7 @@ tests_require = [
 ]
 
 harmonization_require = [
-    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git',
+    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git@v0.2.0#egg=sensor-harm',
 ]
 
 extras_require = {

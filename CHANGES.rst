@@ -11,8 +11,8 @@ Changes
 =======
 
 
-Version 0.6.0
--------------
+Version 0.6.0 (2020-12-03)
+--------------------------
 
 - Fix provider_id not being saved in `bdc.item' - provider_id `#202 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/202>`_, `#140 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/140>`_.
 - Fix publish item transaction error `#87 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/87>`_.
@@ -24,10 +24,8 @@ Version 0.6.0
 - Generate vegetation band indexes dynamically relying on `bdc.bands.metadata` `#164 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/164>`_, commit `0fe15de <https://github.com/brazil-data-cube/bdc-collection-builder/commit/0fe15debceb912144a995d82eb68a7a2b1595340>`_.
 
 
-Version 0.4.1
--------------
-
-Released 2020-09-08
+Version 0.4.1 (2020-09-08)
+--------------------------
 
 Bug fixes:
 
@@ -38,10 +36,8 @@ Changes:
     - Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
 
 
-Version 0.4.0
--------------
-
-Released 2020-08-25
+Version 0.4.0 (2020-08-25)
+--------------------------
 
 - Add `LaSRC 2.0 <https://github.com/USGS-EROS/espa-surface-reflectance>`_ with `FMask 4.2 <https://github.com/GERSL/Fmask>`_ on collections Landsat-8 and Sentinel-2 - `#156 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/156>`_
 - Fix band name "quality" is wrong for Landsat 8 using LaSRC and Fmask - `#162 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/162>`_
@@ -54,10 +50,8 @@ Released 2020-08-25
     - Restart a task by scene_id, status
 
 
-Version 0.2.0
--------------
-
-Released 2020-04-29
+Version 0.2.0 (2020-04-29)
+--------------------------
 
 - First experimental version.
 - Metadata ingestion of Image Collections.

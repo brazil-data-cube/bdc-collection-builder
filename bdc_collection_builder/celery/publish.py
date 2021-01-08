@@ -22,12 +22,13 @@ from bdc_collectors.base import BaseCollection
 from flask import current_app
 from geoalchemy2.shape import from_shape
 from numpngw import write_png
+from PIL import Image
 from skimage import exposure
 from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, get_or_create_model,
-                                 raster_extent, raster_convexhull, generate_cogs)
+                                 raster_extent, raster_convexhull, generate_cogs, is_valid_compressed_file)
 from ..constants import COG_MIME_TYPE
 
 
@@ -158,11 +159,62 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     Returns:
         The created collection item.
     """
+    file_band_map = dict()
+    assets = dict()
+    old_file_path = file
+
+    temporary_dir = TemporaryDirectory()
+
+    # Get Destination Folder
+    destination = data.path(collection)
+
+    destination.mkdir(parents=True, exist_ok=True)
+
+    is_compressed = file.endswith('.zip') or file.endswith('.tar.gz')
+
+    if is_compressed:
+        destination = data.compressed_file(collection).parent
+
+        tmp = Path(temporary_dir.name)
+
+        file_path = Path(file)
+
+        destination_file = destination / file_path.name
+
+        file = file if file_path.exists() else destination_file
+
+        shutil.unpack_archive(
+            file,
+            temporary_dir.name
+        )
+
+        quicklook = Path(destination) / f'{scene_id}.png'
+
+        assets['asset'] = create_asset_definition(
+            href=_item_prefix(Path(file)),
+            mime_type=guess_mime_type(file),
+            role=['data'],
+            absolute_path=str(file)
+        )
+
+        if scene_id.startswith('S2'):
+            pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
+
+            Image.open(str(pvi)).save(str(quicklook))
+
+            assets['thumbnail'] = create_asset_definition(
+                href=_item_prefix(quicklook),
+                mime_type=guess_mime_type(str(quicklook)),
+                role=['thumbnail'],
+                absolute_path=str(quicklook)
+            )
+        elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
+            file_band_map = data.get_files(collection, path=tmp)
+            file = Path(file).parent
+
     files = data.get_files(collection, path=file)
 
     extra_assets = data.get_assets(collection, path=file)
-
-    assets = dict()
 
     tile = Tile.query().filter(
         Tile.name == data.parser.tile_id(),
@@ -170,8 +222,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     ).first()
 
     geom = convex_hull = None
-
-    file_band_map = dict()
 
     collection_band_map = {b.name: b for b in collection.bands}
 
@@ -230,7 +280,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
             blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
-            quicklook = Path(red_file).parent / f'{scene_id}.png'
+            quicklook = Path(destination) / f'{scene_id}.png'
 
             create_quick_look(str(quicklook), red_file, green_file, blue_file)
 
@@ -270,5 +320,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item.save(commit=False)
 
     db.session.commit()
+
+    if is_compressed and destination:
+        if not destination_file.exists():
+            shutil.move(str(old_file_path), str(destination))
 
     return item

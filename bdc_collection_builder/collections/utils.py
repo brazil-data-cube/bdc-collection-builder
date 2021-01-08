@@ -302,7 +302,7 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:
             geoms.append(shapely.geometry.shape(geom))
 
         if len(geoms) == 1:
-            return geoms[0]
+            return geoms[0].convex_hull
 
         multi_polygons = shapely.geometry.MultiPolygon(geoms)
 

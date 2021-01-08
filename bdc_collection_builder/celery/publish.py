@@ -14,9 +14,11 @@ import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
+from xml.etree import ElementTree
 
 import numpy
 import rasterio
+import shapely.geometry
 from bdc_catalog.models import Collection, Item, Provider, Tile, db
 from bdc_collectors.base import BaseCollection
 from flask import current_app
@@ -139,6 +141,24 @@ def get_item_path(relative: str) -> str:
     return str(data_dir / path)
 
 
+def get_footprint_sentinel(mtd_file: str) -> shapely.geometry.Polygon:
+    """Get image footprint from a Sentinel-2 MTD file."""
+    tree = ElementTree.parse(str(mtd_file))
+    footprint = None
+
+    for element in tree.findall('.//EXT_POS_LIST'):
+        footprint = element.text.rstrip()
+        break
+
+    footprint_array = footprint.split(' ')
+
+    points = [(float(footprint_array[i + 1]), float(footprint_array[i])) for i in range(0, len(footprint_array), 2)]
+
+    footprint_linear_ring = shapely.geometry.LinearRing(points)
+
+    return shapely.geometry.Polygon(footprint_linear_ring)
+
+
 def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
                        cloud_cover=None, provider_id: Optional[int] = None) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
@@ -168,7 +188,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     # Get Destination Folder
     destination = data.path(collection)
 
-    destination.mkdir(parents=True, exist_ok=True)
+    geom = convex_hull = None
 
     is_compressed = file.endswith('.zip') or file.endswith('.tar.gz')
 
@@ -199,6 +219,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         if scene_id.startswith('S2'):
             pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
+            band2 = list(tmp.rglob('**/*B02.jp2'))[0]
+            mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
+
+            geom = from_shape(raster_extent(str(band2)), srid=4326)
+            convex_hull = from_shape(get_footprint_sentinel(str(mtd)))
 
             Image.open(str(pvi)).save(str(quicklook))
 
@@ -210,7 +235,12 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             )
         elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
             file_band_map = data.get_files(collection, path=tmp)
+            band2 = str(file_band_map['B2'])
+            geom = from_shape(raster_extent(band2), srid=4326)
+            convex_hull = from_shape(raster_convexhull(band2, no_data=0), srid=4326)
             file = Path(file).parent
+    else:
+        destination.mkdir(parents=True, exist_ok=True)
 
     files = data.get_files(collection, path=file)
 
@@ -220,8 +250,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         Tile.name == data.parser.tile_id(),
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id
     ).first()
-
-    geom = convex_hull = None
 
     collection_band_map = {b.name: b for b in collection.bands}
 

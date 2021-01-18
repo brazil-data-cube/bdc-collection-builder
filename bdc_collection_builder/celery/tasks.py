@@ -171,7 +171,8 @@ def download(activity: dict, **kwargs):
     if item:
         # TODO: Get asset name of download file
         item_path = item.assets['asset']['href']
-        item_path = Path(Config.DATA_DIR) / item_path if not item_path.startswith('/') else item_path[1:]
+        item_path = item_path if not item_path.startswith('/') else item_path[1:]
+        item_path = Path(Config.DATA_DIR) / item_path
 
         if item_path.exists():
             logging.info(f'Item {scene_id} exists. {str(item_path)} -> {str(download_file)}')

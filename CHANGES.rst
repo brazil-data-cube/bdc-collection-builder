@@ -11,6 +11,14 @@ Changes
 =======
 
 
+Version 0.6.1 (2021-01-19)
+--------------------------
+
+- Skip publish scenes Level-1 when it already is done `#211 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/211>`_.
+- Fix quicklook generation in publish collection Level-1 `#207 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/207>`_.
+- Add support to download scene using collection tiles (MGRS/WRS2) `#212 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/212>`_.
+
+
 Version 0.6.0 (2020-12-03)
 --------------------------
 

@@ -223,7 +223,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
 
             geom = from_shape(raster_extent(str(band2)), srid=4326)
-            convex_hull = from_shape(get_footprint_sentinel(str(mtd)))
+            convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)
 
             Image.open(str(pvi)).save(str(quicklook))
 

@@ -163,6 +163,21 @@ def download(activity: dict, **kwargs):
 
     is_valid_file = False
 
+    item = Item.query().filter(
+        Item.collection_id == collection.id,
+        Item.name == scene_id
+    ).first()
+
+    if item:
+        # TODO: Get asset name of download file
+        item_path = item.assets['asset']['href']
+        item_path = item_path if not item_path.startswith('/') else item_path[1:]
+        item_path = Path(Config.DATA_DIR) / item_path
+
+        if item_path.exists():
+            logging.info(f'Item {scene_id} exists. {str(item_path)} -> {str(download_file)}')
+            download_file = item_path
+
     if download_file.exists() and has_compressed_file:
         logging.info('File {} downloaded. Checking file integrity...'.format(str(download_file)))
         # TODO: Should we validate using Factory Provider.is_valid() ?
@@ -317,6 +332,8 @@ def publish(activity: dict, collection_id=None, **kwargs):
         data_collection = get_provider_collection_from_activity(activity)
 
         file = activity['args'].get('file') or activity['args'].get('compressed_file')
+
+        refresh_execution_args(execution, activity, file=str(file))
 
         provider_id = activity['args'].get('provider_id')
 

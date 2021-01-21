@@ -69,6 +69,7 @@ class ActivitySRC(BaseModel):
 
     __table_args__ = (
         PrimaryKeyConstraint(activity_id, activity_src_id),
+        dict(schema=Config.ACTIVITIES_SCHEMA),
     )
 
 

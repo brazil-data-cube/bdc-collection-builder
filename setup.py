@@ -98,7 +98,10 @@ setup(
         'bdc_db.models': [
             'celery = celery.backends.database.models',
             'bdc_collection_builder = bdc_collection_builder.collections.models',
-        ]
+        ],
+        'bdc_db.namespaces': [
+            'bdc_collection_builder = bdc_collection_builder.config:Config.ACTIVITIES_SCHEMA'
+        ],
     },
     extras_require=extras_require,
     install_requires=install_requires,

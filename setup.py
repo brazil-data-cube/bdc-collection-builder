@@ -8,6 +8,7 @@
 #
 
 import os
+
 from setuptools import find_packages, setup
 
 readme = open('README.rst').read()
@@ -60,7 +61,7 @@ install_requires = [
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
     'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.4#egg=bdc-catalog',
-    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.0#egg=bdc-collectors',
+    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.1#egg=bdc-collectors',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
     'shapely>=1.7,<2'

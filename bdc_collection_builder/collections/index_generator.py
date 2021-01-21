@@ -10,15 +10,14 @@
 
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 import numpy
 import rasterio
 from bdc_catalog.models import Band, Collection
 
-from .utils import generate_cogs
 from ..interpreter import execute_expression
-
+from .utils import generate_cogs
 
 BandMapFile = Dict[str, str]
 """Type which a key (represented as collection band name) points to generated file in disk."""

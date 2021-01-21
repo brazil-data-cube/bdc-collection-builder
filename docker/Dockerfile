@@ -12,4 +12,4 @@ RUN apt-get update && \
     pip3 install pip --upgrade && \
     rm -rf /var/lib/apt/lists/* && \
     pip install wheel && \
-    pip install -e .[all] --use-feature=2020-resolver
+    pip install -e .[all]

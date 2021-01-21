@@ -77,7 +77,7 @@ Install in development mode::
     For more information, please, see [#f1]_.
 
 
-Generate the documentation::
+Generate te documentation::
 
     $ python setup.py build_sphinx
 

@@ -12,6 +12,5 @@
 from .. import create_app
 from . import create_celery_app
 
-
 app = create_app()
 celery = create_celery_app(app)

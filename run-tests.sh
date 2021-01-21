@@ -8,7 +8,7 @@
 #
 
 pydocstyle bdc_collection_builder && \
-isort --check-only --diff --recursive bdc_collection_builder/*.py && \
-check-manifest --ignore ".readthedocs.*" && \
+isort bdc_collection_builder tests setup.py --check-only --diff && \
+check-manifest --ignore ".drone.yml,.readthedocs.yml" && \
 pytest &&
-sphinx-build -qnW --color -b doctest doc/sphinx/ doc/sphinx/_build/doctest
+sphinx-build -qnW --color -b doctest docs/sphinx/ docs/sphinx/_build/doctest

@@ -14,9 +14,8 @@ Create Date: 2020-10-03 23:20:32.253182
 
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '64c2a4bb18e1'

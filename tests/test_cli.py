@@ -24,6 +24,6 @@ def test_basic_cli():
 
 def test_cli_module():
     """Test the package BDC-Collection-Builder invoked as a module."""
-    res = subprocess.call(f'{sys.executable} -m bdc_catalog', shell=True)
+    res = subprocess.call(f'{sys.executable} -m bdc_collection_builder', shell=True)
 
     assert res == 0

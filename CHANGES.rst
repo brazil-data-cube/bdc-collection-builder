@@ -11,12 +11,15 @@ Changes
 =======
 
 
-Version 0.6.1 (2021-01-19)
+Version 0.6.1 (2021-01-21)
 --------------------------
 
 - Skip publish scenes Level-1 when it already is done `#211 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/211>`_.
 - Fix quicklook generation in publish collection Level-1 `#207 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/207>`_.
 - Add support to download scene using collection tiles (MGRS/WRS2) `#212 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/212>`_.
+- Migrate the collection builder utility for namespace creation to `BDC-DB 0.4.0 <https://bdc-db.readthedocs.io/en/latest/usage.html#command-line-interface-cli>`_ (`#215 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/215>`_).
+- Add Drone CI support `#216 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/216>`_.
+
 
 
 Version 0.6.0 (2020-12-03)

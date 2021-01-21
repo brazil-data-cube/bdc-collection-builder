@@ -14,7 +14,8 @@ import datetime
 import logging
 import shutil
 from json import loads as json_parser
-from os import remove as resource_remove, path as resource_path
+from os import path as resource_path
+from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import List

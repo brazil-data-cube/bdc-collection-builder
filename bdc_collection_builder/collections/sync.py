@@ -11,11 +11,13 @@
 # Python Native
 import logging
 import shutil
+from pathlib import Path
+
 # 3rdparty
 import boto3
+
 # BDC Scripts
 from bdc_collection_builder.config import Config
-from pathlib import Path
 
 
 def _s3_bucket_instance(bucket: str):

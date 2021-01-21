@@ -29,8 +29,9 @@ from skimage import exposure
 from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
-from ..collections.utils import (create_asset_definition, get_or_create_model,
-                                 raster_extent, raster_convexhull, generate_cogs, is_valid_compressed_file)
+from ..collections.utils import (create_asset_definition, generate_cogs,
+                                 get_or_create_model, raster_convexhull,
+                                 raster_extent)
 from ..constants import COG_MIME_TYPE
 
 

@@ -157,11 +157,7 @@ The following steps will show how to prepare the data model:
 **3.** Create table namespaces::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-    bdc-db db create-namespace
-    # The following command is to create namespace for bdc-collection-builder models. You must use it.
-    # However, it is deprecated and will be removed in the next release
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
-    bdc-collection-builder create-namespaces
+    bdc-db db create-namespaces
 
 
 **4.** After that, run Flask-Migrate command to prepare the Collection Builder data model::

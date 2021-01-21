@@ -11,12 +11,11 @@
 import logging
 
 import flask
+from bdc_catalog.models import db
 from celery import Celery
 from flask import Flask
-from bdc_catalog.models import db
 
 from ..config import Config
-
 
 CELERY_TASKS = [
     f'{__package__}.tasks'

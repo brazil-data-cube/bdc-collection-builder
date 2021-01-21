@@ -8,6 +8,7 @@
 #
 
 import os
+
 from setuptools import find_packages, setup
 
 readme = open('README.rst').read()
@@ -59,8 +60,7 @@ install_requires = [
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
-    'bdc-catalog @ git+git://github.com/brazil-data-cube/bdc-catalog.git@v0.6.4#egg=bdc-catalog',
-    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.0#egg=bdc-collectors',
+    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.1#egg=bdc-collectors',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'Werkzeug>=0.16,<1.0',
     'shapely>=1.7,<2'
@@ -97,7 +97,10 @@ setup(
         'bdc_db.models': [
             'celery = celery.backends.database.models',
             'bdc_collection_builder = bdc_collection_builder.collections.models',
-        ]
+        ],
+        'bdc_db.namespaces': [
+            'bdc_collection_builder = bdc_collection_builder.config:Config.ACTIVITIES_SCHEMA'
+        ],
     },
     extras_require=extras_require,
     install_requires=install_requires,

@@ -24,6 +24,7 @@ A command line to manage collection metadata of bdc-catalog.
 
     installation
     usage
+    config
     api
     deploy
     repository

@@ -14,20 +14,24 @@ import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
+from xml.etree import ElementTree
 
 import numpy
 import rasterio
+import shapely.geometry
 from bdc_catalog.models import Collection, Item, Provider, Tile, db
 from bdc_collectors.base import BaseCollection
 from flask import current_app
 from geoalchemy2.shape import from_shape
 from numpngw import write_png
+from PIL import Image
 from skimage import exposure
 from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
-from ..collections.utils import (create_asset_definition, get_or_create_model,
-                                 raster_extent, raster_convexhull, generate_cogs)
+from ..collections.utils import (create_asset_definition, generate_cogs,
+                                 get_or_create_model, raster_convexhull,
+                                 raster_extent)
 from ..constants import COG_MIME_TYPE
 
 
@@ -138,6 +142,24 @@ def get_item_path(relative: str) -> str:
     return str(data_dir / path)
 
 
+def get_footprint_sentinel(mtd_file: str) -> shapely.geometry.Polygon:
+    """Get image footprint from a Sentinel-2 MTD file."""
+    tree = ElementTree.parse(str(mtd_file))
+    footprint = None
+
+    for element in tree.findall('.//EXT_POS_LIST'):
+        footprint = element.text.rstrip()
+        break
+
+    footprint_array = footprint.split(' ')
+
+    points = [(float(footprint_array[i + 1]), float(footprint_array[i])) for i in range(0, len(footprint_array), 2)]
+
+    footprint_linear_ring = shapely.geometry.LinearRing(points)
+
+    return shapely.geometry.Polygon(footprint_linear_ring)
+
+
 def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
                        cloud_cover=None, provider_id: Optional[int] = None) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
@@ -158,20 +180,77 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     Returns:
         The created collection item.
     """
+    file_band_map = dict()
+    assets = dict()
+    old_file_path = file
+
+    temporary_dir = TemporaryDirectory()
+
+    # Get Destination Folder
+    destination = data.path(collection)
+
+    geom = convex_hull = None
+
+    is_compressed = file.endswith('.zip') or file.endswith('.tar.gz')
+
+    if is_compressed:
+        destination = data.compressed_file(collection).parent
+
+        tmp = Path(temporary_dir.name)
+
+        file_path = Path(file)
+
+        destination_file = destination / file_path.name
+
+        file = file if file_path.exists() else destination_file
+
+        shutil.unpack_archive(
+            file,
+            temporary_dir.name
+        )
+
+        quicklook = Path(destination) / f'{scene_id}.png'
+
+        assets['asset'] = create_asset_definition(
+            href=_item_prefix(Path(file)),
+            mime_type=guess_mime_type(file),
+            role=['data'],
+            absolute_path=str(file)
+        )
+
+        if scene_id.startswith('S2'):
+            pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
+            band2 = list(tmp.rglob('**/*B02.jp2'))[0]
+            mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
+
+            geom = from_shape(raster_extent(str(band2)), srid=4326)
+            convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)
+
+            Image.open(str(pvi)).save(str(quicklook))
+
+            assets['thumbnail'] = create_asset_definition(
+                href=_item_prefix(quicklook),
+                mime_type=guess_mime_type(str(quicklook)),
+                role=['thumbnail'],
+                absolute_path=str(quicklook)
+            )
+        elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
+            file_band_map = data.get_files(collection, path=tmp)
+            band2 = str(file_band_map['B2'])
+            geom = from_shape(raster_extent(band2), srid=4326)
+            convex_hull = from_shape(raster_convexhull(band2, no_data=0), srid=4326)
+            file = Path(file).parent
+    else:
+        destination.mkdir(parents=True, exist_ok=True)
+
     files = data.get_files(collection, path=file)
 
     extra_assets = data.get_assets(collection, path=file)
-
-    assets = dict()
 
     tile = Tile.query().filter(
         Tile.name == data.parser.tile_id(),
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id
     ).first()
-
-    geom = convex_hull = None
-
-    file_band_map = dict()
 
     collection_band_map = {b.name: b for b in collection.bands}
 
@@ -230,7 +309,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
             blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
-            quicklook = Path(red_file).parent / f'{scene_id}.png'
+            quicklook = Path(destination) / f'{scene_id}.png'
 
             create_quick_look(str(quicklook), red_file, green_file, blue_file)
 
@@ -270,5 +349,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item.save(commit=False)
 
     db.session.commit()
+
+    if is_compressed and destination:
+        if not destination_file.exists():
+            shutil.move(str(old_file_path), str(destination))
 
     return item

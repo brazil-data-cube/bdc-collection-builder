@@ -119,6 +119,7 @@ class SearchImageForm(Schema):
     e = fields.Float(allow_none=False, allow_nan=False)
     n = fields.Float(allow_none=False, allow_nan=False)
     scenes = fields.List(fields.String(), allow_none=False)
+    tiles = fields.List(fields.String(), allow_none=False)
 
     @post_load
     def pre_load_dates(self, data, **kwargs) -> dict:
@@ -142,11 +143,11 @@ class SearchImageForm(Schema):
         """
         bbox_given = data.keys() >= {'w', 's', 'e', 'n'}
 
-        if 'scenes' in data and bbox_given:
+        if 'scenes' in data and bbox_given and 'tiles' in data:
             raise ValidationError('"scenes" and bbox ("w", "s", "e", "n") given. Please refer one of those.')
 
-        if 'scenes' not in data and not bbox_given:
-            raise ValidationError('Missing bbox ("w", "s", "e", "n") or "scenes" property.')
+        if 'scenes' not in data and not bbox_given and 'tiles' not in data:
+            raise ValidationError('Missing bbox ("w", "s", "e", "n") or "scenes" or "tiles" property.')
 
         if bbox_given:
             w, s, e, n = data['w'], data['s'], data['e'], data['n']

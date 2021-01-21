@@ -16,17 +16,18 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from bdc_catalog.models import Provider, Item, Collection
+from bdc_catalog.models import Collection, Item, Provider
 from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
 from celery.backends.database import Task
 from flask import current_app as flask_app
 
-from ..collections.models import RadcorActivityHistory, RadcorActivity
-from ..collections.utils import get_or_create_model, is_valid_compressed_file, post_processing
+from ..collections.models import RadcorActivity, RadcorActivityHistory
+from ..collections.utils import (get_or_create_model, is_valid_compressed_file,
+                                 post_processing)
 from ..config import Config
-from .publish import publish_collection, get_item_path
+from .publish import get_item_path, publish_collection
 
 
 def create_execution(activity):
@@ -162,6 +163,21 @@ def download(activity: dict, **kwargs):
         download_file = data_collection.path(collection)
 
     is_valid_file = False
+
+    item = Item.query().filter(
+        Item.collection_id == collection.id,
+        Item.name == scene_id
+    ).first()
+
+    if item:
+        # TODO: Get asset name of download file
+        item_path = item.assets['asset']['href']
+        item_path = item_path if not item_path.startswith('/') else item_path[1:]
+        item_path = Path(Config.DATA_DIR) / item_path
+
+        if item_path.exists():
+            logging.info(f'Item {scene_id} exists. {str(item_path)} -> {str(download_file)}')
+            download_file = item_path
 
     if download_file.exists() and has_compressed_file:
         logging.info('File {} downloaded. Checking file integrity...'.format(str(download_file)))
@@ -318,6 +334,8 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
         file = activity['args'].get('file') or activity['args'].get('compressed_file')
 
+        refresh_execution_args(execution, activity, file=str(file))
+
         provider_id = activity['args'].get('provider_id')
 
         publish_collection(scene_id, data_collection, collection, file,
@@ -377,12 +395,12 @@ def post(activity: dict, collection_id=None, **kwargs):
 
 @current_app.task(queue='harmonization')
 def harmonization(activity: dict, collection_id=None, **kwargs):
+    """Harmonize Landsat and Sentinel-2 products."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=harmonization.__name__)
 
     collection = execution.activity.collection
 
-    from sensor_harm import sentinel_harmonize
-    from sensor_harm import landsat_harmonize
+    from sensor_harm import landsat_harmonize, sentinel_harmonize
 
     with TemporaryDirectory(prefix='harmonization', suffix=activity['sceneid']) as tmp:
         data_collection = get_provider_collection_from_activity(activity)

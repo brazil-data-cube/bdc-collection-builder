@@ -14,7 +14,8 @@ import datetime
 import logging
 import shutil
 from json import loads as json_parser
-from os import remove as resource_remove, path as resource_path
+from os import path as resource_path
+from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import List
@@ -302,7 +303,7 @@ def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:
             geoms.append(shapely.geometry.shape(geom))
 
         if len(geoms) == 1:
-            return geoms[0]
+            return geoms[0].convex_hull
 
         multi_polygons = shapely.geometry.MultiPolygon(geoms)
 

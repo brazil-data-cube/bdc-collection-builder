@@ -11,11 +11,11 @@
 from bdc_catalog.models import Collection
 from bdc_catalog.models.base_sql import BaseModel, db
 from celery.backends.database import Task
-from sqlalchemy import ARRAY, Column, DateTime, Integer, ForeignKey, JSON, String, PrimaryKeyConstraint, UniqueConstraint
+from sqlalchemy import (ARRAY, JSON, Column, DateTime, ForeignKey, Integer,
+                        PrimaryKeyConstraint, String, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..config import Config
-
 
 db.metadata.schema = Config.ACTIVITIES_SCHEMA
 
@@ -69,6 +69,7 @@ class ActivitySRC(BaseModel):
 
     __table_args__ = (
         PrimaryKeyConstraint(activity_id, activity_src_id),
+        dict(schema=Config.ACTIVITIES_SCHEMA),
     )
 
 

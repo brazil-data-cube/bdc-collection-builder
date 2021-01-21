@@ -6,11 +6,4 @@
 # under the terms of the MIT License; see LICENSE file for more details.
 #
 
-"""Defines a structure component to run celery worker."""
-
-# Builder
-from .. import create_app
-from . import create_celery_app
-
-app = create_app()
-celery = create_celery_app(app)
+"""Define the Unit-test for bdc_collection_builder."""

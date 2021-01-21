@@ -209,7 +209,7 @@ class RadcorBusiness:
         if 'platform' in args:
             options['platform'] = args['platform']
 
-        if 'scenes' not in args:
+        if 'scenes' not in args and 'tiles' not in args:
             w, e = float(args['w']), float(args['e'])
             s, n = float(args['s']), float(args['n'])
             bbox = [w, s, e, n]
@@ -242,6 +242,18 @@ class RadcorBusiness:
                         **options
                     )
 
+                    result.extend(query_result)
+            elif 'tiles' in args:
+                result = []
+                for tile in args['tiles']:
+                    query_result = provider.search(
+                        query=args['dataset'],
+                        tile=tile,
+                        start_date=args['start'],
+                        end_date=args['end'],
+                        cloud_cover=cloud,
+                        **options
+                    )
                     result.extend(query_result)
             else:
                 result = provider.search(

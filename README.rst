@@ -14,12 +14,16 @@ BDC Collection Builder
         :target: https://github.com/brazil-data-cube/bdc-collection-builder/blob/v0.4.0/LICENSE
         :alt: Software License
 
+.. image:: https://drone.dpi.inpe.br/api/badges/brazil-data-cube/bdc-collection-builder/status.svg
+        :target: https://drone.dpi.inpe.br/api/badges/brazil-data-cube/bdc-collection-builder
+        :alt: Build Status
+
 .. image:: https://readthedocs.org/projects/bdc-collection-builder/badge/?version=b-0.4
         :target: https://bdc-collection-builder.readthedocs.io/en/b-0.4/
         :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/lifecycle-experimental-orange.svg
-        :target: https://www.tidyverse.org/lifecycle/#experimental
+.. image:: https://img.shields.io/badge/lifecycle-maturing-blue.svg
+        :target: https://www.tidyverse.org/lifecycle/#maturing
         :alt: Software Life Cycle
 
 .. image:: https://img.shields.io/github/tag/brazil-data-cube/bdc-collection-builder.svg

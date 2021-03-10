@@ -458,6 +458,7 @@ def is_valid_tar_gz(file_path: str):
 
 
 def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
+    """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
     provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
 
     ext = current_app.extensions['bdc:collector']

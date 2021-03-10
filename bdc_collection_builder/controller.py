@@ -485,7 +485,8 @@ class RadcorBusiness:
         return {"result": result.count}
 
     @classmethod
-    def check_scenes(cls, catalog: str, dataset: str, collection: str, start_date: datetime, end_date: datetime,
+    def check_scenes(cls, collections: str, start_date: datetime, end_date: datetime,
+                     catalog: str = None, dataset: str = None,
                      grid: str = None, tiles: list = None, bbox: list = None, catalog_kwargs=None):
         """Check for the scenes in remote provider and compares with the Collection Builder."""
         bbox_list = []
@@ -502,28 +503,36 @@ class RadcorBusiness:
             ).filter(geom_table.c.tile.in_(tiles)).all()
             for row in rows:
                 bbox_list.append((row.xmin, row.ymin, row.xmax, row.ymax))
-
         else:
             bbox_list.append(bbox)
 
         instance, provider = get_provider(catalog)
 
-        collection, version = collection.split('-')
+        collection_map = dict()
+        collection_ids = list()
 
-        collection = Collection.query().filter(
-            Collection.name == collection,
-            Collection.version == version
-        ).first_or_404(f'Collection "{collection}-{version}" not found.')
+        for _collection in collections:
+            collection, version = _collection.split('-')
+
+            collection = Collection.query().filter(
+                Collection.name == collection,
+                Collection.version == version
+            ).first_or_404(f'Collection "{collection}-{version}" not found.')
+
+            collection_ids.append(collection.id)
+            collection_map[_collection] = collection
 
         options = dict(start_date=start_date, end_date=end_date)
         if catalog_kwargs:
             options.update(catalog_kwargs)
 
-        diff = []
-        items = []
-        external_scenes = []
-
         redis = current_app.redis
+        output = dict(
+            collections={cname: dict(total_scenes=0, total_missing=0, missing_external=[]) for cname in collections}
+        )
+
+        items = {cid: set() for cid in collection_ids}
+        external_scenes = set()
 
         for _bbox in bbox_list:
             with redis.pipeline() as pipe:
@@ -532,8 +541,8 @@ class RadcorBusiness:
                 periods = _generate_periods(start_date, end_date)
 
                 for period_start, period_end in periods:
-                    _items = db.session.query(Item.name).filter(
-                        Item.collection_id == collection.id,
+                    _items = db.session.query(Item.name, Item.collection_id).filter(
+                        Item.collection_id.in_(collection_ids),
                         func.ST_Intersects(
                             func.ST_MakeEnvelope(
                                 *_bbox, func.ST_SRID(Item.geom)
@@ -547,7 +556,8 @@ class RadcorBusiness:
                         )
                     ).order_by(Item.name).all()
 
-                    items += [i.name for i in _items]
+                    for item in _items:
+                        items[item.collection_id].add(item.name)
 
                     options['start_date'] = period_start.strftime('%Y-%m-%d')
                     options['end_date'] = period_end.strftime('%Y-%m-%d')
@@ -563,24 +573,28 @@ class RadcorBusiness:
 
                         pipe.set(key, json.dumps(provider_scenes))
 
-                    external_scenes += provider_scenes
+                    external_scenes = external_scenes.union(set(provider_scenes))
 
                 cached_scenes = pipe.execute()
 
                 for cache in cached_scenes:
                     # When cache is True, represents set the value were cached.
                     if cache is not None and cache is not True:
-                        external_scenes += json.loads(cache)
+                        external_scenes = external_scenes.union(set(json.loads(cache)))
 
-            external_scenes = set(external_scenes)
-            items = set(items)
-            diff = list(external_scenes.difference(items))
+        output['total_external'] = len(external_scenes)
+        for _collection_name, _collection in collection_map.items():
+            _items = set(items[_collection.id])
+            diff = list(external_scenes.difference(_items))
 
-            current_app.logger.info(f'Missing {len(diff)} scenes for bbox {_bbox}.')
+            output['collections'][_collection_name]['total_scenes'] = len(_items)
+            output['collections'][_collection_name]['total_missing'] = len(diff)
+            output['collections'][_collection_name]['missing_external'] = diff
 
-        return dict(
-            total_scenes=len(items),
-            total_external=len(external_scenes),
-            total_missing=len(diff),
-            missing=diff
-        )
+            for cname, _internal_collection in collection_map.items():
+                if cname != _collection_name:
+                    diff = list(_items.difference(set(items[_internal_collection.id])))
+                    output['collections'][_collection_name][f'total_missing_{cname}'] = len(diff)
+                    output['collections'][_collection_name][f'missing_{cname}'] = diff
+
+        return output

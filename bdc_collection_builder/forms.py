@@ -160,10 +160,12 @@ class SearchImageForm(Schema):
 
 
 class CheckScenesForm(Schema):
+    """Define a schema to validate CheckScenes resource."""
+
     catalog = fields.String(required=True, allow_none=False)
     dataset = fields.String(required=True, allow_none=False)
     catalog_kwargs = fields.Dict(required=False, allow_none=False)
-    collection = fields.String(required=True, allow_none=False)
+    collections = fields.List(fields.String, required=True, allow_none=False)
     grid = fields.String(required=False, allow_none=False)
     tiles = fields.List(fields.String, required=False, allow_none=False)
     bbox = fields.List(fields.Float, required=False, allow_none=False, many=True)
@@ -172,7 +174,8 @@ class CheckScenesForm(Schema):
     verify = fields.Boolean(required=False, allow_none=False, default=False)
 
     @validates_schema
-    def populate_fields(self, data, **kwargs):
+    def validate_form_values(self, data, **kwargs):
+        """Apply minimal validation for form fields given."""
         if data.get('grid') and 'tiles' not in data:
             raise ValidationError('Missing property "tiles".')
 

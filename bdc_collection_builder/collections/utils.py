@@ -13,6 +13,7 @@
 import datetime
 import logging
 import shutil
+import tarfile
 from json import loads as json_parser
 from os import path as resource_path
 from os import remove as resource_remove
@@ -443,8 +444,21 @@ def is_valid_compressed_file(file_path: str) -> bool:
     """Check if given file is a compressed file and hen check file integrity."""
     if file_path.endswith('.zip'):
         return is_valid_compressed(file_path)
+    if file_path.endswith('.tar'):
+        return is_valid_tar(file_path)
     if file_path.endswith('.tar.gz'):
         return is_valid_tar_gz(file_path)
+
+
+def is_valid_tar(file_path: str) -> bool:
+    """Check file integrity of a tar file."""
+    try:
+        with tarfile.open(file_path) as tfile:
+            _ = tfile.getmembers()
+
+            return True
+    except tarfile.TarError:
+        return False
 
 
 def is_valid_tar_gz(file_path: str):

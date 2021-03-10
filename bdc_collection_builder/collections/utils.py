@@ -13,12 +13,13 @@
 import datetime
 import logging
 import shutil
+import tarfile
 from json import loads as json_parser
 from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List
+from typing import List, Tuple
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
 
@@ -30,9 +31,11 @@ import rasterio.features
 import rasterio.warp
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, db
+from bdc_catalog.models import Band, Collection, Provider, db
 from bdc_catalog.utils import multihash_checksum_sha256
+from bdc_collectors.base import BaseProvider
 from botocore.exceptions import ClientError
+from flask import current_app
 from rasterio.warp import Resampling
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
@@ -441,8 +444,21 @@ def is_valid_compressed_file(file_path: str) -> bool:
     """Check if given file is a compressed file and hen check file integrity."""
     if file_path.endswith('.zip'):
         return is_valid_compressed(file_path)
+    if file_path.endswith('.tar'):
+        return is_valid_tar(file_path)
     if file_path.endswith('.tar.gz'):
         return is_valid_tar_gz(file_path)
+
+
+def is_valid_tar(file_path: str) -> bool:
+    """Check file integrity of a tar file."""
+    try:
+        with tarfile.open(file_path) as tfile:
+            _ = tfile.getmembers()
+
+            return True
+    except tarfile.TarError:
+        return False
 
 
 def is_valid_tar_gz(file_path: str):
@@ -453,3 +469,24 @@ def is_valid_tar_gz(file_path: str):
         return retcode == 0
     except BaseException:
         return False
+
+
+def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
+    """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
+    provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
+
+    ext = current_app.extensions['bdc:collector']
+
+    provider_type = ext.get_provider(catalog)
+
+    options = dict(**kwargs)
+    options.setdefault('lazy', True)
+    options.setdefault('progress', False)
+
+    if isinstance(provider.credentials, dict):
+        options.update(provider.credentials)
+        provider_ext = provider_type(**options)
+    else:
+        provider_ext = provider_type(*provider.credentials, **options)
+
+    return provider, provider_ext

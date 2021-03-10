@@ -11,7 +11,7 @@
 
 # 3rdparty
 from bdc_catalog.models import Collection, Item, db
-from marshmallow import (Schema, ValidationError, fields, post_load,
+from marshmallow import (Schema, ValidationError, fields, post_load, pre_load,
                          validates_schema)
 from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
@@ -157,3 +157,27 @@ class SearchImageForm(Schema):
 
             if s > n:
                 raise ValidationError('Ymin is greater than YMax')
+
+
+class CheckScenesForm(Schema):
+    """Define a schema to validate CheckScenes resource."""
+
+    catalog = fields.String(required=True, allow_none=False)
+    dataset = fields.String(required=True, allow_none=False)
+    catalog_kwargs = fields.Dict(required=False, allow_none=False)
+    collections = fields.List(fields.String, required=True, allow_none=False)
+    grid = fields.String(required=False, allow_none=False)
+    tiles = fields.List(fields.String, required=False, allow_none=False)
+    bbox = fields.List(fields.Float, required=False, allow_none=False, many=True)
+    start_date = fields.DateTime(required=True, allow_none=False)
+    end_date = fields.DateTime(required=True, allow_none=False)
+    verify = fields.Boolean(required=False, allow_none=False, default=False)
+
+    @validates_schema
+    def validate_form_values(self, data, **kwargs):
+        """Apply minimal validation for form fields given."""
+        if data.get('grid') and 'tiles' not in data:
+            raise ValidationError('Missing property "tiles".')
+
+        if 'grid' not in data and 'tiles' not in data and 'bbox' not in data:
+            raise ValidationError('Missing "tiles"/"grid" or "bbox". Please refer one of.')

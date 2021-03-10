@@ -10,6 +10,7 @@
 
 from json import JSONEncoder
 
+import redis
 from bdc_catalog.ext import BDCCatalog
 from flask import Flask
 from werkzeug.exceptions import HTTPException, InternalServerError
@@ -58,6 +59,10 @@ def create_app(config_name='DevelopmentConfig'):
             response.headers.add('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
             return response
 
+        @app.before_first_request
+        def _init():
+            app.redis = redis.from_url(app.config['REDIS_URL'])
+
         class ImprovedJSONEncoder(JSONEncoder):
             def default(self, o):
                 from datetime import datetime
@@ -69,6 +74,7 @@ def create_app(config_name='DevelopmentConfig'):
                 return super(ImprovedJSONEncoder, self).default(o)
 
         app.config['RESTPLUS_JSON'] = {'cls': ImprovedJSONEncoder}
+        app.config['JSON_SORT_KEYS'] = False
 
     app.json_encoder = ImprovedJSONEncoder
 

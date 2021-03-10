@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timedelta
 
 # 3rdparty
-from bdc_catalog.models import Collection, GridRefSys, Provider, Item
+from bdc_catalog.models import Collection, GridRefSys, Item, Provider
 from bdc_collectors.ext import BaseProvider, CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
@@ -55,24 +55,6 @@ def _generate_periods(start_date: datetime, end_date: datetime, unit='m'):
             start_period = next_period(start_period)
 
     return periods
-
-
-def _cache_store(catalog: str, dataset: str, start: datetime, end: datetime, bbox: list, scenes: list):
-    redis: Redis = current_app.redis
-
-    k = f'scenes:{catalog}:{dataset}:{start.strftime("%Y%m%d")}_{end.strftime("%Y%m%d")}_{bbox}'
-
-    redis.set(k, json.dumps(scenes))
-
-
-def _cache_get(catalog: str, dataset: str, start: datetime, end: datetime, bbox: list) -> list:
-    redis: Redis = current_app.redis
-
-    k = f'scenes:{catalog}:{dataset}:{start.strftime("%Y%m%d")}_{end.strftime("%Y%m%d")}_{bbox}'
-
-    data = redis.get(k)
-
-    return json.loads(data if data else '[]')
 
 
 class RadcorBusiness:

@@ -11,8 +11,8 @@
 
 # 3rdparty
 from bdc_catalog.models import Collection, Item, db
-from marshmallow import (Schema, ValidationError, fields, post_load,
-                         validates_schema, pre_load)
+from marshmallow import (Schema, ValidationError, fields, post_load, pre_load,
+                         validates_schema)
 from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import ModelSchema
 

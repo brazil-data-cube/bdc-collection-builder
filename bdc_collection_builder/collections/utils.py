@@ -31,7 +31,7 @@ import rasterio.features
 import rasterio.warp
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, db, Provider
+from bdc_catalog.models import Band, Collection, Provider, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
 from botocore.exceptions import ClientError

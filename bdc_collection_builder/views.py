@@ -15,7 +15,7 @@ from werkzeug.exceptions import RequestURITooLarge
 # Builder
 from .celery.utils import list_pending_tasks, list_running_tasks
 from .controller import RadcorBusiness
-from .forms import RadcorActivityForm, SearchImageForm
+from .forms import RadcorActivityForm, SearchImageForm, CheckScenesForm
 
 bp = Blueprint('radcor', import_name=__name__, url_prefix='/api')
 
@@ -161,3 +161,22 @@ def count_failed_activities():
     """List count of failed tasks."""
     result = RadcorBusiness.get_unsuccessfully_activities()
     return result
+
+
+@bp.route('/check-scenes', methods=('POST',))
+def check_scenes():
+    """Check for scene availability in collection builder."""
+    data = request.get_json()
+
+    form = CheckScenesForm()
+
+    errors = form.validate(data)
+
+    if errors:
+        return errors, 400
+
+    data = form.load(data)
+
+    result = RadcorBusiness.check_scenes(**data)
+
+    return result, 200

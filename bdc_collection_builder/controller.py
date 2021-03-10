@@ -9,23 +9,70 @@
 """Define base interface for Celery Tasks."""
 
 # Python Native
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 
 # 3rdparty
-from bdc_catalog.models import Collection, Provider
+from bdc_catalog.models import Collection, GridRefSys, Provider, Item
 from bdc_collectors.ext import BaseProvider, CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
+from dateutil.relativedelta import relativedelta
 from flask import current_app
-from sqlalchemy import Date, func
+from redis import Redis
+from sqlalchemy import Date, and_, func, or_
 from werkzeug.exceptions import BadRequest, abort
 
 # Builder
 from .celery.tasks import correction, download, harmonization, post, publish
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
-from .collections.utils import get_or_create_model
+from .collections.utils import get_or_create_model, get_provider
 from .forms import RadcorActivityForm, SimpleActivityForm
+
+
+def _generate_periods(start_date: datetime, end_date: datetime, unit='m'):
+    periods = []
+
+    def next_period(last):
+        if unit == 'm':
+            period = last + relativedelta(months=1)
+            return datetime(period.year, period.month, 1)
+        elif unit == 'y':
+            period = last + relativedelta(years=1)
+            return datetime(period.year, 1, 1)
+
+    start_period = start_date
+    end_period = start_date
+
+    while end_period <= end_date:
+        end_period = next_period(start_period) - timedelta(days=1)
+
+        if end_period > end_date and start_period < end_date:
+            periods.append([start_period, end_date])
+        elif end_period <= end_date:
+            periods.append([start_period, end_period])
+            start_period = next_period(start_period)
+
+    return periods
+
+
+def _cache_store(catalog: str, dataset: str, start: datetime, end: datetime, bbox: list, scenes: list):
+    redis: Redis = current_app.redis
+
+    k = f'scenes:{catalog}:{dataset}:{start.strftime("%Y%m%d")}_{end.strftime("%Y%m%d")}_{bbox}'
+
+    redis.set(k, json.dumps(scenes))
+
+
+def _cache_get(catalog: str, dataset: str, start: datetime, end: datetime, bbox: list) -> list:
+    redis: Redis = current_app.redis
+
+    k = f'scenes:{catalog}:{dataset}:{start.strftime("%Y%m%d")}_{end.strftime("%Y%m%d")}_{bbox}'
+
+    data = redis.get(k)
+
+    return json.loads(data if data else '[]')
 
 
 class RadcorBusiness:
@@ -436,3 +483,104 @@ class RadcorBusiness:
             ) \
             SELECT count(*) FROM failed_tasks").first()
         return {"result": result.count}
+
+    @classmethod
+    def check_scenes(cls, catalog: str, dataset: str, collection: str, start_date: datetime, end_date: datetime,
+                     grid: str = None, tiles: list = None, bbox: list = None, catalog_kwargs=None):
+        """Check for the scenes in remote provider and compares with the Collection Builder."""
+        bbox_list = []
+        if grid and tiles:
+            grid = GridRefSys.query().filter(GridRefSys.name == grid).first_or_404(f'Grid "{grid}" not found.')
+            geom_table = grid.geom_table
+
+            rows = db.session.query(
+                geom_table.c.tile,
+                func.ST_Xmin(func.ST_Transform(geom_table.c.geom, 4326)).label('xmin'),
+                func.ST_Ymin(func.ST_Transform(geom_table.c.geom, 4326)).label('ymin'),
+                func.ST_Xmax(func.ST_Transform(geom_table.c.geom, 4326)).label('xmax'),
+                func.ST_Ymax(func.ST_Transform(geom_table.c.geom, 4326)).label('ymax'),
+            ).filter(geom_table.c.tile.in_(tiles)).all()
+            for row in rows:
+                bbox_list.append((row.xmin, row.ymin, row.xmax, row.ymax))
+
+        else:
+            bbox_list.append(bbox)
+
+        instance, provider = get_provider(catalog)
+
+        collection, version = collection.split('-')
+
+        collection = Collection.query().filter(
+            Collection.name == collection,
+            Collection.version == version
+        ).first_or_404(f'Collection "{collection}-{version}" not found.')
+
+        options = dict(start_date=start_date, end_date=end_date)
+        if catalog_kwargs:
+            options.update(catalog_kwargs)
+
+        diff = []
+        items = []
+        external_scenes = []
+
+        redis = current_app.redis
+
+        for _bbox in bbox_list:
+            with redis.pipeline() as pipe:
+                options['bbox'] = _bbox
+
+                periods = _generate_periods(start_date, end_date)
+
+                for period_start, period_end in periods:
+                    _items = db.session.query(Item.name).filter(
+                        Item.collection_id == collection.id,
+                        func.ST_Intersects(
+                            func.ST_MakeEnvelope(
+                                *_bbox, func.ST_SRID(Item.geom)
+                            ),
+                            Item.geom
+                        ),
+                        or_(
+                            and_(Item.start_date >= period_start, Item.start_date <= period_end),
+                            and_(Item.end_date >= period_start, Item.end_date <= period_end),
+                            and_(Item.start_date < period_start, Item.end_date > period_end),
+                        )
+                    ).order_by(Item.name).all()
+
+                    items += [i.name for i in _items]
+
+                    options['start_date'] = period_start.strftime('%Y-%m-%d')
+                    options['end_date'] = period_end.strftime('%Y-%m-%d')
+
+                    key = f'scenes:{catalog}:{dataset}:{period_start.strftime("%Y%m%d")}_{period_end.strftime("%Y%m%d")}_{bbox}'
+
+                    pipe.get(key)
+                    provider_scenes = []
+
+                    if not redis.exists(key):
+                        provider_scenes = provider.search(dataset, **options)
+                        provider_scenes = [s.scene_id for s in provider_scenes]
+
+                        pipe.set(key, json.dumps(provider_scenes))
+
+                    external_scenes += provider_scenes
+
+                cached_scenes = pipe.execute()
+
+                for cache in cached_scenes:
+                    # When cache is True, represents set the value were cached.
+                    if cache is not None and cache is not True:
+                        external_scenes += json.loads(cache)
+
+            external_scenes = set(external_scenes)
+            items = set(items)
+            diff = list(external_scenes.difference(items))
+
+            current_app.logger.info(f'Missing {len(diff)} scenes for bbox {_bbox}.')
+
+        return dict(
+            total_scenes=len(items),
+            total_external=len(external_scenes),
+            total_missing=len(diff),
+            missing=diff
+        )

@@ -228,7 +228,7 @@ class RadcorBusiness:
         collections = Collection.query().filter(Collection.collection_type == 'collection').all()
 
         # TODO: Review this code. The collection name is not unique anymore.
-        collections_map = {c.name: c.id for c in collections}
+        collections_map = {f'{c.name}-{c.version}': c.id for c in collections}
 
         tasks = args.get('tasks', [])
 
@@ -245,19 +245,7 @@ class RadcorBusiness:
             options['bbox'] = bbox
 
         try:
-            collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
-
-            catalog_provider: Provider = Provider.query().filter(Provider.name == args['catalog']).first_or_404()
-
-            provider_class = collector_extension.get_provider(catalog_provider.name)
-
-            if provider_class is None:
-                abort(400, f'Catalog {args["catalog"]} not supported.')
-
-            if isinstance(catalog_provider.credentials, dict):
-                provider: BaseProvider = provider_class(**catalog_provider.credentials)
-            else:
-                provider: BaseProvider = provider_class(*catalog_provider.credentials)
+            catalog_provider, provider = get_provider(catalog=args['catalog'])
 
             if 'scenes' in args:
                 result = []
@@ -544,7 +532,7 @@ class RadcorBusiness:
                     options['start_date'] = period_start.strftime('%Y-%m-%d')
                     options['end_date'] = period_end.strftime('%Y-%m-%d')
 
-                    key = f'scenes:{catalog}:{dataset}:{period_start.strftime("%Y%m%d")}_{period_end.strftime("%Y%m%d")}_{bbox}'
+                    key = f'scenes:{catalog}:{dataset}:{period_start.strftime("%Y%m%d")}_{period_end.strftime("%Y%m%d")}_{_bbox}'
 
                     pipe.get(key)
                     provider_scenes = []

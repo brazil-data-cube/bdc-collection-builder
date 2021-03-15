@@ -39,8 +39,9 @@ from flask import current_app
 from rasterio.warp import Resampling
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
-
 # Builder
+from werkzeug.exceptions import abort
+
 from ..config import CURRENT_DIR, Config
 
 
@@ -478,6 +479,9 @@ def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     ext = current_app.extensions['bdc:collector']
 
     provider_type = ext.get_provider(catalog)
+
+    if provider_type is None:
+        abort(400, f'Catalog {catalog} not supported.')
 
     options = dict(**kwargs)
     options.setdefault('lazy', True)

@@ -105,7 +105,7 @@ def get_credentials():
         return json_parser(f.read())
 
 
-def generate_cogs(input_data_set_path, file_path, profile='lzw', profile_options=None, **options):
+def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_options=None, **options):
     """Generate Cloud Optimized GeoTIFF files (COG).
 
     Example:

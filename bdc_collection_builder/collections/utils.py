@@ -39,7 +39,6 @@ from flask import current_app
 from rasterio.warp import Resampling
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
-
 # Builder
 from werkzeug.exceptions import abort
 

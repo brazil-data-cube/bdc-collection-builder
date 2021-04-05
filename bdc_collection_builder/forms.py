@@ -171,7 +171,7 @@ class CheckScenesForm(Schema):
     bbox = fields.List(fields.Float, required=False, allow_none=False, many=True)
     start_date = fields.DateTime(required=True, allow_none=False)
     end_date = fields.DateTime(required=True, allow_none=False)
-    verify = fields.Boolean(required=False, allow_none=False, default=False)
+    only_tiles = fields.Boolean(required=False, allow_none=False, default=False)
 
     @validates_schema
     def validate_form_values(self, data, **kwargs):

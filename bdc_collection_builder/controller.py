@@ -13,13 +13,12 @@ import json
 from datetime import datetime, timedelta
 
 # 3rdparty
-from bdc_catalog.models import Collection, GridRefSys, Item, Provider
-from bdc_collectors.ext import BaseProvider, CollectorExtension
+from bdc_catalog.models import Collection, GridRefSys, Item
+from bdc_collectors.ext import CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
 from dateutil.relativedelta import relativedelta
 from flask import current_app
-from redis import Redis
 from sqlalchemy import Date, and_, func, or_
 from werkzeug.exceptions import BadRequest, abort
 
@@ -457,7 +456,7 @@ class RadcorBusiness:
     @classmethod
     def check_scenes(cls, collections: str, start_date: datetime, end_date: datetime,
                      catalog: str = None, dataset: str = None,
-                     grid: str = None, tiles: list = None, bbox: list = None, catalog_kwargs=None):
+                     grid: str = None, tiles: list = None, bbox: list = None, catalog_kwargs=None, only_tiles=False):
         """Check for the scenes in remote provider and compares with the Collection Builder."""
         bbox_list = []
         if grid and tiles:
@@ -472,9 +471,9 @@ class RadcorBusiness:
                 func.ST_Ymax(func.ST_Transform(geom_table.c.geom, 4326)).label('ymax'),
             ).filter(geom_table.c.tile.in_(tiles)).all()
             for row in rows:
-                bbox_list.append((row.xmin, row.ymin, row.xmax, row.ymax))
+                bbox_list.append((row.tile, (row.xmin, row.ymin, row.xmax, row.ymax)))
         else:
-            bbox_list.append(bbox)
+            bbox_list.append(('', bbox))
 
         instance, provider = get_provider(catalog)
 
@@ -504,11 +503,16 @@ class RadcorBusiness:
         items = {cid: set() for cid in collection_ids}
         external_scenes = set()
 
-        for _bbox in bbox_list:
+        for tile, _bbox in bbox_list:
             with redis.pipeline() as pipe:
-                options['bbox'] = _bbox
+                if only_tiles:
+                    entry = tile
+                    options['tile'] = tile
+                else:
+                    options['bbox'] = _bbox
+                    entry = _bbox
 
-                periods = _generate_periods(start_date, end_date)
+                periods = _generate_periods(start_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
 
                 for period_start, period_end in periods:
                     _items = db.session.query(Item.name, Item.collection_id).filter(
@@ -532,7 +536,7 @@ class RadcorBusiness:
                     options['start_date'] = period_start.strftime('%Y-%m-%d')
                     options['end_date'] = period_end.strftime('%Y-%m-%d')
 
-                    key = f'scenes:{catalog}:{dataset}:{period_start.strftime("%Y%m%d")}_{period_end.strftime("%Y%m%d")}_{_bbox}'
+                    key = f'scenes:{catalog}:{dataset}:{period_start.strftime("%Y%m%d")}_{period_end.strftime("%Y%m%d")}_{entry}'
 
                     pipe.get(key)
                     provider_scenes = []

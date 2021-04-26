@@ -39,7 +39,11 @@ harmonization_require = [
 extras_require = {
     'docs': docs_require,
     'tests': tests_require,
-    'harmonization': harmonization_require
+    'harmonization': harmonization_require,
+    'gdal': [
+        'GDAL>=2.3',
+        'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.2.1#egg=bdc-collectors[modis]',
+    ]
 }
 
 extras_require['all'] = [req for exts, reqs in extras_require.items() for req in reqs]

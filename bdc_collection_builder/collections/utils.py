@@ -449,6 +449,10 @@ def is_valid_compressed_file(file_path: str) -> bool:
         return is_valid_tar(file_path)
     if file_path.endswith('.tar.gz'):
         return is_valid_tar_gz(file_path)
+    if file_path.endswith('.hdf'):
+        from .hdf import is_valid
+        return is_valid(file_path)
+    return True
 
 
 def is_valid_tar(file_path: str) -> bool:

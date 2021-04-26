@@ -243,7 +243,22 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     else:
         destination.mkdir(parents=True, exist_ok=True)
 
-    files = data.get_files(collection, path=file)
+    if file.endswith('.hdf'):
+        from ..collections.hdf import to_geotiff
+
+        destination.mkdir(parents=True, exist_ok=True)
+        item_result = to_geotiff(file, temporary_dir.name)
+        files = dict()
+
+        for _band, _geotiff in item_result.files.items():
+            destination_path = destination / Path(_geotiff).name
+            shutil.move(str(_geotiff), str(destination_path))
+            files[_band] = destination_path
+
+        file = destination
+        cloud_cover = item_result.cloud_cover
+    else:
+        files = data.get_files(collection, path=file)
 
     extra_assets = data.get_assets(collection, path=file)
 

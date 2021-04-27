@@ -70,7 +70,7 @@ def create_execution(activity):
         model.start = datetime.utcnow()
 
     # Ensure that args values is always updated
-    copy_args = dict(**model.activity.args)
+    copy_args = dict(**model.activity.args or {})
     copy_args.update(activity['args'] or dict())
     model.activity.args = copy_args
 
@@ -340,7 +340,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
         publish_collection(scene_id, data_collection, collection, file,
                            cloud_cover=activity['args'].get('cloud'),
-                           provider_id=provider_id)
+                           provider_id=provider_id, publish_hdf=kwargs.get('publish_hdf'))
 
         if file:
             refresh_execution_args(execution, activity, file=str(file))

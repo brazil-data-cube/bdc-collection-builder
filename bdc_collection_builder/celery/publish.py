@@ -161,7 +161,7 @@ def get_footprint_sentinel(mtd_file: str) -> shapely.geometry.Polygon:
 
 
 def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
-                       cloud_cover=None, provider_id: Optional[int] = None) -> Item:
+                       cloud_cover=None, provider_id: Optional[int] = None, **kwargs) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -250,10 +250,21 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item_result = to_geotiff(file, temporary_dir.name)
         files = dict()
 
-        for _band, _geotiff in item_result.files.items():
-            destination_path = destination / Path(_geotiff).name
-            shutil.move(str(_geotiff), str(destination_path))
-            files[_band] = destination_path
+        if kwargs.get('publish_hdf'):
+            # Generate Quicklook and append asset
+            assets['asset'] = create_asset_definition(
+                href=_item_prefix(Path(file)),
+                mime_type=guess_mime_type(file),
+                role=['data'],
+                absolute_path=str(file)
+            )
+
+            file_band_map = item_result.files
+        else:
+            for _band, _geotiff in item_result.files.items():
+                destination_path = destination / Path(_geotiff).name
+                shutil.move(str(_geotiff), str(destination_path))
+                files[_band] = destination_path
 
         file = destination
         cloud_cover = item_result.cloud_cover

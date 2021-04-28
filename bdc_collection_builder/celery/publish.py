@@ -32,6 +32,7 @@ from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, generate_cogs,
                                  get_or_create_model, raster_convexhull,
                                  raster_extent)
+from ..config import Config
 from ..constants import COG_MIME_TYPE
 
 
@@ -103,8 +104,8 @@ def compress_raster(input_path: str, output_path: str, algorithm: str = 'lzw'):
         shutil.move(tmp_file, output_path)
 
 
-def _asset_definition(path, band=None, is_raster=False, cog=False):
-    href = _item_prefix(path)
+def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
+    href = _item_prefix(path, **options)
 
     if band and band.mime_type:
         mime_type = band.mime_type.name
@@ -120,12 +121,18 @@ def _asset_definition(path, band=None, is_raster=False, cog=False):
     )
 
 
-def _item_prefix(path: Path) -> str:
+def _item_prefix(path: Path, prefix=None, item_prefix=None) -> str:
     """Retrieve the bdc_catalog.models.Item prefix used in assets."""
-    href = f'/{str(path.relative_to(current_app.config["DATA_DIR"]))}'
+    if prefix is None:
+        prefix = current_app.config["DATA_DIR"]
+
+    href = f'/{str(path.relative_to(prefix))}'
 
     if current_app.config['USE_BUCKET_PREFIX']:
         return href.replace('/Repository/Archive/', current_app.config['AWS_BUCKET_NAME'])
+
+    if item_prefix:
+        href = href.replace('/Repository', item_prefix)
 
     return href
 
@@ -183,6 +190,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     file_band_map = dict()
     assets = dict()
     old_file_path = file
+    asset_item_prefix = prefix = None
 
     temporary_dir = TemporaryDirectory()
 
@@ -246,6 +254,16 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     if file.endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
+        opts = dict(prefix=Config.CUBES_DATA_DIR)
+
+        if kwargs.get('publish_hdf'):
+            opts['prefix'] = Config.DATA_DIR
+            opts['cube_prefix'] = 'Mosaic'
+        else:
+            asset_item_prefix = Config.CUBES_ITEM_PREFIX
+            prefix = Config.CUBES_DATA_DIR
+
+        destination = data.path(collection, **opts)
         destination.mkdir(parents=True, exist_ok=True)
         item_result = to_geotiff(file, temporary_dir.name)
         files = dict()
@@ -302,7 +320,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                     if convex_hull.area > 0.0:
                         convex_hull = from_shape(convex_hull, srid=4326)
 
-                assets[band.name] = _asset_definition(path, band, is_raster, cog=True)
+                assets[band.name] = _asset_definition(path, band, is_raster, cog=True, item_prefix=asset_item_prefix, prefix=prefix)
 
                 break
 
@@ -315,14 +333,14 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             if is_raster:
                 compress_raster(str(asset_file_path), str(asset_file_path))
 
-            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False)
+            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 
     for band_name, band_file in index_bands.items():
         path = Path(band_file)
 
-        assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True, cog=True)
+        assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True, cog=True, item_prefix=asset_item_prefix, prefix=prefix)
 
     # TODO: Remove un-necessary files
 
@@ -339,7 +357,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             create_quick_look(str(quicklook), red_file, green_file, blue_file)
 
-            relative_quicklook = _item_prefix(quicklook)
+            relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
 
             assets['thumbnail'] = create_asset_definition(
                 href=relative_quicklook,

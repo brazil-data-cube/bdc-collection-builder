@@ -251,6 +251,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     else:
         destination.mkdir(parents=True, exist_ok=True)
 
+    tile_id = data.parser.tile_id()
+
     if file.endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
@@ -263,10 +265,24 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             asset_item_prefix = Config.CUBES_ITEM_PREFIX
             prefix = Config.CUBES_DATA_DIR
 
+        tile_id = tile_id.replace('h', '0').replace('v', '0')
         destination = data.path(collection, **opts)
         destination.mkdir(parents=True, exist_ok=True)
         item_result = to_geotiff(file, temporary_dir.name)
         files = dict()
+
+        if item_result.files:
+            ref = list(item_result.files.values())[0]
+
+            geom = from_shape(raster_extent(str(ref)), srid=4326)
+
+            with rasterio.open(ref) as d:
+                nodata = d.profile.get('nodata')
+            # Trust in band metadata (no data)
+            convex_hull = raster_convexhull(str(ref), no_data=nodata)
+
+            if convex_hull.area > 0.0:
+                convex_hull = from_shape(convex_hull, srid=4326)
 
         if kwargs.get('publish_hdf'):
             # Generate Quicklook and append asset
@@ -292,7 +308,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     extra_assets = data.get_assets(collection, path=file)
 
     tile = Tile.query().filter(
-        Tile.name == data.parser.tile_id(),
+        Tile.name == tile_id,
         Tile.grid_ref_sys_id == collection.grid_ref_sys_id
     ).first()
 

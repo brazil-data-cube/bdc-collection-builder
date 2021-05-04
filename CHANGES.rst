@@ -11,6 +11,16 @@ Changes
 =======
 
 
+Version 0.8.0 (2021-05-04)
+--------------------------
+
+- Add route resource to check published scenes `225 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/225>`_.
+- Add support to publish MODIS Cloud Optimized GeoTIFF (COG) data `221 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/221>`_.
+- Add support to publish MODIS as HDF item `231 <https://github.com/brazil-data-cube/bdc-collection-builder/pull/231>`_.
+- Change default compression type to deflate on COG Files `227 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/227>`_.
+- Add support to publish Landsat-8 Collection 2 `220 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/220>`_.
+
+
 Version 0.6.1 (2021-01-21)
 --------------------------
 

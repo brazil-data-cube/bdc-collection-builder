@@ -10,6 +10,9 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install --yes nano && \
     pip3 install pip --upgrade && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install wheel && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip install wheel && \
+    pip install gdal==2.4.0 && \
+    pip install pymodis && \
     pip install -e .[all]

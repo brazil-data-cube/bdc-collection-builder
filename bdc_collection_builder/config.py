@@ -63,6 +63,8 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
     DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
+    CUBES_DATA_DIR = os.environ.get('CUBES_DATA_DIR', tempfile.gettempdir())
+    CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/data/d006')
 
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 

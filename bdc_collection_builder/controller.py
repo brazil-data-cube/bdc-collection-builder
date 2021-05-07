@@ -224,7 +224,7 @@ class RadcorBusiness:
         cloud = float(args['cloud'])
         action = args.get('action', 'preview')
 
-        collections = Collection.query().filter(Collection.collection_type == 'collection').all()
+        collections = Collection.query().filter(Collection.collection_type.in_(['collection', 'cube'])).all()
 
         # TODO: Review this code. The collection name is not unique anymore.
         collections_map = {f'{c.name}-{c.version}': c.id for c in collections}

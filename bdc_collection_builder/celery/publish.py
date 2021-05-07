@@ -199,7 +199,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     geom = convex_hull = None
 
-    is_compressed = file.endswith('.zip') or file.endswith('.tar.gz')
+    is_compressed = str(file).endswith('.zip') or str(file).endswith('.tar.gz')
 
     if is_compressed:
         destination = data.compressed_file(collection).parent
@@ -253,7 +253,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     tile_id = data.parser.tile_id()
 
-    if file.endswith('.hdf'):
+    if str(file).endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
         opts = dict(prefix=Config.CUBES_DATA_DIR)

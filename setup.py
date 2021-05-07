@@ -58,14 +58,15 @@ install_requires = [
     'docutils>=0.10,<0.15'
     'Flask>=1.1.1',
     'marshmallow-sqlalchemy>=0.19.0',
-    'rasterio>=1.1.2',
+    'rasterio>=1.1.2,<1.2',
     'rio-cogeo>=1.1,<2',
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
-    'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<2',
+    'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
     'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.4.0#egg=bdc-collectors',
     'celery[librabbitmq]>=4.3,<4.4.3',
+    'python-dateutil>=2,<3',
     'Werkzeug>=0.16,<1.0',
     'shapely>=1.7,<2'
 ]

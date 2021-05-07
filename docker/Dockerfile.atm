@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM osgeo/gdal:ubuntu-full-3.2.1
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
@@ -17,6 +17,7 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - && \
         docker-ce-cli \
         git \
         python3 \
+        pkg-config cmake libtool autoconf \
         python3-pip \
         nano && \
         rm -rf /var/lib/apt/lists/*

@@ -11,6 +11,13 @@ Changes
 =======
 
 
+Version 0.8.1 (2021-05-07)
+--------------------------
+
+- Fix dependency resolver for Docker images.
+- Fix PosixPath entry while publish Landsat files `234 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/234>`_.
+
+
 Version 0.8.0 (2021-05-04)
 --------------------------
 

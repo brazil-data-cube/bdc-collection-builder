@@ -322,7 +322,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
-            generate_cogs(file, file)
+            target_file = file
+            if kwargs.get('format') == 'tif':
+                target_file = str(path.parent / f'{path.stem}.tif')
+
+            generate_cogs(file, target_file)
 
         for band in collection.bands:
             if band.name == band_name:

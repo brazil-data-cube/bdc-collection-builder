@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timedelta
 
 # 3rdparty
-from bdc_catalog.models import Collection, GridRefSys, Item
+from bdc_catalog.models import Collection, GridRefSys, Item, Provider, Tile
 from bdc_collectors.ext import CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
@@ -27,7 +27,7 @@ from .celery.tasks import correction, download, harmonization, post, publish
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
 from .collections.utils import get_or_create_model, get_provider
-from .forms import RadcorActivityForm, SimpleActivityForm
+from .forms import CollectionForm, RadcorActivityForm, SimpleActivityForm
 
 
 def _generate_periods(start_date: datetime, end_date: datetime, unit='m'):
@@ -507,6 +507,10 @@ class RadcorBusiness:
             with redis.pipeline() as pipe:
                 if only_tiles:
                     entry = tile
+
+                    if catalog == 'MODIS':
+                        tile = f'h{tile[1:3]}v{tile[-2:]}'
+
                     options['tile'] = tile
                 else:
                     options['bbox'] = _bbox
@@ -563,6 +567,7 @@ class RadcorBusiness:
 
             output['collections'][_collection_name]['total_scenes'] = len(_items)
             output['collections'][_collection_name]['total_missing'] = len(diff)
+            output['collections'][_collection_name]['scenes'] = list(external_scenes)
             output['collections'][_collection_name]['missing_external'] = diff
 
             for cname, _internal_collection in collection_map.items():
@@ -572,3 +577,80 @@ class RadcorBusiness:
                     output['collections'][_collection_name][f'missing_{cname}'] = diff
 
         return output
+
+    @classmethod
+    def list_collections(cls):
+        """List the available collections in database."""
+        collections = Collection.query()\
+            .filter(Collection.collection_type.in_(['collection', 'cube']))\
+            .order_by(Collection.id)\
+            .all()
+
+        return CollectionForm().dump(collections, many=True)
+
+    @classmethod
+    def list_grids(cls, grid_id: int = None, bbox=None):
+        """List all available grids in database."""
+        if grid_id:
+            grids = [GridRefSys.query().filter(GridRefSys.id == grid_id).first_or_404('Grid not found.')]
+        else:
+            grids = GridRefSys.query().order_by(GridRefSys.name).all()
+
+        output = []
+
+        for grid in grids:
+            g = dict(id=grid.id, name=grid.name, description=grid.description)
+
+            geom_table = grid.geom_table
+
+            if grid_id:
+                where = []
+
+                if bbox:
+                    where.append(
+                        func.ST_Intersects(
+                            func.ST_Transform(geom_table.c.geom, 4326),
+                            func.ST_MakeEnvelope(*bbox, 4326)
+                        )
+                    )
+
+                rows = db.session.query(
+                    geom_table.c.tile,
+                    func.ST_AsGeoJSON(func.ST_Transform(geom_table.c.geom, 4326)).label('geom')
+                ).filter(*where).all()
+
+                g['geom'] = dict(
+                    type='FeatureCollection',
+                    features=[
+                        dict(
+                            type='Feature',
+                            geometry=json.loads(row[1]),
+                            properties=dict(
+                                tile=row[0]
+                            )
+                        )
+                        for row in rows
+                    ]
+                )
+            output.append(g)
+
+        return output[0] if len(output) == 1 else output
+
+    @classmethod
+    def list_collection_tiles(cls, collection_id: int):
+        """List the tiles related with collection items."""
+        tiles = db.session\
+            .query(Tile.name)\
+            .join(Item, Tile.id == Item.tile_id)\
+            .filter(Item.collection_id == collection_id)\
+            .distinct(Tile.name) \
+            .all()
+
+        return [t.name for t in tiles]
+
+    @classmethod
+    def list_catalogs(cls):
+        """List the supported providers."""
+        providers = Provider.query().order_by(Provider.id)
+
+        return [dict(id=p.id, name=p.name) for p in providers]

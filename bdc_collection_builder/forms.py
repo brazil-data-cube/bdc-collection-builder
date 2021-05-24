@@ -45,6 +45,17 @@ class CollectionItemForm(ModelSchema):
         exclude = ('geom', 'min_convex_hull', 'tile')
 
 
+class CollectionForm(ModelSchema):
+    """Define schema for Collection Item."""
+
+    class Meta:
+        """Define internal model handling."""
+
+        model = Collection
+        sqla_session = db.session
+        exclude = ('extent', )
+
+
 class HistoryForm(ModelSchema):
     """Define schema for task execution history."""
 

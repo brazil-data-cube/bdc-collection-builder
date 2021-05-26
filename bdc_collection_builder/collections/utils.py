@@ -128,6 +128,9 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
     output_profile.update(dict(BIGTIFF="IF_SAFER"))
     output_profile.update(profile_options)
 
+    # Add option to generate Cloud Optimized GeoTIFF file in memory instead inline temp file.
+    options.setdefault('in_memory', True)
+
     # Dataset Open option (see gdalwarp `-oo` option)
     config = dict(
         GDAL_NUM_THREADS="ALL_CPUS",
@@ -140,7 +143,6 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
         str(file_path),
         output_profile,
         config=config,
-        in_memory=False,
         quiet=True,
         **options,
     )

@@ -237,7 +237,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
     data_collection = get_provider_collection_from_activity(activity)
 
     try:
-        output_path = data_collection.path(collection)
+        output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR)
 
         if collection._metadata and collection._metadata.get('processors'):
             processor_name = collection._metadata['processors'][0]['name']
@@ -264,7 +264,6 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         -v $INDIR:/mnt/input-dir \
                         -v $OUTDIR:/mnt/output-dir \
                         -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
-                        -v {sen2cor_conf["SEN2COR_CONFIG_DIR"]}:/root/sen2cor/2.8 \
                         {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:

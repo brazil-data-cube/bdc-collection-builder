@@ -92,14 +92,14 @@ def compress_raster(input_path: str, output_path: str, algorithm: str = 'lzw'):
         with rasterio.open(str(input_path)) as dataset:
             profile = dataset.profile.copy()
 
-            array = dataset.read(1)
+            profile.update(
+                compress=algorithm
+            )
 
-        profile.update(
-            compress=algorithm
-        )
-
-        with rasterio.open(str(tmp_file), 'w', **profile) as ds:
-            ds.write(array, 1)
+            with rasterio.open(str(tmp_file), 'w', **profile) as ds:
+                for band_idx in range(1, dataset.count + 1):
+                    array = dataset.read(band_idx)
+                    ds.write(array, band_idx)
 
         shutil.move(tmp_file, output_path)
 
@@ -190,12 +190,13 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     file_band_map = dict()
     assets = dict()
     old_file_path = file
-    asset_item_prefix = prefix = None
+    asset_item_prefix = Config.ITEM_PREFIX
+    prefix = Config.PUBLISH_DATA_DIR
 
     temporary_dir = TemporaryDirectory()
     srid = DEFAULT_SRID
 
-    data_prefix = Config.DATA_DIR
+    data_prefix = Config.PUBLISH_DATA_DIR
     if collection.collection_type == 'cube':
         data_prefix = Config.CUBES_DATA_DIR
 
@@ -334,7 +335,10 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             if kwargs.get('format') == 'tif':
                 target_file = str(path.parent / f'{path.stem}.tif')
 
-            generate_cogs(file, target_file)
+            if band_name not in ('TCI', 'AOT', 'WVP'):
+                generate_cogs(file, target_file)
+            else:
+                logging.warning(f'Skipping cog for {band_name}', flush=True)
 
             if srid == DEFAULT_SRID:
                 srid = get_epsg_srid(str(target_file))
@@ -376,7 +380,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     # TODO: Remove un-necessary files
 
     if collection.quicklook:
-        # TODO: Add try/catch on quicklook generation
         try:
             collection_bands = {b.id: b.name for b in collection.bands}
 

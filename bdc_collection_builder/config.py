@@ -70,6 +70,11 @@ class Config:
     # The string prefix to be set on the published cube items
     CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/data/d006')
 
+    # String prefix to be set on the published collection items
+    ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/Repository/Archive')
+    # The optional directory where published collections will be stored (Default is DATA_DIR)
+    PUBLISH_DATA_DIR = os.environ.get('PUBLISH_DATA_DIR', DATA_DIR)
+
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 
     CELERYD_PREFETCH_MULTIPLIER = 1  # disable

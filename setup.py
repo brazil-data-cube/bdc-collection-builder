@@ -42,7 +42,7 @@ extras_require = {
     'harmonization': harmonization_require,
     'gdal': [
         'GDAL>=2.3',
-        'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.4.0#egg=bdc-collectors[modis]',
+        'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.4.1#egg=bdc-collectors[modis]',
     ]
 }
 
@@ -56,15 +56,15 @@ install_requires = [
     'beautifulsoup4>=4.8.1',
     'boto3>=1.11',
     'docutils>=0.10,<0.15'
-    'Flask>=1.1.1',
-    'marshmallow-sqlalchemy>=0.19.0',
+    'Flask>=1.1,<2',
+    'marshmallow-sqlalchemy>=0.19.0,<0.25',
     'rasterio>=1.1.2,<1.2',
     'rio-cogeo>=1.1,<2',
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
-    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.4.0#egg=bdc-collectors',
+    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@v0.4.1#egg=bdc-collectors',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'python-dateutil>=2,<3',
     'Werkzeug>=0.16,<1.0',

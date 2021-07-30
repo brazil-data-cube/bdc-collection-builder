@@ -17,3 +17,5 @@ APPLICATION = dict(
     uri='https://github.com/brazil-data-cube/bdc-collection-builder',
     version=__version__
 )
+
+DEFAULT_SRID = 4362

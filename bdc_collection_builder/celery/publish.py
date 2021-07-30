@@ -30,10 +30,10 @@ from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, generate_cogs,
-                                 get_or_create_model, raster_convexhull,
-                                 raster_extent)
+                                 get_epsg_srid, get_or_create_model,
+                                 raster_convexhull, raster_extent)
 from ..config import Config
-from ..constants import COG_MIME_TYPE
+from ..constants import COG_MIME_TYPE, DEFAULT_SRID
 
 
 def guess_mime_type(extension: str, cog=False) -> Optional[str]:
@@ -92,14 +92,14 @@ def compress_raster(input_path: str, output_path: str, algorithm: str = 'lzw'):
         with rasterio.open(str(input_path)) as dataset:
             profile = dataset.profile.copy()
 
-            array = dataset.read(1)
+            profile.update(
+                compress=algorithm
+            )
 
-        profile.update(
-            compress=algorithm
-        )
-
-        with rasterio.open(str(tmp_file), 'w', **profile) as ds:
-            ds.write(array, 1)
+            with rasterio.open(str(tmp_file), 'w', **profile) as ds:
+                for band_idx in range(1, dataset.count + 1):
+                    array = dataset.read(band_idx)
+                    ds.write(array, band_idx)
 
         shutil.move(tmp_file, output_path)
 
@@ -190,12 +190,18 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     file_band_map = dict()
     assets = dict()
     old_file_path = file
-    asset_item_prefix = prefix = None
+    asset_item_prefix = Config.ITEM_PREFIX
+    prefix = Config.PUBLISH_DATA_DIR
 
     temporary_dir = TemporaryDirectory()
+    srid = DEFAULT_SRID
+
+    data_prefix = Config.PUBLISH_DATA_DIR
+    if collection.collection_type == 'cube':
+        data_prefix = Config.CUBES_DATA_DIR
 
     # Get Destination Folder
-    destination = data.path(collection)
+    destination = data.path(collection, prefix=data_prefix)
 
     geom = convex_hull = None
 
@@ -229,6 +235,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if scene_id.startswith('S2'):
             pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
             band2 = list(tmp.rglob('**/*B02.jp2'))[0]
+            srid = get_epsg_srid(str(band2))
             mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
 
             geom = from_shape(raster_extent(str(band2)), srid=4326)
@@ -245,6 +252,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
             file_band_map = data.get_files(collection, path=tmp)
             band2 = str(file_band_map['B2'])
+            srid = get_epsg_srid(str(band2))
             geom = from_shape(raster_extent(band2), srid=4326)
             convex_hull = from_shape(raster_convexhull(band2, no_data=0), srid=4326)
             file = Path(file).parent
@@ -273,6 +281,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         if item_result.files:
             ref = list(item_result.files.values())[0]
+            srid = get_epsg_srid(str(ref))
 
             geom = from_shape(raster_extent(str(ref)), srid=4326)
 
@@ -322,7 +331,17 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
-            generate_cogs(file, file)
+            target_file = file
+            if kwargs.get('format') == 'tif':
+                target_file = str(path.parent / f'{path.stem}.tif')
+
+            if band_name not in ('TCI', 'AOT', 'WVP'):
+                generate_cogs(file, target_file)
+            else:
+                logging.warning(f'Skipping cog for {band_name}', flush=True)
+
+            if srid == DEFAULT_SRID:
+                srid = get_epsg_srid(str(target_file))
 
         for band in collection.bands:
             if band.name == band_name:
@@ -361,7 +380,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     # TODO: Remove un-necessary files
 
     if collection.quicklook:
-        # TODO: Add try/catch on quicklook generation
         try:
             collection_bands = {b.id: b.name for b in collection.bands}
 
@@ -399,7 +417,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item.assets = assets
         item.cloud_cover = cloud_cover
         item.geom = geom
-        item.srid = 4326  # TODO: Add it dynamically
+        item.srid = srid
         item.convex_hull = convex_hull
         item.provider = provider
 

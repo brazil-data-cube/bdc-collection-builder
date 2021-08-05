@@ -18,4 +18,4 @@ APPLICATION = dict(
     version=__version__
 )
 
-DEFAULT_SRID = 4362
+DEFAULT_SRID = 4326

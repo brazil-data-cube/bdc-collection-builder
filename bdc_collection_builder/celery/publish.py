@@ -10,6 +10,7 @@
 
 import logging
 import mimetypes
+import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -31,7 +32,7 @@ from skimage.transform import resize
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, generate_cogs,
                                  get_epsg_srid, get_or_create_model,
-                                 raster_convexhull, raster_extent)
+                                 raster_convexhull, raster_extent, is_sen2cor)
 from ..config import Config
 from ..constants import COG_MIME_TYPE, DEFAULT_SRID
 
@@ -132,7 +133,7 @@ def _item_prefix(path: Path, prefix=None, item_prefix=None) -> str:
         return href.replace('/Repository/Archive/', current_app.config['AWS_BUCKET_NAME'])
 
     if item_prefix:
-        href = href.replace('/Repository', item_prefix)
+        href = href.replace('/Repository/Archive', item_prefix)
 
     return href
 
@@ -165,6 +166,13 @@ def get_footprint_sentinel(mtd_file: str) -> shapely.geometry.Polygon:
     footprint_linear_ring = shapely.geometry.LinearRing(points)
 
     return shapely.geometry.Polygon(footprint_linear_ring)
+
+
+def generate_quicklook_pvi(safe_folder: Path, quicklook: Path):
+    """Generate QuickLook preview from a Sentinel-2 PVI file."""
+    pvi = list(safe_folder.rglob('**/*PVI*.jp2'))[0]
+
+    Image.open(str(pvi)).save(str(quicklook))
 
 
 def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
@@ -202,6 +210,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     # Get Destination Folder
     destination = data.path(collection, prefix=data_prefix)
+
+    is_sen2cor_flag = is_sen2cor(collection)
 
     geom = convex_hull = None
 
@@ -337,11 +347,26 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             if band_name not in ('TCI', 'AOT', 'WVP'):
                 generate_cogs(file, target_file)
+                srid = get_epsg_srid(str(target_file))
             else:
-                logging.warning(f'Skipping cog for {band_name}', flush=True)
+                logging.warning(f'Skipping cog for {band_name}')
 
             if srid == DEFAULT_SRID:
                 srid = get_epsg_srid(str(target_file))
+
+            if is_sen2cor_flag:
+                link_file_name = os.path.basename(str(target_file))
+
+                for res in [10, 20, 60]:
+                    link_file_name = link_file_name.replace(f'_{res}m', '')
+
+                link_file = destination / link_file_name
+                relative_file = Path(target_file).relative_to(destination)
+
+                if link_file.is_symlink():
+                    link_file.unlink()
+
+                os.symlink(str(relative_file), str(link_file))
 
         for band in collection.bands:
             if band.name == band_name:
@@ -378,6 +403,16 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         assets[band_name] = _asset_definition(path, collection_band_map[band_name], is_raster=True, cog=True, item_prefix=asset_item_prefix, prefix=prefix)
 
     # TODO: Remove un-necessary files
+    if is_sen2cor_flag:
+        quicklook = Path(destination) / f'{scene_id}.png'
+        generate_quicklook_pvi(destination, quicklook)
+        relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
+        assets['thumbnail'] = create_asset_definition(
+            href=relative_quicklook,
+            mime_type=guess_mime_type(str(quicklook)),
+            role=['thumbnail'],
+            absolute_path=str(quicklook)
+        )
 
     if collection.quicklook:
         try:

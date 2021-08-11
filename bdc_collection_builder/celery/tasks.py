@@ -257,12 +257,22 @@ def correction(activity: dict, collection_id=None, **kwargs):
                 output_path.mkdir(exist_ok=True, parents=True)
 
                 if processor_name.lower() == 'sen2cor':
+                    fragments = scene_id.split('_')
+                    tile = fragments[5]
+                    sensing_date = fragments[2]
+
                     for output_path_entry in output_path.iterdir():
                         entry_fragments = output_path_entry.stem.split('_')
                         sensor_product = entry_fragments[1] if len(entry_fragments) else None
-                        if output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A':
+
+                        is_sen2cor_file = output_path_entry.stem.startswith(f'{tile}_{sensing_date}')
+
+                        if (output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A'):
                             logging.info(f'Found {str(output_path_entry)} generated before. Removing it.')
                             shutil.rmtree(output_path_entry, ignore_errors=True)
+                        if is_sen2cor_file:
+                            logging.info(f'Removing {str(output_path_entry)} sen2cor file before.')
+                            output_path_entry.unlink()
 
                     sen2cor_conf = Config.SEN2COR_CONFIG
                     logging.info(f'Using {entry} of sceneid {scene_id}')

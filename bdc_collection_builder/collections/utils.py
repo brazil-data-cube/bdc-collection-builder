@@ -520,3 +520,15 @@ def get_epsg_srid(file_path: str) -> int:
 
     code = ref.GetAuthorityCode(None)
     return int(code) if str(code).isnumeric() else None
+
+
+def is_sen2cor(collection: Collection) -> bool:
+    """Check if the given collection is a Sen2cor product."""
+    if collection._metadata and collection._metadata.get('processors'):
+        processors = collection._metadata['processors']
+
+        for processor in processors:
+            if processor.get('name', '').lower() == 'sen2cor':
+                return True
+
+    return False

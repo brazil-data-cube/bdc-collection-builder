@@ -32,7 +32,7 @@ from skimage.transform import resize
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (create_asset_definition, generate_cogs,
                                  get_epsg_srid, get_or_create_model,
-                                 raster_convexhull, raster_extent, is_sen2cor)
+                                 is_sen2cor, raster_convexhull, raster_extent)
 from ..config import Config
 from ..constants import COG_MIME_TYPE, DEFAULT_SRID
 

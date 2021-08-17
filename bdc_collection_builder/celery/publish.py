@@ -130,7 +130,7 @@ def _item_prefix(path: Path, prefix=None, item_prefix=None) -> str:
     href = path.relative_to(prefix)
 
     if current_app.config['USE_BUCKET_PREFIX']:
-        return str(href).replace('/Repository/Archive/', current_app.config['AWS_BUCKET_NAME'])
+        return str(Path(current_app.config['AWS_BUCKET_NAME']) / href)
 
     if item_prefix:
         href = Path(item_prefix) / href

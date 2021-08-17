@@ -127,15 +127,15 @@ def _item_prefix(path: Path, prefix=None, item_prefix=None) -> str:
     if prefix is None:
         prefix = current_app.config["DATA_DIR"]
 
-    href = f'/{str(path.relative_to(prefix))}'
+    href = path.relative_to(prefix)
 
     if current_app.config['USE_BUCKET_PREFIX']:
-        return href.replace('/Repository/Archive/', current_app.config['AWS_BUCKET_NAME'])
+        return str(href).replace('/Repository/Archive/', current_app.config['AWS_BUCKET_NAME'])
 
     if item_prefix:
-        href = href.replace('/Repository/Archive', item_prefix)
+        href = Path(item_prefix) / href
 
-    return href
+    return str(href)
 
 
 def get_item_path(relative: str) -> str:
@@ -206,7 +206,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     data_prefix = Config.PUBLISH_DATA_DIR
     if collection.collection_type == 'cube':
-        data_prefix = Config.CUBES_DATA_DIR
+        data_prefix = os.path.join(Config.CUBES_DATA_DIR, 'composed')
 
     # Get Destination Folder
     destination = data.path(collection, prefix=data_prefix)
@@ -236,7 +236,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         quicklook = Path(destination) / f'{scene_id}.png'
 
         assets['asset'] = create_asset_definition(
-            href=_item_prefix(Path(file)),
+            href=_item_prefix(Path(file), item_prefix=asset_item_prefix),
             mime_type=guess_mime_type(file),
             role=['data'],
             absolute_path=str(file)
@@ -254,7 +254,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             Image.open(str(pvi)).save(str(quicklook))
 
             assets['thumbnail'] = create_asset_definition(
-                href=_item_prefix(quicklook),
+                href=_item_prefix(quicklook, item_prefix=asset_item_prefix),
                 mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
                 absolute_path=str(quicklook)
@@ -281,7 +281,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             opts['cube_prefix'] = 'Mosaic'
         else:
             asset_item_prefix = Config.CUBES_ITEM_PREFIX
-            prefix = Config.CUBES_DATA_DIR
+            prefix = data_prefix
+            opts['prefix'] = prefix
 
         tile_id = tile_id.replace('h', '0').replace('v', '0')
         destination = data.path(collection, **opts)
@@ -306,7 +307,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if kwargs.get('publish_hdf'):
             # Generate Quicklook and append asset
             assets['asset'] = create_asset_definition(
-                href=_item_prefix(Path(file)),
+                href=_item_prefix(Path(file), prefix=Config.DATA_DIR, item_prefix=Config.ITEM_PREFIX),
                 mime_type=guess_mime_type(file),
                 role=['data'],
                 absolute_path=str(file)
@@ -414,17 +415,24 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             absolute_path=str(quicklook)
         )
 
-    if collection.quicklook:
+    if collection.quicklook and not is_sen2cor_flag:
         try:
             collection_bands = {b.id: b.name for b in collection.bands}
 
             red_file = file_band_map[collection_bands[collection.quicklook[0].red]]
+
+            with rasterio.open(str(red_file)) as red_ds:
+                nodata = red_ds.profile.get('nodata')
+                if nodata is None:
+                    _band_ref = collection_band_map[collection_bands[collection.quicklook[0].red]]
+                    nodata = _band_ref.nodata
+
             green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
             blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
             quicklook = Path(destination) / f'{scene_id}.png'
 
-            create_quick_look(str(quicklook), red_file, green_file, blue_file)
+            create_quick_look(str(quicklook), red_file, green_file, blue_file, no_data=nodata)
 
             relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
 

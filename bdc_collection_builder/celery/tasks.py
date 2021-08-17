@@ -141,7 +141,7 @@ def download(activity: dict, **kwargs):
 
     collector_extension = flask_app.extensions['bdc:collector']
 
-    collection = execution.activity.collection
+    collection: Collection = execution.activity.collection
     scene_id = execution.activity.sceneid
 
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
@@ -154,7 +154,9 @@ def download(activity: dict, **kwargs):
 
     data_collection = get_provider_collection_from_activity(activity)
 
-    download_file = data_collection.compressed_file(collection)
+    prefix = Config.DATA_DIR
+
+    download_file = data_collection.compressed_file(collection, prefix=prefix)
 
     has_compressed_file = download_file is not None
 
@@ -173,7 +175,7 @@ def download(activity: dict, **kwargs):
         # TODO: Get asset name of download file
         item_path = item.assets['asset']['href']
         item_path = item_path if not item_path.startswith('/') else item_path[1:]
-        item_path = Path(Config.DATA_DIR) / item_path
+        item_path = prefix / item_path
 
         if item_path.exists():
             logging.info(f'Item {scene_id} exists. {str(item_path)} -> {str(download_file)}')

@@ -510,13 +510,20 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
-    from osgeo import osr
+    from osgeo import gdal, osr
 
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
 
     ref = osr.SpatialReference()
-    ref.ImportFromWkt(crs.to_wkt())
+
+    if crs is None:
+        ds = gdal.Open(str(file_path))
+        wkt = ds.GetProjection()
+    else:
+        wkt = crs.to_wkt()
+
+    ref.ImportFromWkt(wkt)
 
     code = ref.GetAuthorityCode(None)
     return int(code) if str(code).isnumeric() else None

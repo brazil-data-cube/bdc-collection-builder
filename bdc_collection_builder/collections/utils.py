@@ -510,13 +510,32 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
-    from osgeo import osr
+    from osgeo import gdal, osr
 
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
 
     ref = osr.SpatialReference()
-    ref.ImportFromWkt(crs.to_wkt())
+
+    if crs is None:
+        ds = gdal.Open(str(file_path))
+        wkt = ds.GetProjection()
+    else:
+        wkt = crs.to_wkt()
+
+    ref.ImportFromWkt(wkt)
 
     code = ref.GetAuthorityCode(None)
     return int(code) if str(code).isnumeric() else None
+
+
+def is_sen2cor(collection: Collection) -> bool:
+    """Check if the given collection is a Sen2cor product."""
+    if collection._metadata and collection._metadata.get('processors'):
+        processors = collection._metadata['processors']
+
+        for processor in processors:
+            if processor.get('name', '').lower() == 'sen2cor':
+                return True
+
+    return False

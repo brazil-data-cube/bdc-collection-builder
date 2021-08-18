@@ -64,14 +64,14 @@ class Config:
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
 
     # The directory where published collections will be stored after collected and processed..
-    DATA_DIR = os.environ.get('DATA_DIR', os.path.join(tempfile.gettempdir(), 'collections'))
+    DATA_DIR = os.environ.get('DATA_DIR', os.path.join(tempfile.gettempdir(), 'archive'))
     # The directory where published data cubes will be stored after collected.
     CUBES_DATA_DIR = os.environ.get('CUBES_DATA_DIR', os.path.join(tempfile.gettempdir(), 'cubes'))
     # The string prefix to be set on the published cube items
     CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/data/d006')
 
     # String prefix to be set on the published collection items
-    ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/Repository/Archive')
+    ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/archive')
     # The optional directory where published collections will be stored (Default is DATA_DIR)
     PUBLISH_DATA_DIR = os.environ.get('PUBLISH_DATA_DIR', DATA_DIR)
 

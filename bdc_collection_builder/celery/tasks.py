@@ -141,7 +141,7 @@ def download(activity: dict, **kwargs):
 
     collector_extension = flask_app.extensions['bdc:collector']
 
-    collection = execution.activity.collection
+    collection: Collection = execution.activity.collection
     scene_id = execution.activity.sceneid
 
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
@@ -154,7 +154,9 @@ def download(activity: dict, **kwargs):
 
     data_collection = get_provider_collection_from_activity(activity)
 
-    download_file = data_collection.compressed_file(collection)
+    prefix = Config.DATA_DIR
+
+    download_file = data_collection.compressed_file(collection, prefix=prefix)
 
     has_compressed_file = download_file is not None
 
@@ -173,7 +175,7 @@ def download(activity: dict, **kwargs):
         # TODO: Get asset name of download file
         item_path = item.assets['asset']['href']
         item_path = item_path if not item_path.startswith('/') else item_path[1:]
-        item_path = Path(Config.DATA_DIR) / item_path
+        item_path = Path(prefix) / item_path
 
         if item_path.exists():
             logging.info(f'Item {scene_id} exists. {str(item_path)} -> {str(download_file)}')
@@ -254,8 +256,25 @@ def correction(activity: dict, collection_id=None, **kwargs):
                 if len(entries) == 1 and entries[0].suffix == '.SAFE':
                     entry = entries[0].name
 
+                output_path.mkdir(exist_ok=True, parents=True)
+
                 if processor_name.lower() == 'sen2cor':
-                    output_path.parent.mkdir(exist_ok=True, parents=True)
+                    fragments = scene_id.split('_')
+                    tile = fragments[5]
+                    sensing_date = fragments[2]
+
+                    for output_path_entry in output_path.iterdir():
+                        entry_fragments = output_path_entry.stem.split('_')
+                        sensor_product = entry_fragments[1] if len(entry_fragments) else None
+
+                        is_sen2cor_file = output_path_entry.stem.startswith(f'{tile}_{sensing_date}')
+
+                        if (output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A'):
+                            logging.info(f'Found {str(output_path_entry)} generated before. Removing it.')
+                            shutil.rmtree(output_path_entry, ignore_errors=True)
+                        if is_sen2cor_file:
+                            logging.info(f'Removing {str(output_path_entry)} sen2cor file before.')
+                            output_path_entry.unlink()
 
                     sen2cor_conf = Config.SEN2COR_CONFIG
                     logging.info(f'Using {entry} of sceneid {scene_id}')
@@ -267,8 +286,6 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:
-                    output_path.mkdir(exist_ok=True, parents=True)
-
                     lasrc_conf = Config.LASRC_CONFIG
 
                     cmd = f'''docker run --rm -i \
@@ -282,7 +299,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
                 logging.debug(cmd)
 
-                # subprocess
+                # Execute command line
                 process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
                 process.wait()
 
@@ -294,16 +311,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     # we create it inside "output" folder. After that, get first entry of that directory
                     output_tmp = list(Path(env['OUTDIR']).iterdir())[0]
 
-                    output_path = output_path.parent / output_tmp.name
-
-                    if execution.activity.args.get('file'):
-                        last_processed_file = execution.activity.args['file']
-
-                        if last_processed_file and os.path.exists(last_processed_file) and \
-                                last_processed_file.endswith('.SAFE'):
-                            # TODO: validate scene id (without processing_date)
-                            if len(os.listdir(last_processed_file)) < 9:
-                                shutil.rmtree(last_processed_file, ignore_errors=True)
+                    output_path = output_path / output_tmp.name
 
                     shutil.move(output_tmp, output_path)
 

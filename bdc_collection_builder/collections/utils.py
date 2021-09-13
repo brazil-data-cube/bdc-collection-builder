@@ -494,8 +494,9 @@ def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     options.setdefault('progress', False)
 
     if isinstance(provider.credentials, dict):
-        options.update(provider.credentials)
-        provider_ext = provider_type(**options)
+        opts = dict(**provider.credentials)
+        opts.update(options)
+        provider_ext = provider_type(**opts)
     else:
         provider_ext = provider_type(*provider.credentials, **options)
 

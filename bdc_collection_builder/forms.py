@@ -119,6 +119,7 @@ class SearchImageForm(Schema):
     platform = fields.String(required=False, allow_none=False)
     force = fields.Boolean(required=False, allow_none=False, default=False)
     catalog = fields.String(required=True, allow_none=False)
+    catalog_args = fields.Dict(required=False, default=dict(), allow_none=False)
     tasks = fields.Nested(TaskDispatcher, required=False, allow_none=None, many=True)
     start = fields.DateTime(required=True, allow_none=False)
     end = fields.DateTime(required=True, allow_none=False)

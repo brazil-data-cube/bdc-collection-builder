@@ -143,11 +143,12 @@ def download(activity: dict, **kwargs):
 
     collection: Collection = execution.activity.collection
     scene_id = execution.activity.sceneid
+    catalog_args = activity['args'].get('catalog_args', dict())
 
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
 
     # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
-    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False)
+    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False, **catalog_args)
 
     if len(download_order) == 0:
         raise RuntimeError(f'No provider set for collection {collection.id}({collection.name})')
@@ -196,7 +197,7 @@ def download(activity: dict, **kwargs):
         else:
             download_file.parent.mkdir(exist_ok=True, parents=True)
 
-        with TemporaryDirectory(prefix='download_', suffix=f'_{scene_id}') as tmp:
+        with TemporaryDirectory(prefix='download_', suffix=f'_{scene_id}', dir=Config.WORKING_DIR) as tmp:
             temp_file: Path = None
 
             should_retry = False
@@ -244,7 +245,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
         if collection._metadata and collection._metadata.get('processors'):
             processor_name = collection._metadata['processors'][0]['name']
 
-            with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}') as tmp:
+            with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}', dir=Config.WORKING_DIR) as tmp:
                 shutil.unpack_archive(activity['args']['compressed_file'], tmp)
 
                 # Process environment
@@ -257,6 +258,12 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     entry = entries[0].name
 
                 output_path.mkdir(exist_ok=True, parents=True)
+
+                container_workdir = activity['args'].get('container_workdir', kwargs.get('container_workdir', ''))
+                if not container_workdir:
+                    container_workdir = Config.CONTAINER_WORKDIR
+
+                container_workdir = f'-v {container_workdir}' if container_workdir else ''
 
                 if processor_name.lower() == 'sen2cor':
                     fragments = scene_id.split('_')
@@ -283,7 +290,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         -v $INDIR:/mnt/input-dir \
                         -v $OUTDIR:/mnt/output-dir \
                         -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
-                        {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
+                        {container_workdir} {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
                 else:
                     lasrc_conf = Config.LASRC_CONFIG
@@ -295,7 +302,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         --env OUTDIR=/mnt/output-dir \
                         -v {lasrc_conf["LASRC_AUX_DIR"]}:/mnt/lasrc-aux:ro \
                         -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
-                        {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
+                        {container_workdir} {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
 
                 logging.debug(cmd)
 

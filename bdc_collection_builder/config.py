@@ -42,8 +42,11 @@ class Config:
     SEN2COR_CONFIG = dict(
         SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
         SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
-        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8')
+        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
     )
+    # The working directory for ATM Correction. Default is None.
+    CONTAINER_WORKDIR = os.getenv('CONTAINER_WORKDIR', None)
+    WORKING_DIR = os.getenv('WORKING_DIR', tempfile.gettempdir())
 
     # Google Credentials support (Deprecated, use Provider.credentials instead.)
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')

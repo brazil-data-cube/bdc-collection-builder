@@ -232,6 +232,7 @@ class RadcorBusiness:
         tasks = args.get('tasks', [])
 
         force = args.get('force', False)
+        catalog_args = args.get('catalog_args', dict())
         options = dict()
 
         if 'platform' in args:
@@ -244,7 +245,7 @@ class RadcorBusiness:
             options['bbox'] = bbox
 
         try:
-            catalog_provider, provider = get_provider(catalog=args['catalog'])
+            catalog_provider, provider = get_provider(catalog=args['catalog'], **catalog_args)
 
             if 'scenes' in args:
                 result = []
@@ -285,7 +286,7 @@ class RadcorBusiness:
                 collection_id = collections_map[task['collection']]
                 # Create activity definition example
                 activity = cls._activity_definition(collection_id, task['type'], scene, **task['args'])
-                activity['args'].update(dict(catalog=args['catalog'], dataset=args['dataset']))
+                activity['args'].update(dict(catalog=args['catalog'], dataset=args['dataset'], catalog_args=catalog_args))
 
                 _task = cls._task_definition(task['type'])
                 # Try to create activity in database and the parent if there is.

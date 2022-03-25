@@ -128,6 +128,9 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
     output_profile.update(dict(BIGTIFF="IF_SAFER"))
     output_profile.update(profile_options)
 
+    # Add option to generate Cloud Optimized GeoTIFF file in memory instead inline temp file.
+    options.setdefault('in_memory', True)
+
     # Dataset Open option (see gdalwarp `-oo` option)
     config = dict(
         GDAL_NUM_THREADS="ALL_CPUS",
@@ -140,7 +143,6 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
         str(file_path),
         output_profile,
         config=config,
-        in_memory=False,
         quiet=True,
         **options,
     )
@@ -492,9 +494,49 @@ def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     options.setdefault('progress', False)
 
     if isinstance(provider.credentials, dict):
-        options.update(provider.credentials)
-        provider_ext = provider_type(**options)
+        opts = dict(**provider.credentials)
+        opts.update(options)
+        provider_ext = provider_type(**opts)
     else:
         provider_ext = provider_type(*provider.credentials, **options)
 
     return provider, provider_ext
+
+
+def get_epsg_srid(file_path: str) -> int:
+    """Get the Authority Code from a data set path.
+
+    Note:
+        This function depends GDAL.
+
+    When no code found, returns None.
+    """
+    from osgeo import gdal, osr
+
+    with rasterio.open(str(file_path)) as ds:
+        crs = ds.crs
+
+    ref = osr.SpatialReference()
+
+    if crs is None:
+        ds = gdal.Open(str(file_path))
+        wkt = ds.GetProjection()
+    else:
+        wkt = crs.to_wkt()
+
+    ref.ImportFromWkt(wkt)
+
+    code = ref.GetAuthorityCode(None)
+    return int(code) if str(code).isnumeric() else None
+
+
+def is_sen2cor(collection: Collection) -> bool:
+    """Check if the given collection is a Sen2cor product."""
+    if collection._metadata and collection._metadata.get('processors'):
+        processors = collection._metadata['processors']
+
+        for processor in processors:
+            if processor.get('name', '').lower() == 'sen2cor':
+                return True
+
+    return False

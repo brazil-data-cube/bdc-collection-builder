@@ -24,8 +24,8 @@ from celery.backends.database import Task
 from flask import current_app as flask_app
 
 from ..collections.models import RadcorActivity, RadcorActivityHistory
-from ..collections.utils import (get_or_create_model, is_valid_compressed_file,
-                                 post_processing)
+from ..collections.utils import (get_or_create_model, get_provider,
+                                 is_valid_compressed_file, post_processing)
 from ..config import Config
 from .publish import get_item_path, publish_collection
 
@@ -147,8 +147,16 @@ def download(activity: dict, **kwargs):
 
     logging.info(f'Starting Download Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
 
-    # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
-    download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False, **catalog_args)
+    if len(catalog_args) > 0:
+        catalog_name = activity['args']['catalog']
+        catalog_args.update(parallel=True, progress=False, lazy=True)
+
+        provider = get_provider(catalog=catalog_name, **catalog_args)
+        download_order = [provider]
+    else:
+        # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
+        download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False,
+                                                                **catalog_args)
 
     if len(download_order) == 0:
         raise RuntimeError(f'No provider set for collection {collection.id}({collection.name})')
@@ -156,6 +164,8 @@ def download(activity: dict, **kwargs):
     data_collection = get_provider_collection_from_activity(activity)
 
     prefix = Config.DATA_DIR
+    if collection.collection_type == 'cube':
+        prefix = Config.CUBES_DATA_DIR
 
     download_file = data_collection.compressed_file(collection, prefix=prefix)
 

@@ -85,7 +85,7 @@ def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, co
     write_png(str(file_output), image, transparent=(0, 0, 0))
 
 
-def compress_raster(input_path: str, output_path: str, algorithm: str = 'lzw'):
+def compress_raster(input_path: str, output_path: str, algorithm: str = 'deflate'):
     """Compress a raster using GDAL compression algorithm."""
     with TemporaryDirectory() as tmp:
         tmp_file = Path(tmp) / Path(input_path).name
@@ -206,7 +206,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     data_prefix = Config.PUBLISH_DATA_DIR
     if collection.collection_type == 'cube':
-        data_prefix = os.path.join(Config.CUBES_DATA_DIR, 'composed')
+        data_prefix = Config.CUBES_DATA_DIR
+        if not data_prefix.endswith('/composed'):
+            data_prefix = os.path.join(data_prefix, 'composed')
 
     # Get Destination Folder
     destination = data.path(collection, prefix=data_prefix)
@@ -276,18 +278,23 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         opts = dict(prefix=Config.CUBES_DATA_DIR)
 
-        if kwargs.get('publish_hdf'):
-            opts['prefix'] = Config.DATA_DIR
-            opts['cube_prefix'] = 'Mosaic'
-        else:
-            asset_item_prefix = Config.CUBES_ITEM_PREFIX
-            prefix = data_prefix
-            opts['prefix'] = prefix
+        asset_item_prefix = Config.CUBES_ITEM_PREFIX
+        prefix = data_prefix
+        opts['prefix'] = prefix
 
         tile_id = tile_id.replace('h', '0').replace('v', '0')
         destination = data.path(collection, **opts)
         destination.mkdir(parents=True, exist_ok=True)
-        item_result = to_geotiff(file, temporary_dir.name)
+
+        band_map = {
+            b.name: dict(nodata=float(b.nodata),
+                         min_value=float(b.min_value),
+                         max_value=float(b.max_value))
+
+            for b in collection.bands
+        }
+
+        item_result = to_geotiff(file, temporary_dir.name, band_map=band_map)
         files = dict()
 
         if item_result.files:
@@ -307,7 +314,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if kwargs.get('publish_hdf'):
             # Generate Quicklook and append asset
             assets['asset'] = create_asset_definition(
-                href=_item_prefix(Path(file), prefix=Config.DATA_DIR, item_prefix=Config.ITEM_PREFIX),
+                href=_item_prefix(Path(file), prefix=Config.CUBES_DATA_DIR, item_prefix=Config.CUBES_ITEM_PREFIX),
                 mime_type=guess_mime_type(file),
                 role=['data'],
                 absolute_path=str(file)
@@ -342,12 +349,18 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
-            target_file = file
-            if kwargs.get('format') == 'tif':
-                target_file = str(path.parent / f'{path.stem}.tif')
+            target_file = path.parent / f'{path.stem}.tif'
 
-            if band_name not in ('TCI', 'AOT', 'WVP'):
+            if band_name not in ('AOT', 'WVP'):
                 generate_cogs(file, target_file)
+
+                if str(target_file) != file:
+                    os.remove(file)
+
+                if band_name in extra_assets:
+                    extra_assets[band_name] = str(target_file)
+                file = str(target_file)
+                path = target_file
                 srid = get_epsg_srid(str(target_file))
             else:
                 logging.warning(f'Skipping cog for {band_name}')
@@ -389,10 +402,20 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         for asset_name, asset_file in extra_assets.items():
             asset_file_path = Path(asset_file)
 
-            is_raster = asset_file_path.suffix.lower() in ('.tif', '.jp2')
+            is_raster = asset_file_path.suffix.lower() in ('.tif',)
 
             if is_raster:
                 compress_raster(str(asset_file_path), str(asset_file_path))
+
+            if asset_file_path.suffix.lower() in ('.jp2',):
+                asset_file_path_tif = asset_file_path.parent / f'{asset_file_path.stem}.tif'
+
+                generate_cogs(str(asset_file_path), str(asset_file_path_tif))
+
+                if str(asset_file_path) != str(asset_file_path_tif):
+                    os.remove(str(asset_file_path))
+
+                asset_file_path = asset_file_path_tif
 
             assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
 

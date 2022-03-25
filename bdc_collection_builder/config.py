@@ -71,7 +71,7 @@ class Config:
     # The directory where published data cubes will be stored after collected.
     CUBES_DATA_DIR = os.environ.get('CUBES_DATA_DIR', os.path.join(tempfile.gettempdir(), 'cubes'))
     # The string prefix to be set on the published cube items
-    CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/data/d006')
+    CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/cubes/composed')
 
     # String prefix to be set on the published collection items
     ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/archive')
@@ -80,7 +80,7 @@ class Config:
 
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 
-    CELERYD_PREFETCH_MULTIPLIER = 1  # disable
+    CELERYD_PREFETCH_MULTIPLIER = int(os.environ.get('CELERYD_PREFETCH_MULTIPLIER', 4))  # disable
 
 
 class ProductionConfig(Config):

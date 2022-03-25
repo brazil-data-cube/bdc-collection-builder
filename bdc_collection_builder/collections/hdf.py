@@ -9,7 +9,7 @@
 """Module to deal with Hierarchical Data Format (HDF4/HDF5)."""
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import Dict, NamedTuple
 
 from osgeo import gdal
 
@@ -25,12 +25,13 @@ ItemResult = NamedTuple('ItemResult', [('files', dict), ('cloud_cover', float)])
 """Type to represent the extracted scenes from an Hierarchical Data Format (HDF4/HDF5)."""
 
 
-def to_geotiff(hdf_path: str, destination: str) -> ItemResult:
+def to_geotiff(hdf_path: str, destination: str, band_map: Dict[str, dict]) -> ItemResult:
     """Convert a Hierarchical Data Format (HDF4/HDF5) file to set of GeoTIFF files.
 
     Args:
         hdf_path (str) - Path to the HDF file to be extracted
         destination (str) - The destination folder.
+        band_map (Dict[str, dict]) - The band map values for Datasets
 
     Note:
         The output GeoTIFF files are not Cloud Optimized GeoTIFF (COG).
@@ -65,6 +66,9 @@ def to_geotiff(hdf_path: str, destination: str) -> ItemResult:
         data_set = gdal.Open(data_set_name)
         band = data_set.GetRasterBand(1)
         array = band.ReadAsArray()
+        nodata = band.GetNoDataValue()
+        if nodata is None:
+            nodata = band_map.get(band_name)['nodata']
 
         tiff_file = output_path / f'{base_name}_{band_name}.tif'
 
@@ -80,7 +84,7 @@ def to_geotiff(hdf_path: str, destination: str) -> ItemResult:
         output_data_set.SetProjection(data_set.GetProjection())
         output_data_set.SetMetadata(metadata)
         output_data_set_band.WriteArray(array)
-        output_data_set_band.SetNoDataValue(0)
+        output_data_set_band.SetNoDataValue(nodata)
 
         files[band_name] = str(tiff_file)
 

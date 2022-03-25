@@ -42,8 +42,11 @@ class Config:
     SEN2COR_CONFIG = dict(
         SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
         SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
-        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8')
+        SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
     )
+    # The working directory for ATM Correction. Default is None.
+    CONTAINER_WORKDIR = os.getenv('CONTAINER_WORKDIR', None)
+    WORKING_DIR = os.getenv('WORKING_DIR', tempfile.gettempdir())
 
     # Google Credentials support (Deprecated, use Provider.credentials instead.)
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
@@ -62,13 +65,22 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     RABBIT_MQ_URL = os.environ.get('RABBIT_MQ_URL', 'pyamqp://guest@localhost')
-    DATA_DIR = os.environ.get('DATA_DIR', tempfile.gettempdir())
-    CUBES_DATA_DIR = os.environ.get('CUBES_DATA_DIR', tempfile.gettempdir())
-    CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/data/d006')
+
+    # The directory where published collections will be stored after collected and processed..
+    DATA_DIR = os.environ.get('DATA_DIR', os.path.join(tempfile.gettempdir(), 'archive'))
+    # The directory where published data cubes will be stored after collected.
+    CUBES_DATA_DIR = os.environ.get('CUBES_DATA_DIR', os.path.join(tempfile.gettempdir(), 'cubes'))
+    # The string prefix to be set on the published cube items
+    CUBES_ITEM_PREFIX = os.environ.get('CUBES_ITEM_PREFIX', '/cubes/composed')
+
+    # String prefix to be set on the published collection items
+    ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/archive')
+    # The optional directory where published collections will be stored (Default is DATA_DIR)
+    PUBLISH_DATA_DIR = os.environ.get('PUBLISH_DATA_DIR', DATA_DIR)
 
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 
-    CELERYD_PREFETCH_MULTIPLIER = 1  # disable
+    CELERYD_PREFETCH_MULTIPLIER = int(os.environ.get('CELERYD_PREFETCH_MULTIPLIER', 4))  # disable
 
 
 class ProductionConfig(Config):

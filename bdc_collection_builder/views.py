@@ -9,7 +9,7 @@
 """Define flask views for collections."""
 
 # 3rdparty
-from flask import Blueprint, request
+from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import RequestURITooLarge
 
 # Builder
@@ -180,3 +180,41 @@ def check_scenes():
     result = RadcorBusiness.check_scenes(**data)
 
     return result, 200
+
+
+@bp.route('/collections', methods=('GET', ))
+def list_collections():
+    """Retrieve the BDC Collections (including cubes) from database."""
+    collections = RadcorBusiness.list_collections()
+
+    return jsonify(collections), 200
+
+
+@bp.route('/collections/<int:collection_id>/tiles', methods=('GET', ))
+def list_collection_tiles(collection_id: int):
+    """Retrieve all collected tiles related with Collection."""
+    resp = RadcorBusiness.list_collection_tiles(collection_id)
+
+    return jsonify(resp), 200
+
+
+@bp.route('/grids', defaults=dict(grid_id=None), methods=('GET', ))
+@bp.route('/grids/<int:grid_id>', methods=('GET', ))
+def list_grids(grid_id: int = None):
+    """List the Grid definition of a BDC Collection."""
+    bbox = None
+
+    if request.args.get('bbox'):
+        bbox = request.args['bbox'].split(',')
+
+    resp = RadcorBusiness.list_grids(grid_id, bbox=bbox)
+
+    return jsonify(resp), 200
+
+
+@bp.route('/providers', methods=('GET', ))
+def list_providers():
+    """Retrieve all available data providers on Collection Builder."""
+    catalogs = RadcorBusiness.list_catalogs()
+
+    return jsonify(catalogs), 200

@@ -14,7 +14,7 @@ from bdc_catalog.models import Collection, Item, db
 from marshmallow import (Schema, ValidationError, fields, post_load, pre_load,
                          validates_schema)
 from marshmallow.validate import OneOf
-from marshmallow_sqlalchemy import ModelSchema
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 # Builder
 from .collections.models import RadcorActivity, RadcorActivityHistory
@@ -30,7 +30,7 @@ class TaskSchema(Schema):
     traceback = fields.Str()
 
 
-class CollectionItemForm(ModelSchema):
+class CollectionItemForm(SQLAlchemyAutoSchema):
     """Define schema for Collection Item."""
 
     collection_id = fields.String()
@@ -45,7 +45,18 @@ class CollectionItemForm(ModelSchema):
         exclude = ('geom', 'min_convex_hull', 'tile')
 
 
-class HistoryForm(ModelSchema):
+class CollectionForm(SQLAlchemyAutoSchema):
+    """Define schema for Collection Item."""
+
+    class Meta:
+        """Define internal model handling."""
+
+        model = Collection
+        sqla_session = db.session
+        exclude = ('extent', )
+
+
+class HistoryForm(SQLAlchemyAutoSchema):
     """Define schema for task execution history."""
 
     status = fields.Method('dump_status')
@@ -69,7 +80,7 @@ class HistoryForm(ModelSchema):
         exclude = ('activity', )
 
 
-class SimpleActivityForm(ModelSchema):
+class SimpleActivityForm(SQLAlchemyAutoSchema):
     """Define schema for Brazil Data Cube Collection Builder Activity."""
 
     collection_id = fields.Str()
@@ -108,6 +119,7 @@ class SearchImageForm(Schema):
     platform = fields.String(required=False, allow_none=False)
     force = fields.Boolean(required=False, allow_none=False, default=False)
     catalog = fields.String(required=True, allow_none=False)
+    catalog_args = fields.Dict(required=False, default=dict(), allow_none=False)
     tasks = fields.Nested(TaskDispatcher, required=False, allow_none=None, many=True)
     start = fields.DateTime(required=True, allow_none=False)
     end = fields.DateTime(required=True, allow_none=False)

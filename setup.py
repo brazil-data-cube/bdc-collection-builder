@@ -32,17 +32,11 @@ tests_require = [
     'isort>4.3',
 ]
 
-harmonization_require = [
-    'sensor-harm @ git+git://github.com/brazil-data-cube/sensor-harm.git@v0.2.0#egg=sensor-harm',
-]
-
 extras_require = {
     'docs': docs_require,
     'tests': tests_require,
-    'harmonization': harmonization_require,
     'gdal': [
         'GDAL>=2.3',
-        'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@master#egg=bdc-collectors[modis]',
     ]
 }
 
@@ -56,18 +50,21 @@ install_requires = [
     'beautifulsoup4>=4.8.1',
     'boto3>=1.11',
     'docutils>=0.10,<0.15'
-    'Flask>=1.1,<2',
-    'marshmallow-sqlalchemy>=0.19.0,<0.25',
+    'Flask>=1.1.1',
+    'marshmallow-sqlalchemy>=0.19.0',
     'rasterio>=1.1.2,<1.2',
     'rio-cogeo>=1.1,<2',
     'numpy>=1.17.2',
     'numpngw>=0.0.8',
     'scikit-image>=0.16.2',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
-    'bdc-collectors @ git+git://github.com/brazil-data-cube/bdc-collectors.git@master#egg=bdc-collectors',
+    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@v0.6.0#egg=bdc-collectors',
+    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v0.8.2#egg=bdc-catalog',
     'celery[librabbitmq]>=4.3,<4.4.3',
     'python-dateutil>=2,<3',
-    'shapely>=1.7,<2'
+    'Werkzeug>=0.16,<1.0',
+    'shapely>=1.7,<2',
+    'MarkupSafe==2.0.1',
 ]
 
 packages = find_packages()

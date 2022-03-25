@@ -16,7 +16,8 @@ Version 0.8.2 (2022-03-25)
 
 - Fix dependency deprecation git protocol for pip
 - Fix MODIS nodata publishing
--
+- Add support to use custom parameters in Catalog
+- Publish Sentinel-2 PVI as quicklook
 
 Version 0.8.1 (2021-05-07)
 --------------------------

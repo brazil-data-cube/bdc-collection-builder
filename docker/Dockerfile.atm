@@ -28,4 +28,5 @@ WORKDIR /app
 
 RUN pip3 install -U pip && \
     pip3 install wheel && \
+    pip3 install "Flask<2.1" "numpy==1.17.4" "imageio==2.10.3" && \
     pip3 install -e .

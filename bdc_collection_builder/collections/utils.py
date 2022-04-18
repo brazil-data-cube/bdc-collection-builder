@@ -10,16 +10,19 @@
 
 
 # Python Native
+import contextlib
 import datetime
 import logging
 import shutil
 import tarfile
+import warnings
 from json import loads as json_parser
 from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import List, Tuple
+from urllib3.exceptions import InsecureRequestWarning
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
 
@@ -29,6 +32,8 @@ import numpy
 import rasterio
 import rasterio.features
 import rasterio.warp
+import requests
+
 import shapely
 import shapely.geometry
 from bdc_catalog.models import Band, Collection, Provider, db
@@ -540,3 +545,44 @@ def is_sen2cor(collection: Collection) -> bool:
                 return True
 
     return False
+
+
+_settings = requests.Session.merge_environment_settings
+
+
+@contextlib.contextmanager
+def safe_request():
+    """Define a decorator to disable any SSL Certificate Validation while requesting data.
+
+    This snippet was adapted from https://stackoverflow.com/questions/15445981/how-do-i-disable-the-security-certificate-check-in-python-requests.
+    """
+    opened_adapters = set()
+
+    if not Config.DISABLE_SSL:
+        yield
+
+    logging.info('Disabling SSL validation')
+
+    def _merge_environment_settings(self, url, proxies, stream, verify, cert):
+        """Stack the opened contexts into heap and set all the active adapters with verify=False."""
+        opened_adapters.add(self.get_adapter(url))
+
+        settings = _settings(self, url, proxies, stream, verify, cert)
+        settings['verify'] = False
+
+        return settings
+
+    requests.Session.merge_environment_settings = _merge_environment_settings
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', InsecureRequestWarning)
+            yield
+    finally:
+        requests.Session.merge_environment_settings = _settings
+
+        for adapter in opened_adapters:
+            try:
+                adapter.close()
+            except:
+                pass

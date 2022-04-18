@@ -26,7 +26,7 @@ from werkzeug.exceptions import BadRequest, abort
 from .celery.tasks import correction, download, harmonization, post, publish
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
-from .collections.utils import get_or_create_model, get_provider
+from .collections.utils import get_or_create_model, get_provider, safe_request
 from .forms import CollectionForm, RadcorActivityForm, SimpleActivityForm
 
 
@@ -247,39 +247,40 @@ class RadcorBusiness:
         try:
             catalog_provider, provider = get_provider(catalog=args['catalog'], **catalog_args)
 
-            if 'scenes' in args:
-                result = []
+            with safe_request():
+                if 'scenes' in args:
+                    result = []
 
-                unique_scenes = set(args['scenes'])
+                    unique_scenes = set(args['scenes'])
 
-                for scene in unique_scenes:
-                    query_result = provider.search(
+                    for scene in unique_scenes:
+                        query_result = provider.search(
+                            query=args['dataset'],
+                            filename=f'{scene}*',
+                            **options
+                        )
+
+                        result.extend(query_result)
+                elif 'tiles' in args:
+                    result = []
+                    for tile in args['tiles']:
+                        query_result = provider.search(
+                            query=args['dataset'],
+                            tile=tile,
+                            start_date=args['start'],
+                            end_date=args['end'],
+                            cloud_cover=cloud,
+                            **options
+                        )
+                        result.extend(query_result)
+                else:
+                    result = provider.search(
                         query=args['dataset'],
-                        filename=f'{scene}*',
-                        **options
-                    )
-
-                    result.extend(query_result)
-            elif 'tiles' in args:
-                result = []
-                for tile in args['tiles']:
-                    query_result = provider.search(
-                        query=args['dataset'],
-                        tile=tile,
                         start_date=args['start'],
                         end_date=args['end'],
                         cloud_cover=cloud,
                         **options
                     )
-                    result.extend(query_result)
-            else:
-                result = provider.search(
-                    query=args['dataset'],
-                    start_date=args['start'],
-                    end_date=args['end'],
-                    cloud_cover=cloud,
-                    **options
-                )
 
             def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
                 """Create task dispatcher recursive."""

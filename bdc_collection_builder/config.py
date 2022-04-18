@@ -40,6 +40,7 @@ class Config:
     )
     # Sen2Cor/Fmask Processor
     SEN2COR_CONFIG = dict(
+        SEN2COR_DIR=os.getenv('SEN2COR_DIR', '/data/auxiliaries/sen2cor'),
         SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
         SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
         SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
@@ -77,6 +78,9 @@ class Config:
     ITEM_PREFIX = os.getenv('ITEM_PREFIX', '/archive')
     # The optional directory where published collections will be stored (Default is DATA_DIR)
     PUBLISH_DATA_DIR = os.environ.get('PUBLISH_DATA_DIR', DATA_DIR)
+
+    # Disable any entry related requests and SSL validation.
+    DISABLE_SSL = strtobool(os.getenv('DISABLE_SSL', 'YES'))
 
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 

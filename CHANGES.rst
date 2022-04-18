@@ -21,7 +21,7 @@ Version 0.8.2 (2022-03-25)
 
 - Fix dependency deprecation git protocol for pip
 - Fix MODIS nodata publishing
-
+-
 
 Version 0.8.1 (2021-05-07)
 --------------------------

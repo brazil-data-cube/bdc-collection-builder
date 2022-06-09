@@ -498,4 +498,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if not destination_file.exists():
             shutil.move(str(old_file_path), str(destination))
 
+    logging.info(f'Cleaning up {temporary_dir.name}')
+    shutil.rmtree(temporary_dir.name)
+
     return item

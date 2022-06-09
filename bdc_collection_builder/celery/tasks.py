@@ -24,8 +24,9 @@ from celery.backends.database import Task
 from flask import current_app as flask_app
 
 from ..collections.models import RadcorActivity, RadcorActivityHistory
+from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
-                                 is_valid_compressed_file, post_processing)
+                                 is_valid_compressed_file, post_processing, safe_request)
 from ..config import Config
 from .publish import get_item_path, publish_collection
 
@@ -151,8 +152,10 @@ def download(activity: dict, **kwargs):
         catalog_name = activity['args']['catalog']
         catalog_args.update(parallel=True, progress=False, lazy=True)
 
-        provider = get_provider(catalog=catalog_name, **catalog_args)
-        download_order = [provider]
+        provider, collector = get_provider(catalog=catalog_name, **catalog_args)
+        setattr(collector, 'instance', provider)
+        setattr(collector, 'provider_name', f'{provider.name} (CUSTOM)')
+        download_order = [collector]
     else:
         # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
         download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False,
@@ -182,9 +185,9 @@ def download(activity: dict, **kwargs):
         Item.name == scene_id
     ).first()
 
-    if item:
+    if item and item.assets.get('asset'):
         # TODO: Get asset name of download file
-        item_path = item.assets['asset']['href']
+        item_path = item.assets['asset'].get('href', '')
         item_path = item_path if not item_path.startswith('/') else item_path[1:]
         item_path = Path(prefix) / item_path
 
@@ -215,7 +218,9 @@ def download(activity: dict, **kwargs):
             for collector in download_order:
                 try:
                     logging.info(f'Trying to download from {collector.provider_name}(id={collector.instance.id})')
-                    temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))
+
+                    with safe_request():
+                        temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))
 
                     activity['args']['provider_id'] = collector.instance.id
 
@@ -231,6 +236,9 @@ def download(activity: dict, **kwargs):
                 raise RuntimeError(f'Download fails {activity["sceneid"]}.')
 
             shutil.move(str(temp_file), str(download_file))
+        if tmp and Path(tmp).exists():
+            logging.info(f'Cleaning up {tmp}')
+            shutil.rmtree(tmp)
 
     refresh_execution_args(execution, activity, compressed_file=str(download_file))
 
@@ -248,6 +256,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
     logging.info(f'Starting Correction Task for {collection.name}(id={collection.id}, scene_id={scene_id})')
 
     data_collection = get_provider_collection_from_activity(activity)
+    tmp = None
 
     try:
         output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR)
@@ -293,15 +302,12 @@ def correction(activity: dict, collection_id=None, **kwargs):
                             logging.info(f'Removing {str(output_path_entry)} sen2cor file before.')
                             output_path_entry.unlink()
 
-                    sen2cor_conf = Config.SEN2COR_CONFIG
-                    logging.info(f'Using {entry} of sceneid {scene_id}')
-                    # TODO: Use custom sen2cor version (2.5 or 2.8)
-                    cmd = f'''docker run --rm -i \
-                        -v $INDIR:/mnt/input-dir \
-                        -v $OUTDIR:/mnt/output-dir \
-                        -v {sen2cor_conf["SEN2COR_AUX_DIR"]}:/home/lib/python2.7/site-packages/sen2cor/aux_data \
-                        {container_workdir} {sen2cor_conf["SEN2COR_DOCKER_IMAGE"]} {entry}'''
                     env['OUTDIR'] = str(Path(tmp) / 'output')
+
+                    sen2cor(scene_id, input_dir=str(tmp), output_dir=env['OUTDIR'],
+                            docker_container_work_dir=container_workdir.split(' '), **env)
+
+                    logging.info(f'Using {entry} of sceneid {scene_id}')
                 else:
                     lasrc_conf = Config.LASRC_CONFIG
 
@@ -314,13 +320,13 @@ def correction(activity: dict, collection_id=None, **kwargs):
                         -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
                         {container_workdir} {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
 
-                logging.debug(cmd)
+                    logging.debug(cmd)
 
-                # Execute command line
-                process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
-                process.wait()
+                    # Execute command line
+                    process = subprocess.Popen(cmd, shell=True, env=env, stdin=subprocess.PIPE)
+                    process.wait()
 
-                assert process.returncode == 0
+                    assert process.returncode == 0
 
                 # TODO: We should be able to get output name from execution
                 if processor_name.lower() == 'sen2cor':
@@ -338,6 +344,10 @@ def correction(activity: dict, collection_id=None, **kwargs):
     except Exception as e:
         logging.error(f'Error in correction {scene_id} - {str(e)}', exc_info=True)
         raise e
+    finally:
+        if tmp and Path(tmp).exists():
+            logging.info(f'Cleaning up {tmp}')
+            shutil.rmtree(tmp)
 
     return activity
 

@@ -9,7 +9,7 @@
 """Defines the utility functions to use among celery tasks."""
 
 from celery import current_app
-from celery.backends.database import SessionManager
+from celery.backends.database.models import Task, TaskSet
 
 
 def list_running_tasks():
@@ -28,6 +28,8 @@ def list_pending_tasks():
 
 def load_celery_models():
     """Prepare and load celery models in database backend."""
-    session = SessionManager()
-    engine = session.get_engine(current_app.backend.url)
-    session.prepare_models(engine)
+    from bdc_db.db import db
+
+    Task.__table__.create(bind=db.engine, checkfirst=True)
+    TaskSet.__table__.create(bind=db.engine, checkfirst=True)
+

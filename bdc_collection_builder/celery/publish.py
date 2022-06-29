@@ -7,7 +7,7 @@
 #
 
 """Module to publish an collection item on database."""
-
+import datetime
 import logging
 import mimetypes
 import os
@@ -482,10 +482,13 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item, created = get_or_create_model(Item, defaults=item_defaults, **where)
         item.assets = assets
         item.cloud_cover = cloud_cover
-        item.geom = geom
+        item.bbox = geom
         item.srid = srid
-        item.convex_hull = convex_hull
+        item.footprint = convex_hull
         item.provider = provider
+        item.is_public = True
+        item.is_available = False
+        item.updated = datetime.datetime.utcnow()
 
         if tile is not None:
             item.tile_id = tile.id

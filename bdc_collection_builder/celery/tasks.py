@@ -312,10 +312,8 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     lasrc_conf = Config.LASRC_CONFIG
 
                     cmd = f'''docker run --rm -i \
-                        -v $INDIR:/mnt/input-dir \
-                        -v $OUTDIR:/mnt/output-dir \
-                        --env INDIR=/mnt/input-dir \
-                        --env OUTDIR=/mnt/output-dir \
+                        -v $INDIR:{Config.LASRC_CONFIG["LASRC_CONTAINER_INPUT_DIR"]} \
+                        -v $OUTDIR:{Config.LASRC_CONFIG["LASRC_CONTAINER_OUTPUT_DIR"]} \
                         -v {lasrc_conf["LASRC_AUX_DIR"]}:/mnt/lasrc-aux:ro \
                         -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
                         {container_workdir} {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
@@ -426,68 +424,5 @@ def post(activity: dict, collection_id=None, **kwargs):
 
     post_processing(quality_path, collection, scenes, resample_to=resample)
     # TODO: Create new band
-
-    return activity
-
-
-@current_app.task(queue='harmonization')
-def harmonization(activity: dict, collection_id=None, **kwargs):
-    """Harmonize Landsat and Sentinel-2 products."""
-    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=harmonization.__name__)
-
-    collection = execution.activity.collection
-
-    from sensor_harm import landsat_harmonize, sentinel_harmonize
-
-    with TemporaryDirectory(prefix='harmonization', suffix=activity['sceneid']) as tmp:
-        data_collection = get_provider_collection_from_activity(activity)
-
-        data_collection.path(collection)
-
-        target_dir = str(data_collection.path(collection))
-
-        target_tmp_dir = Path(tmp) / 'target'
-
-        target_tmp_dir.mkdir(exist_ok=True, parents=True)
-
-        reflectance_dir = Path(activity['args']['file'])
-
-        glob = list(reflectance_dir.glob(f'**/{activity["sceneid"]}_Fmask4.tif'))
-
-        fmask = glob[0]
-
-        shutil.copy(str(fmask), target_tmp_dir)
-
-        if activity['sceneid'].startswith('S2'):
-            shutil.unpack_archive(activity['args']['compressed_file'], tmp)
-
-            entry = activity['sceneid']
-            entries = list(Path(tmp).glob('*.SAFE'))
-
-            if len(entries) == 1 and entries[0].suffix == '.SAFE':
-                entry = entries[0].name
-
-            l1 = Path(tmp) / entry
-
-            sentinel_harmonize(l1, activity['args']['file'], target_tmp_dir, apply_bandpass=True)
-        else:
-            product_version = int(data_collection.parser.satellite())
-            sat_sensor = '{}{}'.format(data_collection.parser.source()[:2], product_version)
-
-            landsat_harmonize(sat_sensor, activity["sceneid"], activity['args']['file'], str(target_tmp_dir))
-
-        Path(target_dir).mkdir(exist_ok=True, parents=True)
-
-        for entry in Path(target_tmp_dir).iterdir():
-            entry_name = entry.name
-
-            target_entry = Path(target_dir) / entry_name
-
-            if target_entry.exists():
-                os.remove(str(target_entry))
-
-            shutil.move(str(entry), target_dir)
-
-    activity['args']['file'] = target_dir
 
     return activity

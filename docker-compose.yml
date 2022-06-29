@@ -53,7 +53,7 @@ services:
       context: .
       dockerfile: ./docker/Dockerfile
     container_name: bdc-collection-builder-api
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    image: registry.dpi.inpe.br/brazil-data-cube/bdc-collection-builder:latest
     restart: "always"
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
@@ -77,7 +77,7 @@ services:
 #  Celery
   worker-download:
     container_name: bdc-collection-builder-worker-download
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    image: registry.dpi.inpe.br/brazil-data-cube/bdc-collection-builder:latest
     restart: "always"
     depends_on:
       - mq
@@ -100,7 +100,7 @@ services:
       context: .
       dockerfile: ./docker/Dockerfile.atm
     container_name: bdc-collection-builder-worker-atm-correction
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder-atm:latest
+    image: registry.dpi.inpe.br/brazil-data-cube/bdc-collection-builder-atm:latest
     restart: "always"
     depends_on:
       - mq

@@ -14,7 +14,6 @@ from datetime import datetime, timedelta
 
 # 3rdparty
 from bdc_catalog.models import Collection, GridRefSys, Item, Provider, Tile
-from bdc_collectors.ext import CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
 from dateutil.relativedelta import relativedelta
@@ -23,7 +22,8 @@ from sqlalchemy import Date, and_, func, or_
 from werkzeug.exceptions import BadRequest, abort
 
 # Builder
-from .celery.tasks import correction, download, harmonization, post, publish
+from .celery.tasks import correction, download, post, publish
+from .collections.collect import get_provider_order
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
 from .collections.utils import get_or_create_model, get_provider, safe_request
@@ -187,16 +187,6 @@ class RadcorBusiness:
             _task = publish
         elif task_type == 'post':
             _task = post
-        elif task_type == 'harmonization':
-            try:
-                import sensor_harm
-            except ImportError:
-                raise RuntimeError(
-                    'The task harmonization is not installed.'
-                    'Please install with command "pip install -e .[harmonization]"'
-                )
-
-            _task = harmonization
         else:
             raise RuntimeError(f'Task {task_type} not supported.')
 
@@ -354,9 +344,7 @@ class RadcorBusiness:
         """Check if the given collection has any provider set."""
         collection = Collection.query().filter(Collection.id == collection_id).first_or_404()
 
-        collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
-
-        download_order = collector_extension.get_provider_order(collection, lazy=True)
+        download_order = get_provider_order(collection, lazy=True)
 
         if len(download_order) == 0:
             abort(400, f'Collection {collection.name} does not have any data provider set.')

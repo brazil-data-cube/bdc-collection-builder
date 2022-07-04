@@ -36,7 +36,7 @@ import requests
 
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, Provider, db
+from bdc_catalog.models import Band, Collection, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
 from botocore.exceptions import ClientError
@@ -48,6 +48,7 @@ from rio_cogeo.profiles import cog_profiles
 from werkzeug.exceptions import abort
 
 from ..config import CURRENT_DIR, Config
+from .models import ProviderSetting
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -483,13 +484,15 @@ def is_valid_tar_gz(file_path: str):
         return False
 
 
-def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
+def get_provider(catalog, **kwargs) -> Tuple[ProviderSetting, BaseProvider]:
     """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
-    provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
+    provider: ProviderSetting = (
+        ProviderSetting.query()
+        .filter(ProviderSetting.driver_name == catalog)
+        .first_or_404(f'Provider "{catalog}" not found.')
+    )
 
-    ext = current_app.extensions['bdc:collector']
-
-    provider_type = ext.get_provider(catalog)
+    provider_type = get_provider_type(catalog)
 
     if provider_type is None:
         abort(400, f'Catalog {catalog} not supported.')
@@ -506,6 +509,15 @@ def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
         provider_ext = provider_type(*provider.credentials, **options)
 
     return provider, provider_ext
+
+
+def get_provider_type(catalog: str):
+    """Retrieve the driver for Data Collector.
+
+    Seek in bdc-collectors app for the driver type for catalog representation.
+    """
+    ext = current_app.extensions['bdc:collector']
+    return ext.get_provider(catalog)
 
 
 def get_epsg_srid(file_path: str) -> int:

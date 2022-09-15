@@ -23,10 +23,10 @@ A command line to manage collection metadata of bdc-catalog.
     :caption: Documentation:
 
     installation
-    usage
     config
-    api
+    usage
     deploy
+    api
     repository
     history
 

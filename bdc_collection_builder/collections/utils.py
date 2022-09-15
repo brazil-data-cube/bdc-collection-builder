@@ -36,7 +36,7 @@ import requests
 
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, Provider, db
+from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, Provider, ResolutionUnit, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
 from botocore.exceptions import ClientError
@@ -516,10 +516,13 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
-    from osgeo import gdal, osr
-
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
+
+    if crs is not None and crs.to_epsg():
+        return crs.to_epsg()
+
+    from osgeo import gdal, osr
 
     ref = osr.SpatialReference()
 
@@ -586,3 +589,38 @@ def safe_request():
                 adapter.close()
             except:
                 pass
+
+
+def create_collection(name: str, version: int, bands: list, **kwargs) -> Tuple[Collection, bool]:
+    collection = (
+        Collection.query()
+        .filter(Collection.name == name,
+                Collection.version == version)
+        .first()
+    )
+    if collection is not None:
+        return collection, False
+
+    with db.session.begin_nested():
+        collection = Collection(name=name, version=version)
+        collection.collection_type = kwargs.get('collection_type', 'collection')
+        collection.grs = GridRefSys.query().filter(GridRefSys.name == kwargs.get('grid_ref_sys')).first()
+        collection.description = kwargs.get('description')
+        collection.is_public = kwargs.get('is_public', False)
+        collection.title = kwargs.get('title', collection.name)
+
+        for band in bands:
+            band_obj = Band(collection=collection, name=band['name'])
+            for prop, value in band.items():
+                if prop == 'mime_type':
+                    band_obj.mime_type = MimeType.query().filter(MimeType.name == value).first()
+                elif prop == 'resolution_unit':
+                    band_obj.resolution_unit = ResolutionUnit.query().filter(ResolutionUnit.name == value).first()
+                else:
+                    setattr(band_obj, prop, value)
+            db.session.add(band_obj)
+
+        db.session.add(collection)
+    db.session.commit()
+
+    return collection, True

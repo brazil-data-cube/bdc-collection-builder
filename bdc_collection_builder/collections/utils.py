@@ -21,7 +21,7 @@ from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Tuple
+from typing import Any, List, Tuple
 from urllib3.exceptions import InsecureRequestWarning
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -39,6 +39,7 @@ import shapely.geometry
 from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, Provider, ResolutionUnit, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
+from bdc_collectors.ext import CollectorExtension
 from botocore.exceptions import ClientError
 from flask import current_app
 from rasterio.warp import Resampling
@@ -483,11 +484,16 @@ def is_valid_tar_gz(file_path: str):
         return False
 
 
+def get_collector_ext() -> CollectorExtension:
+    """Retrieve the loaded collector extension (BDC-Collectors)."""
+    return current_app.extensions['bdc_collector']
+
+
 def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
     provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
 
-    ext = current_app.extensions['bdc:collector']
+    ext = get_collector_ext()
 
     provider_type = ext.get_provider(catalog)
 

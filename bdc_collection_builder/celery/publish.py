@@ -480,6 +480,10 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         where = dict(name=scene_id, collection_id=collection.id)
         item, created = get_or_create_model(Item, defaults=item_defaults, **where)
+        # When data already exists, mark "updated" as now.
+        if not created:
+            item.updated = datetime.datetime.utcnow()
+
         item.assets = assets
         item.cloud_cover = cloud_cover
         item.bbox = geom

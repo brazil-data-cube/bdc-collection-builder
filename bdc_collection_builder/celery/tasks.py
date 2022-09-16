@@ -21,13 +21,12 @@ from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
 from celery.backends.database import Task
-from flask import current_app as flask_app
 
 from ..collections.collect import get_provider_order
 from ..collections.models import ProviderSetting, RadcorActivity, RadcorActivityHistory
 from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
-                                 is_valid_compressed_file, post_processing, safe_request)
+                                 is_valid_compressed_file, post_processing, safe_request, get_collector_ext)
 from ..config import Config
 from .publish import get_item_path, publish_collection
 
@@ -94,7 +93,7 @@ def execution_from_collection(activity, collection_id=None, activity_type=None):
 
 def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
     """Retrieve a data collector class instance from given bdc-collector provider."""
-    collector_extension = flask_app.extensions['bdc:collector']
+    collector_extension = get_collector_ext()
 
     provider_class = collector_extension.get_provider(provider_name)
 
@@ -425,3 +424,4 @@ def post(activity: dict, collection_id=None, **kwargs):
     # TODO: Create new band
 
     return activity
+

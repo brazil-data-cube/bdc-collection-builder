@@ -72,7 +72,7 @@ install_requires = [
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
     'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@v0.8.0#egg=bdc-collectors',
     'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v0.8.2#egg=bdc-catalog',
-    'celery[librabbitmq]>=4.3,<4.4.3',
+    'celery>=4.3,<4.4.3',
     'python-dateutil>=2,<3',
     'shapely>=1.7,<2',
     # Build Error Fix

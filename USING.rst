@@ -1,9 +1,19 @@
 ..
     This file is part of Brazil Data Cube Collection Builder.
-    Copyright (C) 2019-2020 INPE.
+    Copyright (C) 2022 INPE.
 
-    Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-    under the terms of the MIT License; see LICENSE file for more details.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 
 
 Usage
@@ -14,50 +24,48 @@ This section explains how to use the Collection Builder application to collect d
 
 If you have not read yet how to install or deploy the system, please refer to :doc:`installation` or :doc:`deploy` documentation.
 
-The resource `/api/radcor` is used to dispatch tasks for both data collect, processing and publish. These parameters can be defined as:
+The resource ``/api/radcor`` is used to dispatch tasks for both data collect, processing and publish. These parameters can be defined as:
 
-    - `w`, `s`, `a`, `d`: Bounding box limits;
-    - `catalog`: Define the catalog to search;
-    - `dataset`: The dataset name offered by `catalog`. See more in `BDC-Collectors  <https://github.com/brazil-data-cube/bdc-collectors>`_
-    - `start`: Start datetime;
-    - `end`: End datetime;
-    - `cloud`: Cloud cover factor. Default is `100`;
-    - `action`: Argument to dispatch execution. The supported values are:
+    - ``w``, ``s``, ``a``, ``d``: Bounding box limits. (Required when neither ``scenes`` or ``tiles`` is set);
+    - ``scenes``: List of direct scenes to collect from catalog (Optional).
+    - ``tiles``: List of tiles to collect from catalog. Used Grid reference from Collection in Download. (Optional).
+    - ``catalog``: Define the catalog to search;
+    - ``catalog_args``: Customize the catalog kwargs. The options includes ``username``, ``password``, ``progress``, etc. Default is ``unset``;
+    - ``dataset``: The dataset name offered by ``catalog``. See more in `BDC-Collectors  <https://github.com/brazil-data-cube/bdc-collectors>`_
+    - ``start``: Start datetime;
+    - ``end``: End datetime;
+    - ``cloud``: Maximum Cloud cover factor. Default is ``100``;
+    - ``action``: Argument to dispatch execution. The supported values are:
 
-        - `start` - which search and dispatches the matched scenes;
-        - `preview` - search in catalog with given parameters and return the matched values;
+        - ``start`` - which search and dispatches the matched scenes;
+        - ``preview`` - search in catalog with given parameters and return the matched values;
 
-    - `tasks`: Define the intent execution and which the collection to store data. The supported values are:
+    - ``tasks``: Define the intent execution and which the collection to store data. The supported values are:
 
-        - `download` - Tries to download data from remote server using the `bdc-collectors` and models `bdc.collections_providers` for download priorities;
-        - `correction` - Apply Surface Reflectance Processor according the model `Collection.metadata` in `BDC-Catalog <https://bdc-catalog.readthedocs.io/en/latest/>`_;
-        - `publish` - Publish the collection in database. This step also generates the `bdc.quicklook` and band indexes from `bdc.bands`;
-        - `post` - Apply post processing step in datasets;
-        - `harmonization` - Apply Data Harmonization on Landsat-5, Landsat-7, Landsat-8 and Sentinel-2 products using the module `sensor-harm <https://github.com/brazil-data-cube/sensor-harm>`_;
+        - ``download`` - Tries to download data from remote server using the `bdc-collectors` and models `bdc.collections_providers` for download priorities;
+        - ``correction`` - Apply Surface Reflectance Processor according the model ``Collection.metadata`` in `BDC-Catalog <https://bdc-catalog.readthedocs.io/en/latest/>`_;
+        - ``publish`` - Publish the collection in database. This step also generates the `bdc.quicklook` and band indexes from `bdc.bands`;
+        - ``post`` - Apply post processing step in datasets;
+        - ``harmonization`` - Apply Data Harmonization on Landsat-5, Landsat-7, Landsat-8 and Sentinel-2 products using the module `sensor-harm <https://github.com/brazil-data-cube/sensor-harm>`_;
 
+        The parameter ``collection`` is a key identifier for the given collection using ``CollectionName-Version``.
+        You must have collection inserted in your database to trigger a data collect.
         The tasks parameter can be nested in order to given an order of execution. For example,
-        if you need to `download` data, generates a Surface Reflectance (`correction`) and then publish data `publish`,
+        if you need to ``download`` data and then publish data ``publish``,
         you can chain the tasks as following:
 
         .. code-block::
 
             "tasks": [
                 "type": "download",
-                "collection": "LC8_DN",
+                "collection": "LC8_DN-1",
                 "args": {},
                 "tasks": [
                     {
-                        "type": "correction",
-                        "collection": "LC8_SR",
+                        "type": "publish",
+                        "collection": "LC8_DN-1",
                         "args": {},
-                        "tasks": [
-                            {
-                                "type": "publish",
-                                "collection": "LC8_SR",
-                                "args": {},
-                                "tasks": []
-                            }
-                        ]
+                        "tasks": []
                     }
                 ]
             ]
@@ -69,7 +77,7 @@ The resource `/api/radcor` is used to dispatch tasks for both data collect, proc
 Collecting Sentinel 2 L1C Images
 --------------------------------
 
-You can download a Sentinel 2 scene from the provider `SciHub` with dataset `S2MSI1C` using the following example:
+You can download a Sentinel 2 scene from the provider ``SciHub`` with dataset ``S2MSI1C`` using the following example:
 
 .. code-block:: shell
 

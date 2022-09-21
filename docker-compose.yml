@@ -1,9 +1,19 @@
 #
 # This file is part of Brazil Data Cube Collection Builder.
-# Copyright (C) 2019 INPE.
+# Copyright (C) 2022 INPE.
 #
-# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
 version: '3.1'
@@ -42,7 +52,7 @@ services:
     volumes:
       - ./volumes/pg:/var/lib/postgresql/data
     environment:
-      - "POSTGRES_PASSWORD=bdc-collection-builder2019"
+      - "POSTGRES_PASSWORD=postgres"
     networks:
       - bdc_net
     ports:
@@ -58,15 +68,14 @@ services:
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-      - "DATA_DIR=/gfs"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@bdc-collection-builder-pg:5432/bdc"
+      - "DATA_DIR=/data"
     networks:
       - bdc_net
     ports:
       - "5000:5000"
     volumes:
-      - /gfs:/gfs
+      - /data:/data
     command: >
       bash -c "bdc-collection-builder run --host 0.0.0.0"
     depends_on:
@@ -85,13 +94,12 @@ services:
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-      - "DATA_DIR=/gfs"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@bdc-collection-builder-pg:5432/bdc"
+      - "DATA_DIR=/data"
     volumes:
-      - /gfs:/gfs
+      - /data:/data
     command: >
-      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 2 -Q download
     networks:
       - bdc_net
 
@@ -108,24 +116,22 @@ services:
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-      - "DATA_DIR=/gfs"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@bdc-collection-builder-pg:5432/bdc"
+      - "DATA_DIR=/data"
       # The following variables are related to laSRC and ledaps execution.
       - "L8_AUX_DIR=/mnt/auxiliaries/L8"
-      - "LASRC_AUX_DIR=/mnt/auxiliaries/L8"
       - "LEDAPS_AUX_DIR=/mnt/auxiliaries/ledaps"
       # Sen2cor
       - "SEN2COR_DOCKER_IMAGE=registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0"
-      - "SEN2COR_AUX_DIR=/gfs/ds_data/CCI4SEN2COR"
-      - "SEN2COR_CONFIG_DIR=/gfs/ds_data/sen2cor/config/2.8"
+      - "SEN2COR_AUX_DIR=/mnt/auxiliaries/sen2cor/CCI4SEN2COR"
+      - "SEN2COR_CONFIG_DIR=/mnt/auxiliaries/sen2cor/config/2.8"
       # LaSRC
       - "LASRC_DOCKER_IMAGE=registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:1.0.4"
-      - "LASRC_AUX_DIR=/gfs/ds_data/auxiliaries/L8"
-      - "LEDAPS_AUX_DIR=/gfs/ds_data/ledaps_auxiliaries"
+      - "LASRC_AUX_DIR=/mnt/auxiliaries/L8"
+      - "LEDAPS_AUX_DIR=/mnt/auxiliaries/ledaps_auxiliaries"
     volumes:
-      - /gfs:/gfs
-      - /gfs/ds_data/auxiliaries:/mnt/auxiliaries
+      - /data:/data
+      - /mnt/auxiliaries:/mnt/auxiliaries
     entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "atm-correction"]
     networks:
       - bdc_net
@@ -138,74 +144,13 @@ services:
       - mq
       - api
     volumes:
-      - /gfs:/gfs
+      - /data:/data
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
       - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
+      - "DATA_DIR=/data"
+      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@bdc-collection-builder-pg:5432/bdc"
     command: >
         celery worker -A bdc_collection_builder.celery.worker:celery -l INFO --concurrency 2 -Q publish
-    networks:
-      - bdc_net
-
-  worker-harmonization:
-    container_name: bdc_collection_builder-worker-harmonization
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
-    restart: "always"
-    depends_on:
-      - mq
-      - api
-    environment:
-      - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
-      - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-    volumes:
-      - /gfs:/gfs
-    command: >
-      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 1 -Q harmonization
-    networks:
-      - bdc_net
-
-  worker-upload:
-    container_name: bdc-collection-builder-worker-upload
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
-    restart: "always"
-    depends_on:
-      - mq
-      - api
-    volumes:
-      - /gfs:/gfs
-    environment:
-      - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
-      - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-    command: >
-      celery worker -A bdc_collection_builder.celery.worker:celery -l INFO --concurrency 2 -Q upload
-    networks:
-      - bdc_net
-
-  worker-post:
-    container_name: bdc-collection-builder-worker-post
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
-    restart: "always"
-    depends_on:
-      - mq
-      - api
-    volumes:
-      - /gfs:/gfs
-    environment:
-      - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
-      - "RABBIT_MQ_URL=pyamqp://guest@bdc-collection-builder-rabbitmq"
-      - "SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc"
-      - "DATA_DIR=/gfs"
-      - "SQLALCHEMY_DATABASE_URI_AWS=postgresql://postgres:bdc-collection-builder2019@bdc-collection-builder-pg:5432/bdc_aws"
-    command: >
-      celery worker -A bdc_collection_builder.celery.worker:celery -l INFO --concurrency 2 -Q post
     networks:
       - bdc_net

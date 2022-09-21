@@ -1,9 +1,19 @@
 ..
     This file is part of Brazil Data Cube Collection Builder.
-    Copyright (C) 2019-2020 INPE.
+    Copyright (C) 2022 INPE.
 
-    Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-    under the terms of the MIT License; see LICENSE file for more details.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 
 
 Deploying
@@ -17,13 +27,13 @@ Configuration
 Collector Providers
 ~~~~~~~~~~~~~~~~~~~
 
-Please, refer to the section "Setting up the Credentials for EO Data Providers" in the `CONFIG.rst <./CONFIG.rst>`_ documentation.
+Please, refer to the section "Setting up the Credentials for EO Data Providers" in the :doc:`config` documentation.
 
 
 Auxiliary Data for Atmospheric Correction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Please, refer to the section "Setting up Auxiliary Data for Surface Reflectance Processors" in the `CONFIG.rst <./CONFIG.rst>`_ documentation.
+Please, refer to the section "Setting up Auxiliary Data for Surface Reflectance Processors" in the :doc:`config` documentation.
 
 
 docker-compose.yml
@@ -36,19 +46,6 @@ Open and edit **docker-compose.yml** with the following variables:
 3. **REDIS_URL** - URI to connect on Redis Instance.
 4. **RABBIT_MQ_URL** - URI to connect on RabbitMQ protocol.
 5. **CLIENT_SECRET_KEY** and **CLIENT_AUDIENCE** for OAuth2 Integration.
-
-
-The following variables consists in integration with AWS:
-
-1. **SQLALCHEMY_DATABASE_URI_AWS** - Database URI to catalog on AWS.
-2. **AWS_BUCKET_NAME** - AWS Bucket Name to store collections Surface Reflectance (SR).
-3. **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY** - AWS Credentials. You can generate in https://aws.amazon.com/pt/iam/.
-
-
-.. note::
-
-    Keep in mind that on invalid configuration for AWS instance will turn out in execution error on the following tasks
-    related with surface reflectance products (SR): ``publish`` and ``upload``
 
 
 Running the Docker Containers
@@ -85,4 +82,4 @@ Once everything is properly configured, use the following command to start all t
 
 .. note::
 
-    Refer to the `USING.rst <./USING.rst>`_ documentation in order to use the collection builder services.
+    Refer to the :doc:`usage` documentation in order to use the collection builder services.

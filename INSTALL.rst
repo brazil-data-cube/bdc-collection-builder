@@ -1,9 +1,19 @@
 ..
     This file is part of Brazil Data Cube Collection Builder.
-    Copyright (C) 2019-2020 INPE.
+    Copyright (C) 2022 INPE.
 
-    Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-    under the terms of the MIT License; see LICENSE file for more details.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 
 
 Installation
@@ -28,29 +38,24 @@ The Brazil Data Cube Collection Builder (``bdc-collection-builder``) depends ess
 - `Sensor Harmonization <https://github.com/brazil-data-cube/sensor-harm>`_ (Optional)
 
 
+Compatibility
+-------------
+
+Before deploy/install ``BDC-Collection-Builder``, please, take a look into compatibility table:
+
++------------------------+-------------+----------------+
+| BDC-Collection-Builder | BDC-Catalog | BDC-Collectors |
++========================+=============+================+
+| 0.8.x                  | 0.8.2       | 0.6.0          |
++------------------------+-------------+----------------+
+| 0.6.x                  | 0.8.2       | 0.2.1          |
++------------------------+-------------+----------------+
+| 0.4.x                  | 0.2.x       | ``NaN``        |
++------------------------+-------------+----------------+
+
 Development Installation
 ------------------------
 
-BDC-Collectors
-~~~~~~~~~~~~~~
-
-Clone the `BDC-Collectors` and install in mode development (This step is required since the repository is still private)::
-
-    $ git clone https://github.com/brazil-data-cube/bdc-collectors.git
-
-
-Go to source code folder::
-
-    $ cd bdc-collectors
-
-
-Install in development mode::
-
-    $ pip3 install -e .
-    $ cd ..
-
-BDC-Collection-Builder
-~~~~~~~~~~~~~~~~~~~~~~
 
 Clone the software repository::
 
@@ -64,7 +69,7 @@ Go to the source code folder::
 
 Install in development mode::
 
-    $ pip3 install -e .[all]
+    $ pip3 install -e .[docs,tests]
 
 
 .. note::
@@ -76,6 +81,15 @@ Install in development mode::
 
     For more information, please, see [#f1]_.
 
+.. note::
+
+    If you would like to publish ``Hierarchical Data Format`` (HDF) datasets, you may install the extra ``gdal``.
+    Optionally, you can install all dependencies as following::
+
+        $ pip3 install -e .[all]
+
+    Make sure you have GDAL installed and available in ``PATH``.
+
 
 Generate the documentation::
 
@@ -85,6 +99,12 @@ Generate the documentation::
 The above command will generate the documentation in HTML and it will place it under::
 
     docs/sphinx/_build/html/
+
+
+Optionally, you can serve these files temporally on ``http://localhost:8000`` using the following command::
+
+    cd docs/sphinx/_build/html/
+    python3 -m http.server
 
 
 Running in Development Mode
@@ -102,7 +122,7 @@ Let's take a look at each parameter in the above command:
 
     - ``up``: tells docker-compose to launch the containers.
 
-    - ``-d``: tells docker-compose that containers will run in detach mode (as a deamon).
+    - ``-d``: tells docker-compose that containers will run in detach mode (as a daemon).
 
     - ``redis``: the name of a service in the ``docker-compose.yml`` file with all information to prepare a Redis container.
 
@@ -113,7 +133,9 @@ Let's take a look at each parameter in the above command:
 
 .. note::
 
-    Since docker-compose will map the services to the default system ports on localhost, make sure you are not running Redis, RabbitMQ or PostgreSQL on those ports in your system, otherwise you will have a port conflict during the attempt to launch the new containers.
+    Since docker-compose will map the services to the default system ports on localhost,
+    make sure you are not running Redis, RabbitMQ or PostgreSQL on those ports in your system,
+    otherwise you will have a port conflict during the attempt to launch the new containers.
 
 
 .. note::
@@ -145,43 +167,64 @@ The following steps will show how to prepare the data model:
 
 **1.** Create a PostgreSQL database and enable the PostGIS extension::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db init
 
 
 **2.** Create extension `PostGIS`::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-extension-postgis
 
 **3.** Create table namespaces::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-namespaces
 
 
 **4.** After that, run Flask-Migrate command to prepare the Collection Builder data model::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-collection-builder alembic upgrade
 
 
 **5.** Load `BDC-Catalog` triggers with command::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-triggers
 
 
-**6.** You may need to initialize default data for `BDC-Catalog` with command::
+**6.** Load `BDC-Collectors` data providers::
 
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc \
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db load-scripts
+
+
+.. note::
+
+    For a initial data of collections, we have prepared a minimal command line utility to load ``examples/data`` definitions.
+    You can check out with the following command::
+
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
+        bdc-collection-builder load-data --from-dir examples/data # or individual as --ifile examples/data/sentinel-2-l1.json
+
+    If you would like to link a collection with a default provider (``S2_L1C-1`` with ``SciHub``) use the command::
+
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
+        bdc-collection-builder set-provider --collection S2_L1C-1 --provider SciHub
+
+
+
+.. note::
+
+    Please refer to :doc:`config` the section
+    ``Setting up the Credentials for EO Data Providers`` to set valid access credentials for data providers.
 
 
 Prepare the containers Sen2Cor and LaSRC 1.3.0
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Before launching Sen2Cor and LaSRC processors, please, read the `CONFIG.rst <./CONFIG.rst>`_ documentation and make sure you have the right layout of auxiliary data in your filesystem.
+Before launching Sen2Cor and LaSRC processors, please, read the :doc:`config` documentation and make sure you have the right layout of auxiliary data in your filesystem.
 
 
 If you have all the auxiliary data, edit `docker-compose.yml` the section `atm-correction` and fill the following configuration based in the directory where auxiliaries are stored::
@@ -206,11 +249,11 @@ Launching Collection Builder Workers
 
 **1.** In order to launch the worker responsible for downloading data, run the following ``Celery`` command::
 
-    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
-      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+    $ DATA_DIR="/home/user/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:postgres@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
-      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q download
+      celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 2 -Q download
 
 
 As soon as the worker is launched, it will present a message like:
@@ -248,8 +291,8 @@ As soon as the worker is launched, it will present a message like:
 
 **2.** To launch the worker responsible for surface reflection generation (L2A processor based on Sen2Cor or LaSRC for Landsat 8), use the following ``Celery`` command::
 
-    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
-      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+    $ DATA_DIR="/home/user/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:postgres@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       LASRC_AUX_DIR=/path/to/auxiliaries/L8 \
@@ -296,8 +339,8 @@ As soon as the worker is launched, it will present a message like:
 
 **3.** To launch the worker responsible for publishing the generated surface reflection data products, use the following ``Celery`` command::
 
-    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
-      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+    $ DATA_DIR="/home/user/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:postgres@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       celery -A bdc_collection_builder.celery.worker:celery worker -l INFO --concurrency 4 -Q publish
@@ -335,13 +378,22 @@ As soon as the worker is launched, it will present a message like:
     [2020-04-30 08:54:20,602: INFO/MainProcess] celery@enghaw-dell-note ready.
 
 
+.. note::
+
+    In these examples, we have launched individual workers ``download``, ``atm-correction``,
+    ``publish`` listening in different ``queues``.
+    For convenience, you may set the parameter ``-Q download,atm-correction,publish`` to make the
+    worker listen all these queues in runtime.
+    Just make sure that the worker has the required variables for each kind of processing.
+
+
 Launching Collection Builder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To launch the ``Flask`` application responsible for orchestrating the collection builder components, use the following command::
 
-    $ DATA_DIR="/home/gribeiro/data/bdc-collection-builder" \
-      SQLALCHEMY_DATABASE_URI="postgresql://postgres:bdc-collection-builder2019@localhost:5432/bdc" \
+    $ DATA_DIR="/home/user/data/bdc-collection-builder" \
+      SQLALCHEMY_DATABASE_URI="postgresql://postgres:postgres@localhost:5432/bdc" \
       REDIS_URL="redis://localhost:6379" \
       RABBIT_MQ_URL="pyamqp://guest@localhost" \
       bdc-collection-builder run
@@ -357,10 +409,10 @@ As soon as the ``Flask`` application is up and running, it will present a messag
 
 
 
-Using the Collection Builder
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Usage
+~~~~~
 
-Please, refer to the document `USING.rst <./USING.rst>`_ for information on how to use the collection builder to download and generate surface reflectance data products.
+Please, refer to the document :doc:`usage` for information on how to use the collection builder to download and generate surface reflectance data products.
 
 
 
@@ -377,7 +429,7 @@ Please, refer to the document `USING.rst <./USING.rst>`_ for information on how 
         Running setup.py install for bdc-db ... done
         Running setup.py install for librabbitmq ... error
         ERROR: Command errored out with exit status 1:
-         command: /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/bin/python3.7 -u -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"'; __file__='"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' install --record /tmp/pip-record-m9lm5kjn/install-record.txt --single-version-externally-managed --compile --install-headers /home/gribeiro/Devel/github/brazil-data-cube/bdc-collection-builder/venv/include/site/python3.7/librabbitmq
+         command: /home/user/bdc-collection-builder/venv/bin/python3.7 -u -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"'; __file__='"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' install --record /tmp/pip-record-m9lm5kjn/install-record.txt --single-version-externally-managed --compile --install-headers /home/user/bdc-collection-builder/venv/include/site/python3.7/librabbitmq
              cwd: /tmp/pip-install-1i7mp5js/librabbitmq/
         Complete output (107 lines):
         /tmp/pip-install-1i7mp5js/librabbitmq/setup.py:167: DeprecationWarning: 'U' mode is deprecated

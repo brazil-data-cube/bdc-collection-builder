@@ -1,14 +1,32 @@
 ..
     This file is part of Brazil Data Cube Collection Builder.
-    Copyright (C) 2019-2020 INPE.
+    Copyright (C) 2022 INPE.
 
-    Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-    under the terms of the MIT License; see LICENSE file for more details.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 
 
 =======
 Changes
 =======
+
+Version 0.8.4 (2022-09-21)
+--------------------------
+
+- Change LICENSE to GPL v3 and headers source code
+- Fix re-published item updated
+- Improve docs usage / setup.
+
 
 Version 0.8.3 (2022-04-18)
 --------------------------
@@ -21,7 +39,7 @@ Version 0.8.2 (2022-03-25)
 
 - Fix dependency deprecation git protocol for pip
 - Fix MODIS nodata publishing
--
+
 
 Version 0.8.1 (2021-05-07)
 --------------------------
@@ -67,13 +85,8 @@ Version 0.6.0 (2020-12-03)
 Version 0.4.1 (2020-09-08)
 --------------------------
 
-Bug fixes:
-
-    - Fix Fmask4 re-sample in post-processing task for Sentinel - `#169 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/169>`_.
-
-Changes:
-
-    - Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
+- Fix Fmask4 re-sample in post-processing task for Sentinel - `#169 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/169>`_.
+- Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
 
 
 Version 0.4.0 (2020-08-25)

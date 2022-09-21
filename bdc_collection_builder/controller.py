@@ -1,9 +1,19 @@
 #
 # This file is part of Brazil Data Cube Collection Builder.
-# Copyright (C) 2019-2020 INPE.
+# Copyright (C) 2022 INPE.
 #
-# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
 """Define base interface for Celery Tasks."""
@@ -14,7 +24,6 @@ from datetime import datetime, timedelta
 
 # 3rdparty
 from bdc_catalog.models import Collection, GridRefSys, Item, Provider, Tile
-from bdc_collectors.ext import CollectorExtension
 from celery import chain, group
 from celery.backends.database import Task
 from dateutil.relativedelta import relativedelta
@@ -24,6 +33,7 @@ from werkzeug.exceptions import BadRequest, abort
 
 # Builder
 from .celery.tasks import correction, download, harmonization, post, publish
+from .collections.collect import get_provider_order
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
 from .collections.utils import get_or_create_model, get_provider, safe_request
@@ -354,9 +364,7 @@ class RadcorBusiness:
         """Check if the given collection has any provider set."""
         collection = Collection.query().filter(Collection.id == collection_id).first_or_404()
 
-        collector_extension: CollectorExtension = current_app.extensions['bdc:collector']
-
-        download_order = collector_extension.get_provider_order(collection, lazy=True)
+        download_order = get_provider_order(collection, lazy=True)
 
         if len(download_order) == 0:
             abort(400, f'Collection {collection.name} does not have any data provider set.')

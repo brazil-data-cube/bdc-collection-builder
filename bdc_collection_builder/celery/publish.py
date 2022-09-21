@@ -1,13 +1,23 @@
 #
 # This file is part of Brazil Data Cube Collection Builder.
-# Copyright (C) 2019-2020 INPE.
+# Copyright (C) 2022 INPE.
 #
-# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
 """Module to publish an collection item on database."""
-
+import datetime
 import logging
 import mimetypes
 import os
@@ -480,6 +490,10 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         where = dict(name=scene_id, collection_id=collection.id)
         item, created = get_or_create_model(Item, defaults=item_defaults, **where)
+        # When data already exists, mark "updated" as now.
+        if not created:
+            item.updated = datetime.datetime.utcnow()
+
         item.assets = assets
         item.cloud_cover = cloud_cover
         item.geom = geom

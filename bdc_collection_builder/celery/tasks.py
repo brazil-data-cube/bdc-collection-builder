@@ -21,12 +21,12 @@ from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
 from celery.backends.database import Task
-from flask import current_app as flask_app
 
+from ..collections.collect import get_provider_order
 from ..collections.models import RadcorActivity, RadcorActivityHistory
 from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
-                                 is_valid_compressed_file, post_processing, safe_request)
+                                 is_valid_compressed_file, post_processing, safe_request, get_collector_ext)
 from ..config import Config
 from .publish import get_item_path, publish_collection
 
@@ -93,7 +93,7 @@ def execution_from_collection(activity, collection_id=None, activity_type=None):
 
 def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
     """Retrieve a data collector class instance from given bdc-collector provider."""
-    collector_extension = flask_app.extensions['bdc:collector']
+    collector_extension = get_collector_ext()
 
     provider_class = collector_extension.get_provider(provider_name)
 
@@ -140,8 +140,6 @@ def download(activity: dict, **kwargs):
     """Celery tasks to deal with download data product from given providers."""
     execution = create_execution(activity)
 
-    collector_extension = flask_app.extensions['bdc:collector']
-
     collection: Collection = execution.activity.collection
     scene_id = execution.activity.sceneid
     catalog_args = activity['args'].get('catalog_args', dict())
@@ -158,8 +156,8 @@ def download(activity: dict, **kwargs):
         download_order = [collector]
     else:
         # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
-        download_order = collector_extension.get_provider_order(collection, lazy=True, parallel=True, progress=False,
-                                                                **catalog_args)
+        download_order = get_provider_order(collection, lazy=True, parallel=True, progress=False,
+                                            **catalog_args)
 
     if len(download_order) == 0:
         raise RuntimeError(f'No provider set for collection {collection.id}({collection.name})')

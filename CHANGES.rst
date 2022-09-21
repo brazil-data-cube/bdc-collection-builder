@@ -10,6 +10,12 @@
 Changes
 =======
 
+Version 0.8.4 (2022-09-15)
+--------------------------
+
+- Fix re-published item updated
+- Improve docs usage / setup.
+
 Version 0.8.3 (2022-04-18)
 --------------------------
 
@@ -21,7 +27,7 @@ Version 0.8.2 (2022-03-25)
 
 - Fix dependency deprecation git protocol for pip
 - Fix MODIS nodata publishing
--
+
 
 Version 0.8.1 (2021-05-07)
 --------------------------
@@ -67,13 +73,8 @@ Version 0.6.0 (2020-12-03)
 Version 0.4.1 (2020-09-08)
 --------------------------
 
-Bug fixes:
-
-    - Fix Fmask4 re-sample in post-processing task for Sentinel - `#169 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/169>`_.
-
-Changes:
-
-    - Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
+- Fix Fmask4 re-sample in post-processing task for Sentinel - `#169 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/169>`_.
+- Data synchronization with Amazon Simple Storage (S3) - `#170 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/170>`_
 
 
 Version 0.4.0 (2020-08-25)

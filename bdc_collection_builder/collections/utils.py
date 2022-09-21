@@ -21,7 +21,7 @@ from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Tuple
+from typing import Any, List, Tuple
 from urllib3.exceptions import InsecureRequestWarning
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -36,9 +36,10 @@ import requests
 
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, Provider, db
+from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, Provider, ResolutionUnit, db
 from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
+from bdc_collectors.ext import CollectorExtension
 from botocore.exceptions import ClientError
 from flask import current_app
 from rasterio.warp import Resampling
@@ -483,11 +484,16 @@ def is_valid_tar_gz(file_path: str):
         return False
 
 
+def get_collector_ext() -> CollectorExtension:
+    """Retrieve the loaded collector extension (BDC-Collectors)."""
+    return current_app.extensions['bdc_collector']
+
+
 def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
     provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
 
-    ext = current_app.extensions['bdc:collector']
+    ext = get_collector_ext()
 
     provider_type = ext.get_provider(catalog)
 
@@ -516,10 +522,13 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
-    from osgeo import gdal, osr
-
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
+
+    if crs is not None and crs.to_epsg():
+        return crs.to_epsg()
+
+    from osgeo import gdal, osr
 
     ref = osr.SpatialReference()
 
@@ -586,3 +595,38 @@ def safe_request():
                 adapter.close()
             except:
                 pass
+
+
+def create_collection(name: str, version: int, bands: list, **kwargs) -> Tuple[Collection, bool]:
+    collection = (
+        Collection.query()
+        .filter(Collection.name == name,
+                Collection.version == version)
+        .first()
+    )
+    if collection is not None:
+        return collection, False
+
+    with db.session.begin_nested():
+        collection = Collection(name=name, version=version)
+        collection.collection_type = kwargs.get('collection_type', 'collection')
+        collection.grs = GridRefSys.query().filter(GridRefSys.name == kwargs.get('grid_ref_sys')).first()
+        collection.description = kwargs.get('description')
+        collection.is_public = kwargs.get('is_public', False)
+        collection.title = kwargs.get('title', collection.name)
+
+        for band in bands:
+            band_obj = Band(collection=collection, name=band['name'])
+            for prop, value in band.items():
+                if prop == 'mime_type':
+                    band_obj.mime_type = MimeType.query().filter(MimeType.name == value).first()
+                elif prop == 'resolution_unit':
+                    band_obj.resolution_unit = ResolutionUnit.query().filter(ResolutionUnit.name == value).first()
+                else:
+                    setattr(band_obj, prop, value)
+            db.session.add(band_obj)
+
+        db.session.add(collection)
+    db.session.commit()
+
+    return collection, True

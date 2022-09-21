@@ -47,6 +47,9 @@ extras_require = {
     'tests': tests_require,
     'gdal': [
         'GDAL>=2.3',
+    ],
+    'rabbitmq': [
+        'librabbitmq>=1.5.0',
     ]
 }
 

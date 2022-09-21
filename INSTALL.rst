@@ -69,7 +69,7 @@ Go to the source code folder::
 
 Install in development mode::
 
-    $ pip3 install -e .[docs,tests]
+    $ pip3 install -e .[docs,tests,rabbitmq]
 
 
 .. note::

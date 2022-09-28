@@ -1,10 +1,20 @@
 #!/usr/bin/env python
 #
 # This file is part of Brazil Data Cube Collection Builder.
-# Copyright (C) 2019-2020 INPE.
+# Copyright (C) 2022 INPE.
 #
-# Brazil Data Cube Collection Builder is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
 import os
@@ -37,6 +47,9 @@ extras_require = {
     'tests': tests_require,
     'gdal': [
         'GDAL>=2.3',
+    ],
+    'rabbitmq': [
+        'librabbitmq>=1.5.0',
     ]
 }
 
@@ -57,9 +70,9 @@ install_requires = [
     'numpy>=1.17,<1.20',
     'numpngw>=0.0.8',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
-    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@b-0.8#egg=bdc-collectors',
-    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.0-alpha3#egg=bdc-catalog',
-    'celery[librabbitmq]>=4.3,<4.4.3',
+    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@v0.8.0#egg=bdc-collectors',
+    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v0.8.2#egg=bdc-catalog',
+    'celery>=4.3,<4.4.3',
     'python-dateutil>=2,<3',
     'shapely>=1.7,<2',
     # Build Error Fix
@@ -83,7 +96,7 @@ setup(
     description=__doc__,
     long_description=readme + '\n\n' + history,
     keywords='Brazil Data Cube Collection Builder Module',
-    license='MIT',
+    license='GPLv3',
     author='INPE',
     author_email='brazildatacube@dpi.inpe.br',
     url='https://github.com/brazil-data-cube/bdc-collection-builder',
@@ -115,7 +128,7 @@ setup(
         'Environment :: Web Environment',
         'Intended Audience :: Education',
         'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: GPL v3 License',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3 :: Only',
         'Topic :: Scientific/Engineering :: GIS',

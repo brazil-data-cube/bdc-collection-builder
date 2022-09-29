@@ -21,7 +21,6 @@
 
 # Python Native
 import contextlib
-import datetime
 import logging
 import shutil
 import tarfile
@@ -31,7 +30,7 @@ from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Tuple
+from typing import Tuple
 from urllib3.exceptions import InsecureRequestWarning
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -46,8 +45,7 @@ import requests
 
 import shapely
 import shapely.geometry
-from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, ResolutionUnit, db
-from bdc_catalog.utils import multihash_checksum_sha256
+from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, Provider, ResolutionUnit, db
 from bdc_collectors.base import BaseProvider
 from bdc_collectors.ext import CollectorExtension
 from botocore.exceptions import ClientError
@@ -230,55 +228,6 @@ def remove_file(file_path: str):
     """
     if resource_path.exists(file_path):
         resource_remove(file_path)
-
-
-def create_asset_definition(href: str, mime_type: str, role: List[str], absolute_path: str,
-                            created=None, is_raster=False):
-    """Create a valid asset definition for collections.
-
-    TODO: Generate the asset for `Item` field with all bands
-
-    Args:
-        href - Relative path to the asset
-        mime_type - Asset Mime type str
-        role - Asset role. Available values are: ['data'], ['thumbnail']
-        absolute_path - Absolute path to the asset. Required to generate check_sum
-        created - Date time str of asset. When not set, use current timestamp.
-        is_raster - Flag to identify raster. When set, `raster_size` and `chunk_size` will be set to the asset.
-    """
-    fmt = '%Y-%m-%dT%H:%M:%S'
-    _now_str = datetime.datetime.utcnow().strftime(fmt)
-
-    if created is None:
-        created = _now_str
-    elif isinstance(created, datetime.datetime):
-        created = created.strftime(fmt)
-
-    asset = {
-        'href': str(href),
-        'type': mime_type,
-        'bdc:size': Path(absolute_path).stat().st_size,
-        'checksum:multihash': multihash_checksum_sha256(str(absolute_path)),
-        'roles': role,
-        'created': created,
-        'updated': _now_str
-    }
-
-    if is_raster:
-        with rasterio.open(str(absolute_path)) as data_set:
-            asset['bdc:raster_size'] = dict(
-                x=data_set.shape[1],
-                y=data_set.shape[0],
-            )
-
-            chunk_x, chunk_y = data_set.profile.get('blockxsize'), data_set.profile.get('blockxsize')
-
-            if chunk_x is None or chunk_x is None:
-                return asset
-
-            asset['bdc:chunk_size'] = dict(x=chunk_x, y=chunk_y)
-
-    return asset
 
 
 def raster_extent(file_path: str, epsg='EPSG:4326') -> shapely.geometry.Polygon:
@@ -496,14 +445,20 @@ def is_valid_tar_gz(file_path: str):
 
 
 def get_provider(catalog, **kwargs) -> Tuple[ProviderSetting, BaseProvider]:
-    """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
-    provider: ProviderSetting = (
-        ProviderSetting.query()
-        .filter(ProviderSetting.driver_name == catalog)
-        .first_or_404(f'Provider "{catalog}" not found.')
+    """Retrieve ProviderSetting related with bdc_catalog.models.Provider."""
+    provider = (
+        Provider.query()
+        .filter(Provider.name == catalog)
+        .first_or_404(f'Provider {catalog} not found')
     )
 
-    provider_type = get_provider_type(catalog)
+    provider_setting: ProviderSetting = (
+        ProviderSetting.query()
+        .filter(ProviderSetting.provider_id == provider.id)
+        .first_or_404(f'Provider "{catalog}" is not related with ProviderSetting.')
+    )
+
+    provider_type = get_provider_type(provider_setting.driver_name)
 
     if provider_type is None:
         abort(400, f'Catalog {catalog} not supported.')
@@ -512,14 +467,14 @@ def get_provider(catalog, **kwargs) -> Tuple[ProviderSetting, BaseProvider]:
     options.setdefault('lazy', True)
     options.setdefault('progress', False)
 
-    if isinstance(provider.credentials, dict):
-        opts = dict(**provider.credentials)
+    if isinstance(provider_setting.credentials, dict):
+        opts = dict(**provider_setting.credentials)
         opts.update(options)
         provider_ext = provider_type(**opts)
     else:
-        provider_ext = provider_type(*provider.credentials, **options)
+        provider_ext = provider_type(*provider_setting.credentials, **options)
 
-    return provider, provider_ext
+    return provider_setting, provider_ext
 
 
 def get_provider_type(catalog: str):

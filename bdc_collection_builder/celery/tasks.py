@@ -103,26 +103,9 @@ def execution_from_collection(activity, collection_id=None, activity_type=None):
 
 def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
     """Retrieve a data collector class instance from given bdc-collector provider."""
-    collector_extension = get_collector_ext()
+    provider_setting, collection = get_provider(provider_name)
 
-    provider_class = collector_extension.get_provider(provider_name)
-
-    instance = ProviderSetting.query().filter(ProviderSetting.driver_name == provider_name).first()
-
-    if instance is None:
-        raise Exception(f'Provider {provider_name} not found.')
-
-    if isinstance(instance.credentials, dict):
-        options = dict(**instance.credentials)
-        options['lazy'] = True
-        options['progress'] = False
-        provider = provider_class(**options)
-    else:
-        provider = provider_class(*instance.credentials, lazy=True, progress=False)
-
-    collection = provider.get_collector(dataset)
-
-    return collection
+    return collection.get_collector(dataset)
 
 
 def get_provider_collection_from_activity(activity: dict) -> BaseCollection:
@@ -225,7 +208,7 @@ def download(activity: dict, **kwargs):
 
             for collector in download_order:
                 try:
-                    logging.info(f'Trying to download from {collector.provider}(id={collector.instance.id})')
+                    logging.info(f'Trying to download from {collector.provider_name}(id={collector.instance.id})')
 
                     with safe_request():
                         temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))

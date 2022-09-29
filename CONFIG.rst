@@ -25,52 +25,50 @@ Configuration
 Setting up the Credentials for EO Data Providers
 ------------------------------------------------
 
-The `Collection Builder` uses `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors.git>`_ to consume the remote data providers.
+The ``BDC Collection Builder`` uses `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors.git>`_ to access and download
+data from remote providers.
 
-.. note::
-
-    Make sure you have initialized ``BDC-Collectors`` before.
-
-    Use ``SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost/bdc bdc-db db load-scripts`` to
-    load the supported providers on Brazil Data Cube.
-
-    After the Provider configuration, remember to attach the collections to the respective data providers.
 
 Copernicus (Sentinel 2A and 2B)
 +++++++++++++++++++++++++++++++
 
+.. note::
+
+    This step is required if you would like to change credential for ``SciHub``.
+
+
 In order to search and obtain images from Copernicus SciHub (e.g. Sentinel-2A and 2B images), users must have a registered account at: `<https://scihub.copernicus.eu/dhus/#/self-registration>`_ and confirm validation through email. This account may take a few days to be operational when using it in scripts.
 
-Ensure that provider `SciHub` exists.
+Ensure that provider ``SciHub`` exists.
 
 .. code-block:: sql
 
-    SELECT * FROM bdc.providers WHERE name = 'SciHub'
+    SELECT * FROM collection_builder.provider_settings WHERE driver_name = 'SciHub';
 
-Update the field `credentials` for the provider `SciHub` with the following command:
+Update the field ``credentials`` for the provider ``SciHub`` with the following command:
 
 .. code-block:: sql
 
-    UPDATE bdc.providers
+    UPDATE collection_builder.provider_settings
        SET credentials = '{"username": "theuser", "password": "thepass", "api_url": "https://apihub.copernicus.eu/apihub/"}'
-     WHERE name = 'SciHub'
+     WHERE driver_name = 'SciHub'
 
 
 .. note::
 
     Remember that an SciHub account can download only 2 scenes in parallel.
-    You can also set multiple accounts in `credentials` to have more parallel download support.
+    You can also set multiple accounts in ``credentials`` to have more parallel download support.
     Just make sure you have a ``Redis`` instance running.
 
     .. code-block:: sql
 
-        UPDATE bdc.providers
+        UPDATE collection_builder.provider_settings
            SET credentials = '[
                    {"username": "theuser1", "password": "thepass1"},
                    {"username": "theuser2", "password": "thepass2"},
                    {"username": "theuser3", "password": "thepass3"},
                ]'
-         WHERE name = 'SciHub'
+         WHERE driver_name = 'SciHub'
 
 
 CREODIAS (Sentinel 2A and 2B)
@@ -86,19 +84,19 @@ to allow ``bdc-collection-builder`` download from `CREODIAS <https://creodias.eu
 
 In order to search and obtain images from SciHub mirror CREODIAS, users must have a registered account at: https://creodias.eu/ and confirm validation through email.
 
-Ensure that provider `CREODIAS` exists.
+Ensure that provider ``CREODIAS`` exists.
 
 .. code-block:: sql
 
-    SELECT * FROM bdc.providers WHERE name = 'CREODIAS'
+    SELECT * FROM collection_builder.provider_settings WHERE driver_name = 'CREODIAS'
 
-Update the field `credentials` for the provider `CREODIAS` with the following command:
+Update the field ``credentials`` for the provider ``CREODIAS`` with the following command:
 
 .. code-block:: sql
 
-    UPDATE bdc.providers
+    UPDATE collection_builder.provider_settings
        SET credentials = '{"username": "theuser", "password": "thepass"}'
-     WHERE name = 'CREODIAS'
+     WHERE driver_name = 'CREODIAS'
 
 
 USGS (Landsat)
@@ -115,19 +113,19 @@ In order to search and obtain images from USGS Earth Explorer (e. g. Landsat-8 i
     ``Approved``.
 
 
-Ensure that provider `USGS` exists.
+Ensure that provider ``USGS`` exists.
 
 .. code-block:: sql
 
-    SELECT * FROM bdc.providers WHERE name = 'USGS'
+    SELECT * FROM collection_builder.provider_settings WHERE driver_name = 'USGS'
 
-Update the field `credentials` for the provider `USGS` with the following command:
+Update the field ``credentials`` for the provider ``USGS`` with the following command:
 
 .. code-block:: sql
 
-    UPDATE bdc.providers
+    UPDATE collection_builder.provider_settings
        SET credentials = '{"username": "theuser", "password": "thepass"}'
-     WHERE name = 'USGS'
+     WHERE driver_name = 'USGS'
 
 
 Google Cloud Storage
@@ -150,18 +148,18 @@ After that, you must also register an service account key in `Create a Service A
 
 You must set the environment variable ``GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account_key.json`` in order to enable the Google Provider in ``Collection Builder`` application.
 
-If you prefer to set the `GOOGLE_APPLICATION_CREDENTIALS` in database instead export environment variable, use the following steps:
+If you prefer to set the ``GOOGLE_APPLICATION_CREDENTIALS`` in database instead export environment variable, use the following steps:
 
-Ensure that provider `Google` exists.
-
-.. code-block:: sql
-
-    SELECT * FROM bdc.providers WHERE name = 'Google'
-
-Update the field `credentials` for the provider `Google` with the following command:
+Ensure that provider ``Google`` exists.
 
 .. code-block:: sql
 
-    UPDATE bdc.providers
+    SELECT * FROM collection_builder.provider_settings WHERE driver_name = 'Google'
+
+Update the field ``credentials`` for the provider ``Google`` with the following command:
+
+.. code-block:: sql
+
+    UPDATE collection_builder.provider_settings
        SET credentials = '{"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service_account_key.json"}'
-     WHERE name = 'Google'
+     WHERE driver_name = 'Google'

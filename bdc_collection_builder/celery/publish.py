@@ -40,8 +40,7 @@ from skimage import exposure
 from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
-from ..collections.utils import (create_asset_definition, generate_cogs,
-                                 get_epsg_srid, get_or_create_model,
+from ..collections.utils import (generate_cogs, get_epsg_srid, get_or_create_model,
                                  is_sen2cor, raster_convexhull, raster_extent)
 from ..config import Config
 from ..constants import COG_MIME_TYPE, DEFAULT_SRID
@@ -123,11 +122,11 @@ def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
     else:
         mime_type = guess_mime_type(path.name, cog=cog)
 
-    return create_asset_definition(
+    return Item.create_asset_definition(
+        file=str(path),
         href=href,
         mime_type=mime_type,
         role=['data'],
-        absolute_path=str(path),
         is_raster=is_raster
     )
 
@@ -247,11 +246,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         quicklook = Path(destination) / f'{scene_id}.png'
 
-        assets['asset'] = create_asset_definition(
+        assets['asset'] = Item.create_asset_definition(
             href=_item_prefix(Path(file), item_prefix=asset_item_prefix),
             mime_type=guess_mime_type(file),
             role=['data'],
-            absolute_path=str(file)
+            file=str(file)
         )
 
         if scene_id.startswith('S2'):
@@ -265,15 +264,16 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             Image.open(str(pvi)).save(str(quicklook))
 
-            assets['thumbnail'] = create_asset_definition(
+            assets['thumbnail'] = Item.create_asset_definition(
                 href=_item_prefix(quicklook, item_prefix=asset_item_prefix),
                 mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
-                absolute_path=str(quicklook)
+                file=str(quicklook)
             )
-        elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
+        elif data.parser.source() in ('LC09', 'LC08', 'LE07', 'LT05', 'LT04'):
             file_band_map = data.get_files(collection, path=tmp)
-            band2 = str(file_band_map['B2'])
+            band_ref = 'B2' if int(data.parser.level()) == 1 else 'SR_B2'
+            band2 = str(file_band_map[band_ref])
             srid = get_epsg_srid(str(band2))
             geom = from_shape(raster_extent(band2), srid=4326)
             convex_hull = from_shape(raster_convexhull(band2, no_data=0), srid=4326)
@@ -323,11 +323,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         if kwargs.get('publish_hdf'):
             # Generate Quicklook and append asset
-            assets['asset'] = create_asset_definition(
+            assets['asset'] = Item.create_asset_definition(
                 href=_item_prefix(Path(file), prefix=Config.CUBES_DATA_DIR, item_prefix=Config.CUBES_ITEM_PREFIX),
                 mime_type=guess_mime_type(file),
                 role=['data'],
-                absolute_path=str(file)
+                file=str(file)
             )
 
             file_band_map = item_result.files
@@ -441,11 +441,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         quicklook = Path(destination) / f'{scene_id}.png'
         generate_quicklook_pvi(destination, quicklook)
         relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
-        assets['thumbnail'] = create_asset_definition(
+        assets['thumbnail'] = Item.create_asset_definition(
             href=relative_quicklook,
             mime_type=guess_mime_type(str(quicklook)),
             role=['thumbnail'],
-            absolute_path=str(quicklook)
+            file=str(quicklook)
         )
 
     if collection.quicklook and not is_sen2cor_flag:
@@ -469,11 +469,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
 
-            assets['thumbnail'] = create_asset_definition(
+            assets['thumbnail'] = Item.create_asset_definition(
                 href=relative_quicklook,
                 mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
-                absolute_path=str(quicklook)
+                file=str(quicklook)
             )
         except Exception as e:
             logging.warning(f'Could not generate quicklook for {scene_id} due {str(e)}')
@@ -500,7 +500,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item.srid = srid
         item.footprint = convex_hull
         item.provider = provider
-        item.is_public = True
         item.is_available = False
         item.updated = datetime.datetime.utcnow()
 

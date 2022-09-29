@@ -62,6 +62,10 @@ def create_celery_app(flask_app: Flask):
         CELERY_TASK_ALWAYS_EAGER=always_eager,
         CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
         CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
+        DATABASE_TABLE_SCHEMAS={
+            'task': Config.ACTIVITIES_SCHEMA,
+            'group': Config.ACTIVITIES_SCHEMA
+        }
     ))
 
     TaskBase = celery.Task

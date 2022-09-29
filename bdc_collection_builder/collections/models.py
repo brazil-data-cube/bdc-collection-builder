@@ -17,6 +17,7 @@
 #
 
 """Models for Collection Builder."""
+from typing import Optional
 
 from bdc_catalog.models import Collection, Provider
 from bdc_catalog.models.base_sql import BaseModel, db
@@ -148,8 +149,13 @@ class ProviderSetting(BaseModel):
 
     __table_args__ = (
         Index(None, provider_id),
+        UniqueConstraint(provider_id, driver_name),  # Restrict only Provider Name with Driver
         dict(schema=Config.ACTIVITIES_SCHEMA),
     )
+
+    @property
+    def name(self):
+        return self.provider.name
 
 
 class CollectionProviderSetting(BaseModel):
@@ -177,6 +183,6 @@ class CollectionProviderSetting(BaseModel):
     collection = relationship(Collection)
 
     @property
-    def provider(self) -> Provider:
+    def provider(self) -> Optional[Provider]:
         """The BDC Catalog provider instance."""
         return self.provider_setting.provider

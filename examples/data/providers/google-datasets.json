@@ -1,0 +1,9 @@
+{
+    "name": "Google",
+    "description": "Google Cloud Storage of Public data sets - Landsat and Sentinel",
+    "url": "https://cloud.google.com/storage/docs/public-datasets/",
+    "driver_name": "Google",
+    "credentials": {
+        "GOOGLE_APPLICATION_CREDENTIALS": ""
+    }
+}

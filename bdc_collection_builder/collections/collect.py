@@ -19,9 +19,9 @@
 """Module to deal with BDC-Collector integration."""
 
 import logging
-from typing import Any, List, Type
+from typing import Any, List, Type, Tuple
 
-from bdc_catalog.models import db
+from bdc_catalog.models import Provider, db
 from bdc_collectors.base import BaseProvider
 
 from .models import CollectionProviderSetting, ProviderSetting
@@ -107,7 +107,9 @@ def get_provider_order(collection: Any, include_inactive=False, **kwargs) -> Lis
 
     collection_providers = (
         db.session
-        .query(ProviderSetting, CollectionProviderSetting)
+        .query(ProviderSetting,
+               CollectionProviderSetting.active,
+               CollectionProviderSetting.priority)
         .filter(
             CollectionProviderSetting.collection_id == collection.id,
             ProviderSetting.id == CollectionProviderSetting.provider_id,
@@ -133,3 +135,28 @@ def get_provider_order(collection: Any, include_inactive=False, **kwargs) -> Lis
         result.append(collector)
 
     return result
+
+
+def create_provider(name: str, driver_name: str,
+                    url: str = None, description: str = None, **credentials) -> Tuple[ProviderSetting, bool]:
+    provider = Provider.query().filter(Provider.name == name).first()
+    if provider:
+        provider_setting = ProviderSetting.query().filter(ProviderSetting.provider_id == provider.id).first()
+        if provider_setting:
+            return provider_setting, False
+
+    with db.session.begin_nested():
+        provider = Provider()
+        provider.name = name
+        provider.description = description
+        provider.url = url
+        provider.save(commit=False)
+
+        provider_setting = ProviderSetting()
+        provider_setting.driver_name = driver_name
+        provider_setting.credentials = credentials
+        provider_setting.provider_id = provider.id
+        provider_setting.save(commit=False)
+
+    db.session.commit()
+    return provider_setting, True

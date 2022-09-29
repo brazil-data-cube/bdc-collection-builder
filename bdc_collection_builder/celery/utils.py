@@ -21,6 +21,8 @@
 from celery import current_app
 from celery.backends.database.models import Task, TaskSet
 
+from bdc_collection_builder.config import Config
+
 
 def list_running_tasks():
     """List all running tasks in celery cluster."""
@@ -38,8 +40,8 @@ def list_pending_tasks():
 
 def load_celery_models():
     """Prepare and load celery models in database backend."""
-    from bdc_db.db import db
+    from celery.backends.database import SessionManager
 
-    Task.__table__.create(bind=db.engine, checkfirst=True)
-    TaskSet.__table__.create(bind=db.engine, checkfirst=True)
-
+    session = SessionManager()
+    engine = session.get_engine(current_app.backend.url)
+    session.prepare_models(engine)

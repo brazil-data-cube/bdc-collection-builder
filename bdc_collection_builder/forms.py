@@ -52,7 +52,7 @@ class CollectionItemForm(SQLAlchemyAutoSchema):
 
         model = Item
         sqla_session = db.session
-        exclude = ('geom', 'min_convex_hull', 'tile')
+        exclude = ('bbox', 'footprint', 'tile')
 
 
 class CollectionForm(SQLAlchemyAutoSchema):
@@ -63,7 +63,7 @@ class CollectionForm(SQLAlchemyAutoSchema):
 
         model = Collection
         sqla_session = db.session
-        exclude = ('extent', )
+        exclude = ('spatial_extent', )
 
 
 class HistoryForm(SQLAlchemyAutoSchema):

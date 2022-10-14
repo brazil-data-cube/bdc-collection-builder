@@ -46,7 +46,9 @@ Before deploy/install ``BDC-Collection-Builder``, please, take a look into compa
 +------------------------+-------------+----------------+
 | BDC-Collection-Builder | BDC-Catalog | BDC-Collectors |
 +========================+=============+================+
-| 0.8.4                  | 0.8.2       | 0.8.0          |
+| 1.0.x                  | 1.0.0       | 1.0            |
++------------------------+-------------+----------------+
+| 0.8.4                  | 0.8.2       | 0.6.0          |
 +------------------------+-------------+----------------+
 | 0.6.x                  | 0.8.2       | 0.2.1          |
 +------------------------+-------------+----------------+
@@ -69,7 +71,7 @@ Go to the source code folder::
 
 Install in development mode::
 
-    $ pip3 install -e .[docs,tests,rabbitmq]
+    $ pip3 install -e .[docs,tests]
 
 
 .. note::
@@ -171,10 +173,12 @@ The following steps will show how to prepare the data model:
     bdc-db db init
 
 
-**2.** Create extension `PostGIS`::
+**2.** Create extension ``PostGIS`` and ``HSTORE``::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-extension-postgis
+    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
+    lccs-db db create-extension-hstore
 
 **3.** Create table namespaces::
 
@@ -188,31 +192,53 @@ The following steps will show how to prepare the data model:
     bdc-collection-builder alembic upgrade
 
 
-**5.** Load `BDC-Catalog` triggers with command::
+**5.** Load ``BDC-Catalog`` triggers with command::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-triggers
 
 
-**6.** Load `BDC-Collectors` data providers::
-
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
-    bdc-db db load-scripts
-
 
 .. note::
 
-    For a initial data of collections, we have prepared a minimal command line utility to load ``examples/data`` definitions.
-    You can check out with the following command::
+    For a initial data of collections, the ``BDC-Catalog`` has a command line utility to load a JSON like structure
+    into database as ``Collection``. We have prepared a minimal JSON files in ``examples/data``.
+    You load them with the following command::
 
         SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
-        bdc-collection-builder load-data --from-dir examples/data # or individual as --ifile examples/data/sentinel-2-l1.json
+        bdc-catalog load-data --from-dir examples/data # or individual as --ifile examples/data/sentinel-2-l1.json
 
-    If you would like to link a collection with a default provider (``S2_L1C-1`` with ``SciHub``) use the command::
+    The ``BDC-Collection-Builder`` requires a list of providers registered in database to collect data.
+    Please, take a look into folder ``examples/data/providers`` and **set the right credentials** for this step.
+    Once credentials is set, you can load them with command::
 
         SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
-        bdc-collection-builder set-provider --collection S2_L1C-1 --provider SciHub
+        bdc-collection-builder load-providers --from-dir examples/data/providers
 
+
+    If you would like to link a collection with a default provider (``S2_L1C-1`` with ``ESA``) use the command::
+
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
+        bdc-collection-builder set-provider --collection S2_L1C-1 --provider ESA
+
+
+    Always related a ``Collection`` with ``Provider Name``. Do not use ``driver_name``.
+
+    You can check collection overview with command::
+
+        SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
+        bdc-collection-builder overview --collection S2_L1C-1
+
+    The following output will be::
+
+        Collection S2_L1C-1
+        -> title: Sentinel-2 - MSI - Level-1C
+        -> name: S2_L1C
+        -> version: 1
+        -> description: Level-1C product provides orthorectified Top-Of-Atmosphere (TOA) reflectance.
+        -> collection_type: collection
+        -> Providers:
+          - ESA, driver=SciHub, priority=1, active=True
 
 
 .. note::
@@ -429,7 +455,8 @@ Please, refer to the document :doc:`usage` for information on how to use the col
         Running setup.py install for bdc-db ... done
         Running setup.py install for librabbitmq ... error
         ERROR: Command errored out with exit status 1:
-         command: /home/user/bdc-collection-builder/venv/bin/python3.7 -u -c 'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"'; __file__='"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"';f=getattr(tokenize, '"'"'open'"'"', open)(__file__);code=f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' install --record /tmp/pip-record-m9lm5kjn/install-record.txt --single-version-externally-managed --compile --install-headers /home/user/bdc-collection-builder/venv/include/site/python3.7/librabbitmq
+         command: /home/user/bdc-collection-builder/venv/bin/python3.7 -u -c
+            'import sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-1i7mp5js/librabbitmq/setup.py'"'"'...
              cwd: /tmp/pip-install-1i7mp5js/librabbitmq/
         Complete output (107 lines):
         /tmp/pip-install-1i7mp5js/librabbitmq/setup.py:167: DeprecationWarning: 'U' mode is deprecated

@@ -87,7 +87,7 @@ You can download a Sentinel 2 scene from the provider ``SciHub`` with dataset ``
                 "s": -12.74,
                 "n": -12.6,
                 "e": -45.8,
-                "catalog": "SciHub",
+                "catalog": "ESA",
                 "dataset": "S2MSI1C",
                 "start": "2020-01-09T00:00:00",
                 "end": "2020-01-10T23:59:59",

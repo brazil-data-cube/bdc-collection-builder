@@ -47,6 +47,8 @@ class Config:
         LASRC_DOCKER_IMAGE=os.getenv('LASRC_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:1.0.2'),
         LASRC_AUX_DIR=os.getenv('LASRC_AUX_DIR', '/data/auxiliaries/lasrc'),
         LEDAPS_AUX_DIR=os.getenv('LEDAPS_AUX_DIR', '/data/auxiliaries/ledaps'),
+        LASRC_CONTAINER_INPUT_DIR=os.getenv('LASRC_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
+        LASRC_CONTAINER_OUTPUT_DIR=os.getenv('LASRC_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
     )
     # Sen2Cor/Fmask Processor
     SEN2COR_CONFIG = dict(
@@ -54,6 +56,8 @@ class Config:
         SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
         SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
         SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
+        SEN2COR_CONTAINER_INPUT_DIR=os.getenv('SEN2COR_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
+        SEN2COR_CONTAINER_OUTPUT_DIR=os.getenv('SEN2COR_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
     )
     # The working directory for ATM Correction. Default is None.
     CONTAINER_WORKDIR = os.getenv('CONTAINER_WORKDIR', None)

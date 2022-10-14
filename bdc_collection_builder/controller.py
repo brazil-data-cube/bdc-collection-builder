@@ -32,7 +32,7 @@ from sqlalchemy import Date, and_, func, or_
 from werkzeug.exceptions import BadRequest, abort
 
 # Builder
-from .celery.tasks import correction, download, harmonization, post, publish
+from .celery.tasks import correction, download, post, publish
 from .collections.collect import get_provider_order
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
@@ -197,16 +197,6 @@ class RadcorBusiness:
             _task = publish
         elif task_type == 'post':
             _task = post
-        elif task_type == 'harmonization':
-            try:
-                import sensor_harm
-            except ImportError:
-                raise RuntimeError(
-                    'The task harmonization is not installed.'
-                    'Please install with command "pip install -e .[harmonization]"'
-                )
-
-            _task = harmonization
         else:
             raise RuntimeError(f'Task {task_type} not supported.')
 

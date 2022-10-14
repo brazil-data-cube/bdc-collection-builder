@@ -17,12 +17,15 @@
 #
 
 """Models for Collection Builder."""
+from typing import Optional
 
-from bdc_catalog.models import Collection
+from bdc_catalog.models import Collection, Provider
 from bdc_catalog.models.base_sql import BaseModel, db
 from celery.backends.database import Task
 from sqlalchemy import (ARRAY, JSON, Column, DateTime, ForeignKey, Integer,
-                        PrimaryKeyConstraint, String, UniqueConstraint)
+                        Index, PrimaryKeyConstraint, String, UniqueConstraint)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from ..config import Config
@@ -110,3 +113,76 @@ class RadcorActivityHistory(BaseModel):
     def get_by_task_id(cls, task_id: str):
         """Retrieve a task execution from celery task id."""
         return cls.query().filter(cls.task.has(task_id=task_id)).one()
+
+    @hybrid_property
+    def status(self):
+        return self.task.status
+
+    @hybrid_property
+    def is_running(self):
+        return self.status == 'STARTED'
+
+
+class ProviderSetting(BaseModel):
+    """Model for table ``collection_builder.provider_settings``.
+
+    This model bridges a relationship with a BDC Catalog Provider with
+    the internal data collector driver.
+    For example, the ESA Copernicus Provider is attached with the driver
+    `SciHub <https://bdc-collectors.readthedocs.io/en/latest/usage.html#scihub>`_
+    in the package `bdc-collectors`.
+    """
+
+    __tablename__ = 'provider_settings'
+
+    id = Column(db.Integer, primary_key=True, autoincrement=True)
+    provider_id = Column(
+        ForeignKey(Provider.id, onupdate='CASCADE', ondelete='CASCADE'),
+        nullable=False
+    )
+    driver_name = Column(db.String(64))
+    """The driver name supported by bdc-collectors."""
+    credentials = Column(JSONB)
+    """The driver catalog access credentials."""
+
+    provider = relationship(Provider)
+
+    __table_args__ = (
+        Index(None, provider_id),
+        UniqueConstraint(provider_id, driver_name),  # Restrict only Provider Name with Driver
+        dict(schema=Config.ACTIVITIES_SCHEMA),
+    )
+
+    @property
+    def name(self):
+        return self.provider.name
+
+
+class CollectionProviderSetting(BaseModel):
+    """Track the available data providers for an image collection."""
+
+    __tablename__ = 'collections_providers_settings'
+
+    provider_id = Column('provider_id', db.Integer(),
+                         ForeignKey(ProviderSetting.id, onupdate='CASCADE', ondelete='CASCADE'),
+                         nullable=False, primary_key=True)
+
+    collection_id = Column('collection_id', db.Integer(),
+                           ForeignKey(Collection.id, onupdate='CASCADE', ondelete='CASCADE'),
+                           nullable=False, primary_key=True)
+
+    active = Column(db.Boolean(), nullable=False, default=True)
+    priority = Column(db.SmallInteger(), nullable=False)
+
+    __table_args__ = (
+        Index(None, active),
+        dict(schema=Config.ACTIVITIES_SCHEMA),
+    )
+
+    provider_setting = relationship(ProviderSetting)
+    collection = relationship(Collection)
+
+    @property
+    def provider(self) -> Optional[Provider]:
+        """The BDC Catalog provider instance."""
+        return self.provider_setting.provider

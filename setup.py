@@ -60,9 +60,7 @@ setup_requires = [
 ]
 
 install_requires = [
-    'beautifulsoup4>=4.8.1',
     'boto3>=1.11',
-    'docutils>=0.10,<0.15'
     'Flask>=1.1,<2.1',
     'marshmallow-sqlalchemy>=0.19.0',
     'rasterio==1.2.1',
@@ -70,12 +68,13 @@ install_requires = [
     'numpy>=1.17,<1.20',
     'numpngw>=0.0.8',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
-    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@b-1.0#egg=bdc-collectors',
-    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.0#egg=bdc-catalog',
-    'celery>=4.3,<4.4.3',
+    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@v0.9.0#egg=bdc-collectors',
+    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.1#egg=bdc-catalog',
+    'celery>=4.3,<5',  # TODO: Remove warnings for version 5 and update
     'python-dateutil>=2,<3',
     'shapely>=1.7,<2',
     # Build Error Fix
+    'docutils>=0.10,<0.15',
     'tifffile==2021.11.2',
     'scipy==1.7.2',
     'scikit-image==0.18.3',

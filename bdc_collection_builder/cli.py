@@ -69,7 +69,8 @@ def _create_provider(name: str, driver_name: str, description=None, url=None, cr
 @click.option('-i', '--ifile', type=click.Path(exists=True, file_okay=True, readable=True))
 @click.option('--from-dir', type=click.Path(exists=True, dir_okay=True, readable=True))
 @click.option('-v', '--verbose', is_flag=True, default=False)
-def load_providers(ifile: str, from_dir: str, verbose: bool):
+@click.option('--update', is_flag=True, default=False)
+def load_providers(ifile: str, from_dir: str, update: bool, verbose: bool):
     """Command line to load providers JSON into database.
 
     Note:
@@ -95,6 +96,7 @@ def load_providers(ifile: str, from_dir: str, verbose: bool):
     Args:
         ifile (str): Path to JSON file. Default is ``None``.
         from_dir (str): Readable directory containing JSON files. Defaults to ``None``.
+        update (bool): Update entries if data already exists. Defaults to ``False``.
         verbose (bool): Display verbose output. Defaults to ``False``.
     """
     entries = []
@@ -109,8 +111,9 @@ def load_providers(ifile: str, from_dir: str, verbose: bool):
         with entry.open() as fd:
             data = json.load(fd)
         credentials = data.pop('credentials', {})
-        provider_setting, created = create_provider(**data, **credentials)
-        msg = 'created' if created else 'skipped.'
+        provider_setting, created = create_provider(update=update, **data, **credentials)
+        flag = 'updated' if update else 'skipped'
+        msg = 'created' if created else flag
         click.secho(f'Provider {provider_setting.name} {msg}', fg='green', bold=True)
 
 

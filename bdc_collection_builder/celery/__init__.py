@@ -60,6 +60,7 @@ def create_celery_app(flask_app: Flask):
     celery.conf.update(dict(
         CELERY_TRACK_STARTED=True,
         CELERY_TASK_ALWAYS_EAGER=always_eager,
+        CELERY_ACKS_LATE=True,  # Only remove from Broker when task has been executed.
         CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
         CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
         DATABASE_TABLE_SCHEMAS={

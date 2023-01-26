@@ -340,7 +340,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         file = destination
         cloud_cover = item_result.cloud_cover
     else:
-        files = data.get_files(collection, path=file)
+        files = {}
+        if not is_compressed:
+            files = data.get_files(collection, path=file)
 
     extra_assets = data.get_assets(collection, path=file)
 

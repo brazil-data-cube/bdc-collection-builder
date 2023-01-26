@@ -33,10 +33,10 @@ from celery import current_app, current_task
 from celery.backends.database import Task
 
 from ..collections.collect import get_provider_order
-from ..collections.models import ProviderSetting, RadcorActivity, RadcorActivityHistory
+from ..collections.models import RadcorActivity, RadcorActivityHistory
 from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
-                                 is_valid_compressed_file, post_processing, safe_request, get_collector_ext)
+                                 is_valid_compressed_file, post_processing, safe_request)
 from ..config import Config
 from .publish import get_item_path, publish_collection
 
@@ -252,8 +252,8 @@ def correction(activity: dict, collection_id=None, **kwargs):
     try:
         output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR)
 
-        if collection._metadata and collection._metadata.get('processors'):
-            processor_name = collection._metadata['processors'][0]['name']
+        if collection.metadata_ and collection.metadata_.get('processors'):
+            processor_name = collection.metadata_['processors'][0]['name']
 
             with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}', dir=Config.WORKING_DIR) as tmp:
                 shutil.unpack_archive(activity['args']['compressed_file'], tmp)
@@ -286,7 +286,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
                         is_sen2cor_file = output_path_entry.stem.startswith(f'{tile}_{sensing_date}')
 
-                        if (output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A'):
+                        if output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A':
                             logging.info(f'Found {str(output_path_entry)} generated before. Removing it.')
                             shutil.rmtree(output_path_entry, ignore_errors=True)
                         if is_sen2cor_file:

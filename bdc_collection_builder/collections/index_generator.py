@@ -73,7 +73,7 @@ def generate_band_indexes(scene_id: str, collection: Collection, scenes: dict) -
     collection_band_indexes: List[Band] = []
 
     for band in collection.bands:
-        if band._metadata and band._metadata.get('expression') and band._metadata['expression'].get('value'):
+        if band.metadata_ and band.metadata_.get('expression') and band.metadata_['expression'].get('value'):
             collection_band_indexes.append(band)
 
     if not collection_band_indexes:
@@ -102,7 +102,7 @@ def generate_band_indexes(scene_id: str, collection: Collection, scenes: dict) -
         custom_band_path = base_path / f'{scene_id}_{band_name}.tif'
 
         try:
-            band_expression = band_index._metadata['expression']['value']
+            band_expression = band_index.metadata_['expression']['value']
 
             band_data_type = band_index.data_type
 
@@ -129,7 +129,7 @@ def generate_band_indexes(scene_id: str, collection: Collection, scenes: dict) -
                 result = execute_expression(expr, context=machine_context)
                 raster = result[band_name]
                 raster[raster == numpy.ma.masked] = profile['nodata']
-                # Persist the expected band data type to cast value safelly.
+                # Persist the expected band data type to cast value safely.
                 raster[raster < data_type_min_value] = data_type_min_value
                 raster[raster > data_type_max_value] = data_type_max_value
 

@@ -523,8 +523,8 @@ def get_epsg_srid(file_path: str) -> int:
 
 def is_sen2cor(collection: Collection) -> bool:
     """Check if the given collection is a Sen2cor product."""
-    if collection._metadata and collection._metadata.get('processors'):
-        processors = collection._metadata['processors']
+    if collection.metadata_ and collection.metadata_.get('processors'):
+        processors = collection.metadata_['processors']
 
         for processor in processors:
             if processor.get('name', '').lower() == 'sen2cor':

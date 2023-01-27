@@ -132,7 +132,7 @@ services:
     volumes:
       - /data:/data
       - /mnt/auxiliaries:/mnt/auxiliaries
-    entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "atm-correction"]
+    entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "correction"]
     networks:
       - bdc_net
 

@@ -22,6 +22,7 @@ from typing import Optional
 from bdc_catalog.models import Collection, Provider
 from bdc_catalog.models.base_sql import BaseModel, db
 from celery.backends.database import Task
+from celery import states
 from sqlalchemy import (ARRAY, JSON, Column, DateTime, ForeignKey, Integer,
                         Index, PrimaryKeyConstraint, String, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB
@@ -120,7 +121,11 @@ class RadcorActivityHistory(BaseModel):
 
     @hybrid_property
     def is_running(self):
-        return self.status == 'STARTED'
+        return self.status == states.STARTED
+
+    @hybrid_property
+    def is_done(self):
+        return self.status in (states.SUCCESS, states.FAILURE)
 
 
 class ProviderSetting(BaseModel):

@@ -138,11 +138,18 @@ def get_provider_order(collection: Any, include_inactive=False, **kwargs) -> Lis
 
 
 def create_provider(name: str, driver_name: str,
-                    url: str = None, description: str = None, **credentials) -> Tuple[ProviderSetting, bool]:
+                    url: str = None, description: str = None,
+                    update: bool = False, **credentials) -> Tuple[ProviderSetting, bool]:
     provider = Provider.query().filter(Provider.name == name).first()
     if provider:
-        provider_setting = ProviderSetting.query().filter(ProviderSetting.provider_id == provider.id).first()
+        provider_setting: ProviderSetting = ProviderSetting.query().filter(ProviderSetting.provider_id == provider.id).first()
         if provider_setting:
+            if update:
+                with db.session.begin_nested():
+                    provider_setting.driver_name = driver_name
+                    provider_setting.credentials = credentials
+                db.session.commit()
+
             return provider_setting, False
 
     with db.session.begin_nested():

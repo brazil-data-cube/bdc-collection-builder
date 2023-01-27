@@ -57,7 +57,7 @@ from rio_cogeo.profiles import cog_profiles
 from werkzeug.exceptions import abort
 
 from ..config import CURRENT_DIR, Config
-from .models import ProviderSetting
+from .models import ProviderSetting, CollectionProviderSetting
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -608,3 +608,14 @@ def create_collection(name: str, version: int, bands: list, category: str = 'eo'
     db.session.commit()
 
     return collection, True
+
+
+def delete_collection_provider(collection_id, provider_id):
+    with db.session.begin_nested():
+        instance = CollectionProviderSetting.query().filter(
+            CollectionProviderSetting.collection_id == collection_id,
+            CollectionProviderSetting.provider_id == provider_id,
+        ).first()
+        if instance:
+            db.session.delete(instance)
+    db.session.commit()

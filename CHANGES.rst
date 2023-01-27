@@ -20,6 +20,15 @@
 Changes
 =======
 
+Version 1.0.0a1 (2023-01-26)
+----------------------------
+
+- Upgrade bdc-catalog version to 1.0.1
+- Improve exception handling for celery & enqueue processors
+- Add command line to load providers and set collection provider
+- Review Dockerfile signatures
+
+
 Version 0.8.4 (2022-09-21)
 --------------------------
 

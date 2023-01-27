@@ -36,8 +36,6 @@ from flask import current_app
 from geoalchemy2.shape import from_shape
 from numpngw import write_png
 from PIL import Image
-from skimage import exposure
-from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
 from ..collections.utils import (generate_cogs, get_epsg_srid, get_or_create_model,
@@ -79,16 +77,13 @@ def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, co
     nb = 0
     for band in [red_file, green_file, blue_file]:
         with rasterio.open(band) as data_set:
-            raster = data_set.read(1)
+            raster = data_set.read(1, out_shape=(rows, cols))
 
-        raster = resize(raster, (rows, cols), order=1, preserve_range=True)
-        no_data_pos = raster == no_data
-        # Evaluate minimum and maximum values
-        a = numpy.array(raster.flatten())
-        p1, p99 = numpy.percentile(a[a > 0], (1, 99))
-        # Convert minimum and maximum values to 1,255 - 0 is nodata
-        raster = exposure.rescale_intensity(raster, in_range=(p1, p99), out_range=(1, 255)).astype(numpy.uint8)
-        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(no_data_pos)
+        nodata_values = raster == no_data
+        if raster.min() != 0 or raster.max() != 0:
+            raster = raster.astype(numpy.float32) / 10000. * 255.
+            raster[raster > 255] = 255
+        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata_values)
         nb += 1
 
     write_png(str(file_output), image, transparent=(0, 0, 0))

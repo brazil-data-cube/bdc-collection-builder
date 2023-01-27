@@ -62,6 +62,7 @@ setup_requires = [
 install_requires = [
     'boto3>=1.11',
     'Flask>=1.1,<2.1',
+    'Flask-SQLAlchemy<3',
     'marshmallow-sqlalchemy>=0.19.0',
     'rasterio==1.2.1',
     'rio-cogeo==3.0.2',
@@ -76,10 +77,12 @@ install_requires = [
     # Build Error Fix
     'docutils>=0.10,<0.15',
     'tifffile==2021.11.2',
-    'scipy==1.7.2',
-    'scikit-image==0.18.3',
     'imageio==2.10.3',
     'MarkupSafe==2.0.1',
+    'itsdangerous==2.0.1',
+    'Werkzeug==2.1.2',
+    'click<8',
+    'GeoAlchemy2==0.11.1'
 ]
 
 packages = find_packages()

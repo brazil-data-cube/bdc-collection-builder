@@ -32,7 +32,7 @@ from flask.cli import FlaskGroup
 from . import create_app
 from .collections.collect import create_provider, get_provider_order
 from .collections.models import CollectionProviderSetting
-from .collections.utils import get_provider, get_or_create_model
+from .collections.utils import delete_collection_provider, get_provider, get_or_create_model
 
 
 # Create bdc-collection-builder cli from bdc-db
@@ -123,7 +123,8 @@ def load_providers(ifile: str, from_dir: str, update: bool, verbose: bool):
 @click.option('--provider', type=click.STRING, required=True)
 @click.option('--priority', type=click.IntRange(min=0), default=1, help='Priority order. High priority near 0')
 @click.option('--disable', is_flag=True, default=False)
-def set_provider(collection: str, provider: str, priority: int, disable: bool):
+@click.option('--remove', is_flag=True, default=False)
+def set_provider(collection: str, provider: str, priority: int, disable: bool, remove: bool):
     fragments = collection.rsplit('-', 1)
     collection = (
         Collection.query()
@@ -134,6 +135,12 @@ def set_provider(collection: str, provider: str, priority: int, disable: bool):
     provider, _ = get_provider(provider)
     data = {'collection_id': collection.id,
             'provider_id': provider.id}
+
+    if remove:
+        delete_collection_provider(**data)
+        click.secho(f'Collection Provider {collection.name}-{collection.version} removed', fg='green', bold=True)
+        return
+
     instance, _ = get_or_create_model(CollectionProviderSetting, defaults=data, **data)
     instance.active = not disable
     instance.priority = priority

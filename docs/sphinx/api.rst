@@ -25,6 +25,17 @@ API Reference
 .. automodule:: bdc_collection_builder
 
 
+Command Line
+------------
+
+.. autofunction:: bdc_collection_builder.cli.load_providers
+
+.. autofunction:: bdc_collection_builder.cli.set_provider
+
+.. autofunction:: bdc_collection_builder.cli.overview
+
+
+
 Collect & Processing
 --------------------
 

@@ -76,6 +76,13 @@ Install in development mode::
 
 .. note::
 
+    The `setuptools v67+ <https://setuptools.pypa.io/en/latest/history.html>`_ has breaking changes related
+    Pip versions requirements. For now, you should install ``setuptools<67`` for compatibility.
+    The packages in ``Cube-Builder`` will be upgraded to support latest version.
+
+
+.. note::
+
     If you have problems during the ``librabbitmq`` install with ``autoreconf``, please, install the ``autoconf`` build system. In Debian based systems (Ubuntu), you can install ``autoconf`` with::
 
         $ sudo apt install autoconf

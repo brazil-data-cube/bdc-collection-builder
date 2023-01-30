@@ -81,7 +81,7 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         except RuntimeError as e:
             return None, e
 
-    versions_supported = ['2.10.0', '2.8.0', '2.5.5']
+    versions_supported = Config.SEN2COR_CONFIG['SEN2COR_VERSIONS_SUPPORTED'].split(';')
 
     err = None
     for version in versions_supported:

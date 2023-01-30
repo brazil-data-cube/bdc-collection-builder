@@ -58,6 +58,8 @@ class Config:
         SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
         SEN2COR_CONTAINER_INPUT_DIR=os.getenv('SEN2COR_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
         SEN2COR_CONTAINER_OUTPUT_DIR=os.getenv('SEN2COR_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
+        SEN2COR_VERSIONS_SUPPORTED=os.getenv('SEN2COR_VERSIONS_SUPPORTED',
+                                             '2.10.0;2.8.0;2.5.5')
     )
     # The working directory for ATM Correction. Default is None.
     CONTAINER_WORKDIR = os.getenv('CONTAINER_WORKDIR', None)

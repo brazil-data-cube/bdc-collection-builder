@@ -20,6 +20,13 @@
 Changes
 =======
 
+Version 1.0.0a2 (2023-01-30)
+----------------------------
+
+- Add config for Sen2Cor support processor order
+- Fix package install related setuptools v67+
+
+
 Version 1.0.0a1 (2023-01-26)
 ----------------------------
 

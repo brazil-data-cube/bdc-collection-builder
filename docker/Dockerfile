@@ -31,7 +31,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # Build arguments
-ARG BDC_BUILDER_VERSION="1.0.0a1"
+ARG BDC_BUILDER_VERSION="1.0.0a2"
 ARG BDC_BUILDER_INSTALL_PATH="/opt/bdc-collection-builder/${BDC_BUILDER_VERSION}"
 
 RUN apt-get update && \
@@ -42,6 +42,6 @@ RUN apt-get update && \
 COPY . ${BDC_BUILDER_INSTALL_PATH}
 WORKDIR ${BDC_BUILDER_INSTALL_PATH}
 
-RUN pip install wheel && \
+RUN pip install -U wheel "setuptools<67" && \
     pip install pymodis && \
     pip install -e .[all]

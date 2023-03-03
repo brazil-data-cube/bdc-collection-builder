@@ -252,7 +252,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
             band2 = list(tmp.rglob('**/*B02.jp2'))[0]
             srid = get_epsg_srid(str(band2))
-            mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
+
+            mtd = '**/MTD_MSIL1C.xml'
+            if '_MSIL2A_' in scene_id:
+                mtd = '**/MTD_MSIL2A.xml'
+            mtd = list(tmp.rglob(mtd))[0]
 
             geom = from_shape(raster_extent(str(band2)), srid=4326)
             convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)

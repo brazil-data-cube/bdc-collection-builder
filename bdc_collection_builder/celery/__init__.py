@@ -58,12 +58,12 @@ def create_celery_app(flask_app: Flask):
 
     always_eager = flask_app.config.get('TESTING', False)
     celery.conf.update(dict(
-        CELERY_TRACK_STARTED=True,
-        CELERY_TASK_ALWAYS_EAGER=always_eager,
-        CELERY_ACKS_LATE=True,  # Only remove from Broker when task has been executed.
-        CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
-        CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
-        DATABASE_TABLE_SCHEMAS={
+        task_track_started=True,
+        task_always_eager=always_eager,
+        task_acks_late=True,  # Only remove from Broker when task has been executed.
+        worker_prefetch_multiplier=Config.CELERYD_PREFETCH_MULTIPLIER,
+        result_backend='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
+        database_table_schemas={
             'task': Config.ACTIVITIES_SCHEMA,
             'group': Config.ACTIVITIES_SCHEMA
         }

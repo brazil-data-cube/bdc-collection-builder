@@ -63,15 +63,15 @@ install_requires = [
     'boto3>=1.11',
     'Flask>=1.1,<2.1',
     'Flask-SQLAlchemy<3',
-    'marshmallow-sqlalchemy>=0.19.0',
-    'rasterio==1.2.1',
+    'marshmallow-sqlalchemy>=0.19.0,<0.29',
+    'rasterio>=1.3',
     'rio-cogeo==3.0.2',
-    'numpy>=1.17,<1.20',
+    'numpy>=1.18,<1.20',
     'numpngw>=0.0.8',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
     'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@v0.9.0#egg=bdc-collectors',
     'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.1#egg=bdc-catalog',
-    'celery>=4.3,<5',  # TODO: Remove warnings for version 5 and update
+    'celery>=5.2,<6',
     'python-dateutil>=2,<3',
     'shapely>=1.7,<2',
     # Build Error Fix
@@ -81,7 +81,6 @@ install_requires = [
     'MarkupSafe==2.0.1',
     'itsdangerous==2.0.1',
     'Werkzeug==2.1.2',
-    'click<8',
     'GeoAlchemy2==0.11.1'
 ]
 

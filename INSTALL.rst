@@ -74,11 +74,11 @@ Install in development mode::
     $ pip3 install -e .[docs,tests]
 
 
-.. note::
+.. warning::
 
     The `setuptools v67+ <https://setuptools.pypa.io/en/latest/history.html>`_ has breaking changes related
     Pip versions requirements. For now, you should install ``setuptools<67`` for compatibility.
-    The packages in ``Cube-Builder`` will be upgraded to support latest version.
+    The packages in ``BDC-Collection-Builder`` will be upgraded to support latest version.
 
 
 .. note::
@@ -180,12 +180,11 @@ The following steps will show how to prepare the data model:
     bdc-db db init
 
 
-**2.** Create extension ``PostGIS`` and ``HSTORE``::
+**2.** Create extension ``PostGIS``::
 
     SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
     bdc-db db create-extension-postgis
-    SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost:5432/bdc \
-    lccs-db db create-extension-hstore
+
 
 **3.** Create table namespaces::
 

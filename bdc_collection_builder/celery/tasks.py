@@ -296,7 +296,8 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     env['OUTDIR'] = str(Path(tmp) / 'output')
 
                     sen2cor(scene_id, input_dir=str(tmp), output_dir=env['OUTDIR'],
-                            docker_container_work_dir=container_workdir.split(' '), **env)
+                            docker_container_work_dir=container_workdir.split(' '),
+                            timeout=kwargs.get('timeout'), **env)
 
                     logging.info(f'Using {entry} of sceneid {scene_id}')
                 else:

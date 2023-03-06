@@ -25,7 +25,8 @@ from ..config import Config
 
 
 def sen2cor(scene_id: str, input_dir: str, output_dir: str,
-            docker_container_work_dir: list, version: Optional[str] = None, **env):
+            docker_container_work_dir: list, version: Optional[str] = None,
+            timeout=None, **env):
     """Execute Sen2Cor data processor using Docker images.
 
     Note:
@@ -44,6 +45,7 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         version (str): Sen2Cor version to execute.
             Remember that you must exist the version in docker registry. Defaults is ``None``, which
             automatically tries the versions '2.10.0', '2.8.0', '2.5.5', respectively.
+        timeout (int): Timeout for Sen2Cor exec. Defaults to ``SEN2COR_TIMEOUT``.
     Keyword Args:
         any: Custom Environment variables, use Python spread kwargs.
     """
@@ -62,18 +64,25 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         ]
 
         logging.info(f'Using Sen2Cor {version}')
+        timeout = timeout or Config.SEN2COR_CONFIG['SEN2COR_TIMEOUT']
 
-        process = subprocess.Popen(args, env=env, stdin=subprocess.PIPE)
-        process.wait()
+        try:
+            process = subprocess.Popen(args, env=env, stdin=subprocess.PIPE)
+            process.wait(timeout=timeout)
 
-        if process.returncode != 0:
-            raise RuntimeError(f'Could not execute Sen2Cor using {version}')
+            if process.returncode != 0:
+                raise RuntimeError(f'Could not execute Sen2Cor using {version}')
 
-        output_tmp = list(Path(output_dir).iterdir())[0]
+            output_tmp = list(Path(output_dir).iterdir())[0]
 
-        output_path = Path(output_dir) / output_tmp.name
+            output_path = Path(output_dir) / output_tmp.name
 
-        return output_path
+            return output_path
+        except subprocess.TimeoutExpired:
+            # Ensure Docker was stopped
+            proc = subprocess.Popen(['docker', 'stop', scene_id])
+            proc.wait(timeout=30)
+            raise RuntimeError(f'TimeoutExpired for Sen2Cor {version}')
 
     def _safe_execute(*args, **kwargs):
         try:

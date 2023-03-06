@@ -59,7 +59,7 @@ class Config:
         SEN2COR_CONTAINER_INPUT_DIR=os.getenv('SEN2COR_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
         SEN2COR_CONTAINER_OUTPUT_DIR=os.getenv('SEN2COR_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
         SEN2COR_VERSIONS_SUPPORTED=os.getenv('SEN2COR_VERSIONS_SUPPORTED',
-                                             '2.10.0;2.8.0;2.5.5'),
+                                             '2.11.0;2.10.0;2.8.0;2.5.5'),
         SEN2COR_TIMEOUT=int(os.getenv('SEN2COR_TIMEOUT', '5400'))  # Timeout execution for any instance of Sen2Cor.
     )
     # The working directory for ATM Correction. Default is None.

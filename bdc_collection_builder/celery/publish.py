@@ -241,6 +241,8 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         quicklook = Path(destination) / f'{scene_id}.png'
 
+        file = temporary_dir.name
+
         assets['asset'] = Item.create_asset_definition(
             href=_item_prefix(Path(file), item_prefix=asset_item_prefix),
             mime_type=guess_mime_type(file),
@@ -343,6 +345,12 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if not is_compressed:
             files = data.get_files(collection, path=file)
 
+    band_names = kwargs['activity'].get('items')
+
+    for item in band_names:
+
+        files[item['name']] = list(tmp.rglob(item['pattern']))[0]
+
     extra_assets = data.get_assets(collection, path=file)
 
     tile = Tile.query().filter(
@@ -405,7 +413,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                     if convex_hull.area > 0.0:
                         convex_hull = from_shape(convex_hull, srid=4326)
 
-                assets[band.name] = _asset_definition(path, band, is_raster, cog=True, item_prefix=asset_item_prefix, prefix=prefix)
+                assets[band.name] = _asset_definition(path, band, is_raster, cog=True, item_prefix=asset_item_prefix, prefix=temporary_dir.name)
 
                 break
 
@@ -428,7 +436,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
                 asset_file_path = asset_file_path_tif
 
-            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
+            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=temporary_dir.name)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 

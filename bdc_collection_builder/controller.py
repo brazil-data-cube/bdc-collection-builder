@@ -39,6 +39,8 @@ from .collections.models import (ActivitySRC, RadcorActivity,
 from .collections.utils import get_or_create_model, get_provider, safe_request
 from .forms import CollectionForm, RadcorActivityForm, SimpleActivityForm
 
+from copy import deepcopy
+
 
 def _generate_periods(start_date: datetime, end_date: datetime, unit='m'):
     periods = []
@@ -292,6 +294,9 @@ class RadcorBusiness:
                 _task = cls._task_definition(task['type'])
                 # Try to create activity in database and the parent if there is.
                 instance, created = cls.create_activity(activity, parent)
+
+                instance.args = deepcopy(activity['args'])
+                instance.save(commit=False)
 
                 # When activity already exists and force is not set, skips to avoid collect multiple times
                 if not created and not force:

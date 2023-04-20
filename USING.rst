@@ -81,42 +81,53 @@ You can download a Sentinel 2 scene from the provider ``SciHub`` with dataset ``
 
 .. code-block:: shell
 
-        curl -XPOST -H "Content-Type: application/json" \
-            --data '{
-                "w": -45.9,
-                "s": -12.74,
-                "n": -12.6,
-                "e": -45.8,
-                "catalog": "ESA",
-                "dataset": "S2MSI1C",
-                "start": "2020-01-09T00:00:00",
-                "end": "2020-01-10T23:59:59",
-                "cloud": 100,
-                "action": "start",
-                "force": true,
-                "tasks": [
-                    {
-                        "type": "download",
-                        "collection": "S2_L1C-1",
-                        "args": {},
-                        "tasks": [
-                            {
-                                "type": "correction",
-                                "collection": "S2_L2A-1",
-                                "args": {},
-                                "tasks": [
-                                    {
-                                        "type": "publish",
-                                        "collection": "S2_L2A-1",
-                                        "args": {}
-                                    }
+    curl -XPOST -H "Content-Type: application/json" \
+        --data '{
+            "tiles": ["18LUN"],
+            "catalog": "ESA",
+            "dataset": "S2MSI2A",
+            "start": "2023-02-07T00:00:00",
+            "end": "2023-02-07T23:59:59",
+            "cloud": 20,
+            "action": "start",
+            "force": true,
+            "tasks": [
+                {
+                    "type": "download",
+                    "collection": "S2_L2A-1",
+                    "args": {
+                        "glob_pattern": "*",
+                        "path_include_month": true
+                    },
+                    "tasks": [
+                        {
+                            "type": "publish",
+                            "collection": "S2_L2A-1",
+                            "args": {
+                                "path_include_month": true,
+                                "items_to_publish": [
+                                    {"name": "B01", "pattern": "**/*B01_60m.jp2"},
+                                    {"name": "B02", "pattern": "**/*B02_10m.jp2"},
+                                    {"name": "B03", "pattern": "**/*B03_10m.jp2"},
+                                    {"name": "B04", "pattern": "**/*B04_10m.jp2"},
+                                    {"name": "B05", "pattern": "**/*B05_20m.jp2"},
+                                    {"name": "B06", "pattern": "**/*B06_20m.jp2"},
+                                    {"name": "B07", "pattern": "**/*B07_20m.jp2"},
+                                    {"name": "B08", "pattern": "**/*B08_10m.jp2"},
+                                    {"name": "B8A", "pattern": "**/*B8A_20m.jp2"},
+                                    {"name": "B09", "pattern": "**/*B09_60m.jp2"},
+                                    {"name": "B11", "pattern": "**/*B11_20m.jp2"},
+                                    {"name": "B12", "pattern": "**/*B12_20m.jp2"},
+                                    {"name": "SCL", "pattern": "**/*SCL_20m.jp2"}
                                 ]
-                            }
-                        ]
-                    }
-                ]
-            }' \
-            localhost:5000/api/radcor
+                            },
+                            "tasks": []
+                        }
+                    ]
+                }
+            ]
+        }' \
+        localhost:5000/api/radcor
 
 The output of the above request can be seen below:
 

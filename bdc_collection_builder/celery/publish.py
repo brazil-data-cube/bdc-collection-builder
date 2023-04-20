@@ -42,6 +42,7 @@ from ..collections.utils import (generate_cogs, get_epsg_srid, get_or_create_mod
                                  is_sen2cor, raster_convexhull, raster_extent)
 from ..config import Config
 from ..constants import COG_MIME_TYPE, DEFAULT_SRID
+import re
 
 
 def guess_mime_type(extension: str, cog=False) -> Optional[str]:
@@ -179,7 +180,7 @@ def generate_quicklook_pvi(safe_folder: Path, quicklook: Path):
     Image.open(str(pvi)).save(str(quicklook))
 
 
-def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
+def publish_collection_item(scene_id: str, data: BaseCollection, collection: Collection, file: str,
                        cloud_cover=None, provider_id: Optional[int] = None, **kwargs) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
@@ -204,6 +205,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     old_file_path = file
     asset_item_prefix = Config.ITEM_PREFIX
     prefix = Config.PUBLISH_DATA_DIR
+    path_include_month = kwargs['activity'].get('path_include_month')
 
     temporary_dir = TemporaryDirectory()
     srid = DEFAULT_SRID
@@ -215,7 +217,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             data_prefix = os.path.join(data_prefix, 'composed')
 
     # Get Destination Folder
-    destination = data.path(collection, prefix=data_prefix)
+    destination = data.path(collection, prefix=data_prefix, path_include_month=path_include_month)
 
     is_sen2cor_flag = is_sen2cor(collection)
 
@@ -224,7 +226,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     is_compressed = str(file).endswith('.zip') or str(file).endswith('.tar.gz')
 
     if is_compressed:
-        destination = data.compressed_file(collection).parent
+        destination = data.compressed_file(collection, path_include_month=path_include_month).parent
 
         tmp = Path(temporary_dir.name)
 
@@ -240,8 +242,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         )
 
         quicklook = Path(destination) / f'{scene_id}.png'
-
-        file = temporary_dir.name
 
         assets['asset'] = Item.create_asset_definition(
             href=_item_prefix(Path(file), item_prefix=asset_item_prefix),
@@ -287,7 +287,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     if str(file).endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
-        opts = dict(prefix=Config.CUBES_DATA_DIR)
+        opts = dict(prefix=Config.CUBES_DATA_DIR, path_include_month=path_include_month)
 
         asset_item_prefix = Config.CUBES_ITEM_PREFIX
         prefix = data_prefix
@@ -345,13 +345,24 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         if not is_compressed:
             files = data.get_files(collection, path=file)
 
-    band_names = kwargs['activity'].get('items')
-
-    for item in band_names:
-
-        files[item['name']] = list(tmp.rglob(item['pattern']))[0]
+    items_to_publish = kwargs['activity'].get('items_to_publish')
 
     extra_assets = data.get_assets(collection, path=file)
+
+    if items_to_publish:
+
+        if is_compressed:
+            extra_assets = data.get_assets(collection, path=temporary_dir.name)
+
+        assets.pop('asset')
+        assets.pop('thumbnail')
+
+        extra_assets['PVI'] = str(quicklook)
+
+        for item in items_to_publish:
+
+            files[item['name']] = list(tmp.rglob(item['pattern']))[0]
+
 
     tile = Tile.query().filter(
         Tile.name == tile_id,
@@ -368,7 +379,10 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
-            target_file = path.parent / f'{path.stem}.tif'
+
+            filename = re.sub('(MSIL1C|MSIL2A)', band_name, destination.name)
+
+            target_file = destination.parent / f'{filename}.tif'
 
             if band_name not in ('AOT', 'WVP'):
                 generate_cogs(file, target_file)
@@ -413,7 +427,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
                     if convex_hull.area > 0.0:
                         convex_hull = from_shape(convex_hull, srid=4326)
 
-                assets[band.name] = _asset_definition(path, band, is_raster, cog=True, item_prefix=asset_item_prefix, prefix=temporary_dir.name)
+                assets[band.name] = _asset_definition(path, band, is_raster, cog=True, item_prefix=asset_item_prefix, prefix=prefix)
 
                 break
 
@@ -421,13 +435,22 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         for asset_name, asset_file in extra_assets.items():
             asset_file_path = Path(asset_file)
 
+            suffix = asset_file_path.suffix
+
+            filename = re.sub('(MSIL1C|MSIL2A)', asset_name, destination.name)
+
+            asset_file_path = destination.parent / Path(filename+suffix)
+
+            shutil.move(asset_file, str(asset_file_path))
+
             is_raster = asset_file_path.suffix.lower() in ('.tif',)
 
             if is_raster:
                 compress_raster(str(asset_file_path), str(asset_file_path))
 
             if asset_file_path.suffix.lower() in ('.jp2',):
-                asset_file_path_tif = asset_file_path.parent / f'{asset_file_path.stem}.tif'
+
+                asset_file_path_tif = destination.parent / f'{asset_file_path.stem}.tif'
 
                 generate_cogs(str(asset_file_path), str(asset_file_path_tif))
 
@@ -436,7 +459,7 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
                 asset_file_path = asset_file_path_tif
 
-            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=temporary_dir.name)
+            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 
@@ -525,5 +548,6 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     logging.info(f'Cleaning up {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)
+    shutil.rmtree(destination)
 
     return item

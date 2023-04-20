@@ -38,7 +38,7 @@ from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
                                  is_valid_compressed_file, post_processing, safe_request)
 from ..config import Config
-from .publish import get_item_path, publish_collection
+from .publish import get_item_path, publish_collection_item
 
 
 def create_execution(activity):
@@ -161,13 +161,13 @@ def download(activity: dict, **kwargs):
     if collection.collection_type == 'cube':
         prefix = Config.CUBES_DATA_DIR
 
-    download_file = data_collection.compressed_file(collection, prefix=prefix)
+    download_file = data_collection.compressed_file(collection, prefix=prefix, path_include_month=activity['args']['path_include_month'])
 
     has_compressed_file = download_file is not None
 
     # For files that does not have compressed file (Single file/folder), use native path
     if download_file is None:
-        download_file = data_collection.path(collection)
+        download_file = data_collection.path(collection, path_include_month=activity['args']['path_include_month'])
 
     is_valid_file = False
 
@@ -210,8 +210,11 @@ def download(activity: dict, **kwargs):
                 try:
                     logging.info(f'Trying to download from {collector.provider_name}(id={collector.instance.id})')
 
+                    options = dict()
+                    options['glob_pattern'] = activity['args']['glob_pattern']
+
                     with safe_request():
-                        temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))
+                        temp_file = Path(collector.download(scene_id, output=tmp, kwargs=options))
 
                     activity['args']['provider_id'] = collector.instance.id
 
@@ -250,7 +253,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
     tmp = None
 
     try:
-        output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR)
+        output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR, path_include_month=activity['args']['path_include_month'])
 
         if collection.metadata_ and collection.metadata_.get('processors'):
             processor_name = collection.metadata_['processors'][0]['name']
@@ -365,7 +368,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
         provider_id = activity['args'].get('provider_id')
 
-        publish_collection(scene_id, data_collection, collection, file,
+        publish_collection_item(scene_id, data_collection, collection, file,
                            cloud_cover=activity['args'].get('cloud'),
                            provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
 

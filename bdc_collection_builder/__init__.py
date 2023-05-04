@@ -46,6 +46,9 @@ def create_app(config_name='DevelopmentConfig'):
     app.config.from_object(conf)
 
     with app.app_context():
+        # Setup Celery Models
+        load_celery_models()
+
         # Initialize Flask SQLAlchemy
         BDCCatalog(app)
 
@@ -59,8 +62,6 @@ def create_app(config_name='DevelopmentConfig'):
         # Setup blueprint
         from .views import bp
         app.register_blueprint(bp)
-
-        load_celery_models()
 
         @app.after_request
         def after_request(response):

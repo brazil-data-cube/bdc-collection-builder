@@ -57,4 +57,4 @@ COPY . ${BDC_BUILDER_INSTALL_PATH}
 WORKDIR ${BDC_BUILDER_INSTALL_PATH}
 
 RUN pip install -U pip wheel && \
-    pip install -e .[all]
+    pip install .[rabbitmq,gdal]

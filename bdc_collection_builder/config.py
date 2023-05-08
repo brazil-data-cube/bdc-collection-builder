@@ -101,8 +101,6 @@ class Config:
 
     TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
 
-    CELERYD_PREFETCH_MULTIPLIER = int(os.environ.get('CELERYD_PREFETCH_MULTIPLIER', 4))  # disable
-
 
 class ProductionConfig(Config):
     """Production Mode."""

@@ -26,7 +26,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from bdc_catalog.models import Collection, Item
+from bdc_catalog.models import Collection, Item, db
 from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
@@ -75,6 +75,8 @@ def create_execution(activity):
         model = RadcorActivityHistory()
 
         task, _ = get_or_create_model(Task, defaults={}, task_id=current_task.request.id)
+        db.session.add(task)
+        logging.info(f"Task {task} - {task.task_id}")
 
         model.task = task
         model.activity = activity_model

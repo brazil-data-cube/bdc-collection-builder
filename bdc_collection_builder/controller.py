@@ -284,6 +284,23 @@ class RadcorBusiness:
                         **options
                     )
 
+            tasks_collections = _get_tasks_collections(tasks)
+            # Preload items that have been published
+            items_cache = (
+                db.session.query(Item.name, Item.collection_id)
+                .filter(
+                    Item.collection_id.in_([c.id for c in tasks_collections]),
+                    Item.start_date >= args['start'],
+                    Item.end_date <= args['end'],
+                    Item.name.in_([scene.scene_id for scene in result])
+                )
+                .all()
+            )
+            items_map = {}
+            for item in items_cache:
+                items_map.setdefault(item.name, [])
+                items_map[item.name].append(item.collection_id)
+
             def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
                 """Create task dispatcher recursive."""
                 collection_id = collections_map[task['collection']]
@@ -298,9 +315,11 @@ class RadcorBusiness:
                 instance.args = deepcopy(activity['args'])
                 instance.save(commit=False)
 
-                # When activity already exists and force is not set, skips to avoid collect multiple times
-                if not created and not force:
-                    return None
+                if activity["sceneid"] in items_map:
+                    cached_collections = items_map[activity["sceneid"]]
+                    # Skip all scenes that were already published
+                    if collection_id in cached_collections and not force:
+                        return None
 
                 dump = RadcorActivityForm().dump(instance)
                 dump['args'].update(activity['args'])
@@ -659,3 +678,28 @@ class RadcorBusiness:
         providers = Provider.query().order_by(Provider.id)
 
         return [dict(id=p.id, name=p.name) for p in providers]
+
+
+def _get_tasks_collections(tasks):
+    """Retrieve the collections associated in tasks for processing."""
+    out = []
+
+    def _get_task_collections(task):
+        collections = [task["collection"]]
+
+        for child in task.get("tasks", []):
+            cs = _get_task_collections(child)
+            if cs:
+                collections.extend(cs)
+
+        return collections
+
+    if len(tasks) == 0:
+        return out
+
+    for task in tasks:
+        collections_ = _get_task_collections(task)
+        out.extend(collections_)
+
+    rows = Collection.query().filter(Collection.identifier.in_(out)).all()
+    return rows

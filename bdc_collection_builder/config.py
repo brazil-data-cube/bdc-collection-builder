@@ -39,7 +39,7 @@ class Config:
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
-        'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
+        'postgresql://postgres:postgres@localhost:5432/bdc?application_name=local-collection'
     )
 
     # LaSRC/Fmask4 Processor

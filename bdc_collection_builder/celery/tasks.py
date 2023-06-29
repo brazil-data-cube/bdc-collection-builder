@@ -31,6 +31,7 @@ from bdc_collectors.base import BaseCollection
 from bdc_collectors.exceptions import DataOfflineError
 from celery import current_app, current_task
 from celery.backends.database import Task
+from sentinelsat.exceptions import InvalidChecksumError
 
 from ..collections.collect import get_provider_order
 from ..collections.models import RadcorActivity, RadcorActivityHistory
@@ -126,9 +127,9 @@ def refresh_execution_args(execution: RadcorActivityHistory, activity: dict, **k
 
 
 @current_app.task(
-    queue='download',
+    queue=os.getenv('QUEUE_DOWNLOAD', 'download'),
     max_retries=72,
-    autoretry_for=(DataOfflineError,),
+    autoretry_for=(DataOfflineError, InvalidChecksumError,),
     default_retry_delay=Config.TASK_RETRY_DELAY
 )
 def download(activity: dict, **kwargs):
@@ -218,7 +219,7 @@ def download(activity: dict, **kwargs):
                     activity['args']['provider_id'] = collector.instance.id
 
                     break
-                except DataOfflineError:
+                except (DataOfflineError, InvalidChecksumError):
                     should_retry = True
                 except Exception as e:
                     logging.error(f'Download error in provider {collector.provider_name} - {str(e)}')
@@ -238,7 +239,7 @@ def download(activity: dict, **kwargs):
     return activity
 
 
-@current_app.task(queue='correction')
+@current_app.task(queue=os.getenv('QUEUE_PROCESSOR', 'correction'))
 def correction(activity: dict, collection_id=None, **kwargs):
     """Celery task to deal with Surface Reflectance processors."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
@@ -344,7 +345,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
     return activity
 
 
-@current_app.task(queue='publish')
+@current_app.task(queue=os.getenv('QUEUE_PUBLISH', 'publish'))
 def publish(activity: dict, collection_id=None, **kwargs):
     """Celery tasks to publish an item on database."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=publish.__name__)
@@ -380,7 +381,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
     return activity
 
 
-@current_app.task(queue='post')
+@current_app.task(queue=os.getenv('QUEUE_POST_PROCESSING', 'post'))
 def post(activity: dict, collection_id=None, **kwargs):
     """Celery task to deal with data post processing."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=post.__name__)

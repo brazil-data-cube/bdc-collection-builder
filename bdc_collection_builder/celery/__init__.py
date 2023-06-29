@@ -43,7 +43,7 @@ def create_celery_app(flask_app: Flask):
         flask_app (flask.Flask): Flask app
 
     Returns:
-        Celery celery app
+        Celery app
     """
     celery = Celery(
         flask_app.import_name,
@@ -61,12 +61,8 @@ def create_celery_app(flask_app: Flask):
         task_track_started=True,
         task_always_eager=always_eager,
         task_acks_late=True,  # Only remove from Broker when task has been executed.
-        worker_prefetch_multiplier=Config.CELERYD_PREFETCH_MULTIPLIER,
         result_backend='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
-        database_table_schemas={
-            'task': Config.ACTIVITIES_SCHEMA,
-            'group': Config.ACTIVITIES_SCHEMA
-        }
+        database_table_schemas={}
     ))
 
     TaskBase = celery.Task

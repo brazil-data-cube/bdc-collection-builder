@@ -128,7 +128,7 @@ def refresh_execution_args(execution: RadcorActivityHistory, activity: dict, **k
 
 @current_app.task(
     queue=os.getenv('QUEUE_DOWNLOAD', 'download'),
-    max_retries=72,
+    max_retries=int(os.getenv("TASK_RETRY_COUNT", "72")),
     autoretry_for=(DataOfflineError, InvalidChecksumError,),
     default_retry_delay=Config.TASK_RETRY_DELAY
 )
@@ -348,7 +348,11 @@ def correction(activity: dict, collection_id=None, **kwargs):
     return activity
 
 
-@current_app.task(queue=os.getenv('QUEUE_PUBLISH', 'publish'))
+@current_app.task(
+    queue=os.getenv('QUEUE_PUBLISH', 'publish'),
+    max_retries=int(os.getenv("TASK_RETRY_COUNT", "72")),
+    default_retry_delay=Config.TASK_RETRY_DELAY
+)
 def publish(activity: dict, collection_id=None, **kwargs):
     """Celery tasks to publish an item on database."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=publish.__name__)

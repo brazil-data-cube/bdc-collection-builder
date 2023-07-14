@@ -99,7 +99,7 @@ class Config:
     # Disable any entry related requests and SSL validation.
     DISABLE_SSL = strtobool(os.getenv('DISABLE_SSL', 'YES'))
 
-    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
+    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 15))  # a hour
 
 
 class ProductionConfig(Config):

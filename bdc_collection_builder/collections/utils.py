@@ -22,6 +22,7 @@
 # Python Native
 import contextlib
 import logging
+import os
 import shutil
 import tarfile
 import warnings
@@ -148,7 +149,7 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
 
     # Dataset Open option (see gdalwarp `-oo` option)
     config = dict(
-        GDAL_NUM_THREADS="ALL_CPUS",
+        GDAL_NUM_THREADS=int(os.getenv("GDAL_NUM_THREADS", "2")),
         GDAL_TIFF_INTERNAL_MASK=True,
         GDAL_TIFF_OVR_BLOCKSIZE="128",
     )

@@ -43,5 +43,5 @@ def load_celery_models():
     from celery.backends.database import SessionManager
 
     session = SessionManager()
-    engine = session.get_engine(current_app.backend.url)
+    engine = session.get_engine(Config.SQLALCHEMY_DATABASE_URI)
     session.prepare_models(engine)

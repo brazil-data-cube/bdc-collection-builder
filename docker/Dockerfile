@@ -42,6 +42,6 @@ RUN apt-get update && \
 COPY . ${BDC_BUILDER_INSTALL_PATH}
 WORKDIR ${BDC_BUILDER_INSTALL_PATH}
 
-RUN pip install -U wheel "setuptools<67" && \
-    pip install pymodis && \
-    pip install -e .[all]
+RUN pip install -U wheel setuptools && \
+    pip install pymodis "pydantic<2" && \
+    pip install .[rabbitmq]

@@ -532,7 +532,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         item.srid = srid
         item.footprint = convex_hull
         item.provider = provider
-        item.is_available = False
+        item.is_available = True
         item.updated = datetime.datetime.utcnow()
 
         if tile is not None:

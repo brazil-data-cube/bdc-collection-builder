@@ -459,7 +459,19 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
                 asset_file_path = asset_file_path_tif
 
-            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
+            asset_definition_params = dict(
+                path=asset_file_path,
+                is_raster=is_raster,
+                cog=False,
+                item_prefix=asset_item_prefix,
+                prefix=prefix
+            )
+
+            if asset_name == 'PVI':
+
+                asset_definition_params.update(dict(role=['thumbnail']))
+
+            assets[asset_name] = _asset_definition(**asset_definition_params)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 

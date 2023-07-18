@@ -110,7 +110,7 @@ def compress_raster(input_path: str, output_path: str, algorithm: str = 'deflate
         shutil.move(tmp_file, output_path)
 
 
-def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
+def _asset_definition(path, band=None, is_raster=False, cog=False, role=['data'], **options):
     href = _item_prefix(path, **options)
 
     if band and band.mime_type:
@@ -122,7 +122,7 @@ def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
         file=str(path),
         href=href,
         mime_type=mime_type,
-        role=['data'],
+        role=role,
         is_raster=is_raster
     )
 

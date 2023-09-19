@@ -39,7 +39,7 @@ class Config:
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
-        'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
+        'postgresql://postgres:postgres@localhost:5432/bdc?application_name=local-collection'
     )
 
     # LaSRC/Fmask4 Processor
@@ -99,7 +99,7 @@ class Config:
     # Disable any entry related requests and SSL validation.
     DISABLE_SSL = strtobool(os.getenv('DISABLE_SSL', 'YES'))
 
-    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
+    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 15))  # a hour
 
 
 class ProductionConfig(Config):

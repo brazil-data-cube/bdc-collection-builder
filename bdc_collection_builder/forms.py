@@ -159,12 +159,7 @@ class SearchImageForm(Schema):
             data['end'] = data['end'].isoformat()
 
         if data.get("geom"):
-            try:
-                geom = wkt.loads(data["geom"])
-                data["geom"] = geom
-            except WKTReadingError:
-                json_data = json.loads(data)
-                data["geom"] = shape(json_data)
+            data["geom"] = _geom_from_raw(data["geom"])
 
         return data
 

@@ -43,5 +43,5 @@ COPY . ${BDC_BUILDER_INSTALL_PATH}
 WORKDIR ${BDC_BUILDER_INSTALL_PATH}
 
 RUN pip install -U wheel setuptools && \
-    pip install pymodis "pydantic<2" && \
-    pip install .[rabbitmq]
+    pip install pymodis --no-cache && \
+    pip install .[amqp] --no-cache

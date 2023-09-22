@@ -206,6 +206,11 @@ class RadcorBusiness:
 
     @classmethod
     def _activity_definition(cls, collection_id, activity_type, scene, **kwargs):
+        data = {}
+        include_meta = kwargs.get("include_meta", False)
+        if include_meta:
+            data["scene_meta"] = scene
+
         return dict(
             collection_id=collection_id,
             activity_type=activity_type,
@@ -214,6 +219,7 @@ class RadcorBusiness:
             scene_type='SCENE',
             args=dict(
                 cloud=scene.cloud_cover,
+                **data,
                 **kwargs
             )
         )
@@ -236,11 +242,15 @@ class RadcorBusiness:
         force = args.get('force', False)
         catalog_args = args.get('catalog_args', dict())
         options = dict()
+        options.update(args.get("catalog_search_args", {}))
 
         if 'platform' in args:
             options['platform'] = args['platform']
 
-        if 'scenes' not in args and 'tiles' not in args:
+        if args.get("geom"):
+            options["geom"] = args["geom"]
+        elif 'scenes' not in args and 'tiles' not in args:
+            # Deprecated
             w, e = float(args['w']), float(args['e'])
             s, n = float(args['s']), float(args['n'])
             bbox = [w, s, e, n]

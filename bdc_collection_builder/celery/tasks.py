@@ -376,8 +376,9 @@ def publish(activity: dict, collection_id=None, **kwargs):
         provider_id = activity['args'].get('provider_id')
 
         publish_collection_item(scene_id, data_collection, collection, file,
-                           cloud_cover=activity['args'].get('cloud'),
-                           provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
+                                cloud_cover=activity['args'].get('cloud'),
+                                scene_meta=activity['args'].get("scene_meta"),
+                                provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
 
         if file:
             refresh_execution_args(execution, activity, file=str(file))

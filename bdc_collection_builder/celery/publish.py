@@ -181,7 +181,7 @@ def generate_quicklook_pvi(safe_folder: Path, quicklook: Path):
 
 
 def publish_collection_item(scene_id: str, data: BaseCollection, collection: Collection, file: str,
-                       cloud_cover=None, provider_id: Optional[int] = None, **kwargs) -> Item:
+                       cloud_cover=None, provider_id: Optional[int] = None, scene_meta=None, **kwargs) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -546,6 +546,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         item.provider = provider
         item.is_available = True
         item.updated = datetime.datetime.utcnow()
+        if scene_meta:
+            item.metadata_ = scene_meta
 
         if tile is not None:
             item.tile_id = tile.id

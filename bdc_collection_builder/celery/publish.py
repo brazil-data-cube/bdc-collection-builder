@@ -216,6 +216,15 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         if not data_prefix.endswith('/composed'):
             data_prefix = os.path.join(data_prefix, 'composed')
 
+    # Special treatment for file partially processed
+    if not os.path.exists(file):
+        item: Optional[Item] = Item.query().filter(Item.name == scene_id, Item.collection_id == collection.id).first()
+        if item is None:
+            raise IOError(f"File {file} not found.")
+        # TODO: validate the assets paths
+        logging.info(f"Item {item.name} published")
+        return item
+
     # Get Destination Folder
     destination = data.path(collection, prefix=data_prefix, path_include_month=path_include_month)
 

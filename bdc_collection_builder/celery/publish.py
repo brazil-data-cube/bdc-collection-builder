@@ -569,8 +569,11 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         if not destination_file.exists():
             shutil.move(str(old_file_path), str(destination))
 
-    logging.info(f'Cleaning up {temporary_dir.name}')
+    logging.info(f'Cleaning up temporary {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)
-    shutil.rmtree(destination)
+
+    if not kwargs.get("keep_source"):
+        logging.info(f"Removing source {str(destination)}")
+        shutil.rmtree(destination)
 
     return item

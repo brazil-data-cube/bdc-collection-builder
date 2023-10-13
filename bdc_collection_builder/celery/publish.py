@@ -272,6 +272,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             geom = from_shape(raster_extent(str(band2)), srid=4326)
             convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)
 
+            quicklook.parent.mkdir(exist_ok=True, parents=True)
             Image.open(str(pvi)).save(str(quicklook))
 
             assets['thumbnail'] = Item.create_asset_definition(
@@ -564,10 +565,6 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         item.save(commit=False)
 
     db.session.commit()
-
-    if is_compressed and destination:
-        if not destination_file.exists():
-            shutil.move(str(old_file_path), str(destination))
 
     logging.info(f'Cleaning up temporary {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)

@@ -534,7 +534,14 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
     provider = Provider.query().filter(Provider.id == provider_id).first()
 
-    # TODO: Log files/bands which was not published.
+    if not geom and scene_meta:
+        geofootprint = scene_meta.get("GeoFootprint")
+        if geofootprint:
+            shapely_geom = shapely.geometry.shape(geofootprint)
+            convex_hull = from_shape(shapely_geom, srid=4326)
+            geom = from_shape(shapely_geom.envelope, srid=4326)
+
+            # TODO: Log files/bands which was not published.
 
     with db.session.begin_nested():
         item_defaults = dict(

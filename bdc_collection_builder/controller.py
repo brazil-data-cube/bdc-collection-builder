@@ -206,6 +206,11 @@ class RadcorBusiness:
 
     @classmethod
     def _activity_definition(cls, collection_id, activity_type, scene, **kwargs):
+        data = {}
+        include_meta = kwargs.get("include_meta", False)
+        if include_meta:
+            data["scene_meta"] = scene
+
         return dict(
             collection_id=collection_id,
             activity_type=activity_type,
@@ -214,6 +219,7 @@ class RadcorBusiness:
             scene_type='SCENE',
             args=dict(
                 cloud=scene.cloud_cover,
+                **data,
                 **kwargs
             )
         )
@@ -236,11 +242,15 @@ class RadcorBusiness:
         force = args.get('force', False)
         catalog_args = args.get('catalog_args', dict())
         options = dict()
+        options.update(args.get("catalog_search_args", {}))
 
         if 'platform' in args:
             options['platform'] = args['platform']
 
-        if 'scenes' not in args and 'tiles' not in args:
+        if args.get("geom"):
+            options["geom"] = args["geom"]
+        elif 'scenes' not in args and 'tiles' not in args:
+            # Deprecated
             w, e = float(args['w']), float(args['e'])
             s, n = float(args['s']), float(args['n'])
             bbox = [w, s, e, n]
@@ -285,15 +295,19 @@ class RadcorBusiness:
                     )
 
             tasks_collections = _get_tasks_collections(tasks)
+            where = [
+                Item.collection_id.in_([c.id for c in tasks_collections]),
+                Item.name.in_([scene.scene_id for scene in result]),
+            ]
+            if args.get("start"):
+                where.append(Item.start_date >= args['start'])
+            if args.get("end"):
+                where.append(Item.end_date <= args['end'])
+
             # Preload items that have been published
             items_cache = (
                 db.session.query(Item.name, Item.collection_id)
-                .filter(
-                    Item.collection_id.in_([c.id for c in tasks_collections]),
-                    Item.start_date >= args['start'],
-                    Item.end_date <= args['end'],
-                    Item.name.in_([scene.scene_id for scene in result])
-                )
+                .filter(*where)
                 .all()
             )
             items_map = {}
@@ -317,6 +331,7 @@ class RadcorBusiness:
 
                 if activity["sceneid"] in items_map:
                     cached_collections = items_map[activity["sceneid"]]
+                    # TODO: Consider children collections
                     # Skip all scenes that were already published
                     if collection_id in cached_collections and not force:
                         return None
@@ -371,7 +386,9 @@ class RadcorBusiness:
             db.session.rollback()
             raise
 
-        return result
+        return [{"scene_id": scene.scene_id,
+                 "cloud_cover": scene.cloud_cover,
+                 "link": scene.link} for scene in result]
 
     @classmethod
     def validate_provider(cls, collection_id):

@@ -18,6 +18,7 @@
 
 """Define interface for validate request date."""
 
+import json
 
 # 3rdparty
 from bdc_catalog.models import Collection, Item, db
@@ -25,6 +26,9 @@ from marshmallow import (Schema, ValidationError, fields, post_load, pre_load,
                          validates_schema)
 from marshmallow.validate import OneOf
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
+from shapely import wkt
+from shapely.errors import ShapelyError, WKTReadingError
+from shapely.geometry import shape
 
 # Builder
 from .collections.models import RadcorActivity, RadcorActivityHistory
@@ -140,6 +144,8 @@ class SearchImageForm(Schema):
     s = fields.Float(allow_none=False, allow_nan=False)
     e = fields.Float(allow_none=False, allow_nan=False)
     n = fields.Float(allow_none=False, allow_nan=False)
+    geom = fields.Raw(allow_none=False, allow_nan=False)
+    catalog_search_args = fields.Dict(required=False, default=dict(), allow_none=False)
     scenes = fields.List(fields.String(), allow_none=False)
     tiles = fields.List(fields.String(), allow_none=False)
 
@@ -152,6 +158,9 @@ class SearchImageForm(Schema):
         if 'end' in data:
             data['end'] = data['end'].isoformat()
 
+        if data.get("geom"):
+            data["geom"] = _geom_from_raw(data["geom"])
+
         return data
 
     @validates_schema
@@ -163,6 +172,11 @@ class SearchImageForm(Schema):
         Raises:
             ValidationError When both scenes and bounding box given. It also raise error when bbox is inconsistent.
         """
+        if "geom" in data:
+            _geom_from_raw(data["geom"])
+
+            return
+
         bbox_given = data.keys() >= {'w', 's', 'e', 'n'}
 
         if 'scenes' in data and bbox_given and 'tiles' in data:
@@ -203,3 +217,18 @@ class CheckScenesForm(Schema):
 
         if 'grid' not in data and 'tiles' not in data and 'bbox' not in data:
             raise ValidationError('Missing "tiles"/"grid" or "bbox". Please refer one of.')
+
+
+def _geom_from_raw(value):
+    try:
+        return wkt.loads(value)
+    except WKTReadingError:
+        pass
+
+    try:
+        json_data = json.loads(value)
+        return shape(json_data)
+    except (json.JSONDecodeError, ShapelyError):
+        pass
+
+    raise ValidationError("Invalid value for 'geom'.")

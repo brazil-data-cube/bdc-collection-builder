@@ -28,7 +28,7 @@ from tempfile import TemporaryDirectory
 
 from bdc_catalog.models import Collection, Item, db
 from bdc_collectors.base import BaseCollection
-from bdc_collectors.exceptions import DataOfflineError
+from bdc_collectors.exceptions import DataOfflineError, DownloadError
 from celery import current_app, current_task
 from celery.backends.database import Task
 from sentinelsat.exceptions import InvalidChecksumError
@@ -222,7 +222,7 @@ def download(activity: dict, **kwargs):
                     activity['args']['provider_id'] = collector.instance.id
 
                     break
-                except (DataOfflineError, InvalidChecksumError):
+                except (DownloadError, DataOfflineError, InvalidChecksumError):
                     should_retry = True
                 except Exception as e:
                     logging.error(f'Download error in provider {collector.provider_name} - {str(e)}')
@@ -376,8 +376,10 @@ def publish(activity: dict, collection_id=None, **kwargs):
         provider_id = activity['args'].get('provider_id')
 
         publish_collection_item(scene_id, data_collection, collection, file,
-                           cloud_cover=activity['args'].get('cloud'),
-                           provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
+                                cloud_cover=activity['args'].get('cloud'),
+                                scene_meta=activity['args'].get("scene_meta"),
+                                keep_source=activity['args'].get("keep_source", True),
+                                provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
 
         if file:
             refresh_execution_args(execution, activity, file=str(file))

@@ -181,7 +181,7 @@ def generate_quicklook_pvi(safe_folder: Path, quicklook: Path):
 
 
 def publish_collection_item(scene_id: str, data: BaseCollection, collection: Collection, file: str,
-                       cloud_cover=None, provider_id: Optional[int] = None, **kwargs) -> Item:
+                       cloud_cover=None, provider_id: Optional[int] = None, scene_meta=None, **kwargs) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -216,6 +216,15 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         if not data_prefix.endswith('/composed'):
             data_prefix = os.path.join(data_prefix, 'composed')
 
+    # Special treatment for file partially processed
+    if not os.path.exists(file):
+        item: Optional[Item] = Item.query().filter(Item.name == scene_id, Item.collection_id == collection.id).first()
+        if item is None:
+            raise IOError(f"File {file} not found.")
+        # TODO: validate the assets paths
+        logging.info(f"Item {item.name} published")
+        return item
+
     # Get Destination Folder
     destination = data.path(collection, prefix=data_prefix, path_include_month=path_include_month)
 
@@ -224,6 +233,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     geom = convex_hull = None
 
     is_compressed = str(file).endswith('.zip') or str(file).endswith('.tar.gz')
+    quicklook = None
 
     if is_compressed:
         destination = data.compressed_file(collection, path_include_month=path_include_month).parent
@@ -263,6 +273,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             geom = from_shape(raster_extent(str(band2)), srid=4326)
             convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)
 
+            quicklook.parent.mkdir(exist_ok=True, parents=True)
             Image.open(str(pvi)).save(str(quicklook))
 
             assets['thumbnail'] = Item.create_asset_definition(
@@ -355,7 +366,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             extra_assets = data.get_assets(collection, path=temporary_dir.name)
 
         assets.pop('asset')
-        assets.pop('thumbnail')
+        assets.pop('thumbnail', None)
 
         extra_assets['PVI'] = str(quicklook)
 
@@ -524,7 +535,14 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
     provider = Provider.query().filter(Provider.id == provider_id).first()
 
-    # TODO: Log files/bands which was not published.
+    if not geom and scene_meta:
+        geofootprint = scene_meta.get("GeoFootprint")
+        if geofootprint:
+            shapely_geom = shapely.geometry.shape(geofootprint)
+            convex_hull = from_shape(shapely_geom, srid=4326)
+            geom = from_shape(shapely_geom.envelope, srid=4326)
+
+            # TODO: Log files/bands which was not published.
 
     with db.session.begin_nested():
         item_defaults = dict(
@@ -546,6 +564,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         item.provider = provider
         item.is_available = True
         item.updated = datetime.datetime.utcnow()
+        if scene_meta:
+            item.metadata_ = scene_meta
 
         if tile is not None:
             item.tile_id = tile.id
@@ -554,12 +574,21 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
     db.session.commit()
 
-    if is_compressed and destination:
-        if not destination_file.exists():
-            shutil.move(str(old_file_path), str(destination))
-
-    logging.info(f'Cleaning up {temporary_dir.name}')
+    logging.info(f'Cleaning up temporary {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)
-    shutil.rmtree(destination)
+
+    if quicklook:
+        _rm_dir(str(quicklook.parent))
+
+    if not kwargs.get("keep_source"):
+        logging.info(f"Removing source {str(destination)}")
+        shutil.rmtree(destination)
 
     return item
+
+
+def _rm_dir(directory):
+    try:
+        os.rmdir(directory)
+    except:
+        pass

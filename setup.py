@@ -48,8 +48,8 @@ extras_require = {
     'gdal': [
         'GDAL>=2.3',
     ],
-    'rabbitmq': [
-        'librabbitmq>=1.5.0',
+    'amqp': [
+        'amqp>=5.0',
     ]
 }
 
@@ -61,20 +61,21 @@ setup_requires = [
 
 install_requires = [
     'boto3>=1.11',
-    'Flask>=1.1,<2.1',
+    'Flask>=1.1,<2.3',
     'Flask-SQLAlchemy<3',
     'marshmallow-sqlalchemy>=0.19.0,<0.29',
     'rasterio>=1.3',
     'rio-cogeo==3.0.2',
-    'numpy>=1.18,<1.20',
+    'numpy>=1.18',
     'numpngw>=0.0.8',
     'SQLAlchemy[postgresql_psycopg2binary]>=1.3,<1.4',
-    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@b-0.9-big#egg=bdc-collectors',
-    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.1#egg=bdc-catalog',
+    'bdc-collectors @ git+https://github.com/brazil-data-cube/bdc-collectors.git@b-1.0#egg=bdc-collectors',
+    'bdc-catalog @ git+https://github.com/brazil-data-cube/bdc-catalog.git@v1.0.2#egg=bdc-catalog',
     'celery>=5.2,<6',
     'python-dateutil>=2,<3',
     'shapely>=1.7,<2',
     # Build Error Fix
+    "pydantic<2",
     'docutils>=0.10,<0.15',
     'tifffile==2021.11.2',
     'imageio==2.10.3',

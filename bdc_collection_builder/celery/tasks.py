@@ -161,8 +161,6 @@ def download(activity: dict, **kwargs):
     data_collection = get_provider_collection_from_activity(activity)
 
     prefix = Config.DATA_DIR
-    if collection.collection_type == 'cube':
-        prefix = Config.CUBES_DATA_DIR
 
     download_file = data_collection.compressed_file(collection, prefix=prefix, path_include_month=activity['args']['path_include_month'])
 

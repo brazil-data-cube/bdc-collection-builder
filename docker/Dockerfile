@@ -16,9 +16,10 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
-ARG GIT_COMMIT
-ARG BASE_IMAGE=osgeo/gdal:ubuntu-small-3.2.1
+ARG BASE_IMAGE=osgeo/gdal:ubuntu-full-3.2.1
 FROM ${BASE_IMAGE}
+
+ARG GIT_COMMIT=unknown
 
 # Image metadata
 LABEL "org.repo.maintainer"="Brazil Data Cube <brazildatacube@inpe.br>"
@@ -31,7 +32,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # Build arguments
-ARG BDC_BUILDER_VERSION="1.0.0a2"
+ARG BDC_BUILDER_VERSION="1.0.0a3"
 ARG BDC_BUILDER_INSTALL_PATH="/opt/bdc-collection-builder/${BDC_BUILDER_VERSION}"
 
 RUN apt-get update && \

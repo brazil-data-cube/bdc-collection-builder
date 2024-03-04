@@ -233,6 +233,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     geom = convex_hull = None
 
     is_compressed = str(file).endswith('.zip') or str(file).endswith('.tar.gz')
+    quicklook = None
 
     if is_compressed:
         destination = data.compressed_file(collection, path_include_month=path_include_month).parent
@@ -365,7 +366,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             extra_assets = data.get_assets(collection, path=temporary_dir.name)
 
         assets.pop('asset')
-        assets.pop('thumbnail')
+        assets.pop('thumbnail', None)
 
         extra_assets['PVI'] = str(quicklook)
 
@@ -576,8 +577,18 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     logging.info(f'Cleaning up temporary {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)
 
+    if quicklook:
+        _rm_dir(str(quicklook.parent))
+
     if not kwargs.get("keep_source"):
         logging.info(f"Removing source {str(destination)}")
         shutil.rmtree(destination)
 
     return item
+
+
+def _rm_dir(directory):
+    try:
+        os.rmdir(directory)
+    except:
+        pass

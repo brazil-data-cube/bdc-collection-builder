@@ -500,6 +500,9 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
+    from bdc_catalog.models import SpatialRefSys
+    from sqlalchemy import or_
+
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
 
@@ -519,6 +522,12 @@ def get_epsg_srid(file_path: str) -> int:
     ref.ImportFromWkt(wkt)
 
     code = ref.GetAuthorityCode(None)
+    if not code:
+        model = SpatialRefSys.query.filter(
+            or_(SpatialRefSys.srtext == wkt, SpatialRefSys.proj4text == ref.ExportToProj4())
+        ).first()
+        code = model.srid if model is not None else None
+
     return int(code) if str(code).isnumeric() else None
 
 
@@ -548,7 +557,7 @@ def safe_request():
     if not Config.DISABLE_SSL:
         yield
 
-    logging.info('Disabling SSL validation')
+    logging.debug('Disabling SSL validation')
 
     def _merge_environment_settings(self, url, proxies, stream, verify, cert):
         """Stack the opened contexts into heap and set all the active adapters with verify=False."""

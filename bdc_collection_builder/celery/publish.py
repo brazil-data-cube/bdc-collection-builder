@@ -211,10 +211,6 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     srid = DEFAULT_SRID
 
     data_prefix = Config.PUBLISH_DATA_DIR
-    if collection.collection_type == 'cube':
-        data_prefix = Config.CUBES_DATA_DIR
-        if not data_prefix.endswith('/composed'):
-            data_prefix = os.path.join(data_prefix, 'composed')
 
     # Special treatment for file partially processed
     if not os.path.exists(file):
@@ -298,9 +294,9 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     if str(file).endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
-        opts = dict(prefix=Config.CUBES_DATA_DIR, path_include_month=path_include_month)
+        opts = dict(prefix=Config.DATA_DIR, path_include_month=path_include_month)
 
-        asset_item_prefix = Config.CUBES_ITEM_PREFIX
+        asset_item_prefix = Config.ITEM_PREFIX
         prefix = data_prefix
         opts['prefix'] = prefix
 
@@ -336,7 +332,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         if kwargs.get('publish_hdf'):
             # Generate Quicklook and append asset
             assets['asset'] = Item.create_asset_definition(
-                href=_item_prefix(Path(file), prefix=Config.CUBES_DATA_DIR, item_prefix=Config.CUBES_ITEM_PREFIX),
+                href=_item_prefix(Path(file), prefix=Config.DATA_DIR, item_prefix=Config.ITEM_PREFIX),
                 mime_type=guess_mime_type(file),
                 role=['data'],
                 file=str(file)
@@ -390,10 +386,14 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
+            basedir = destination.parent
+            filename, total_sub = re.subn('(MSIL1C|MSIL2A)', band_name, destination.name)
 
-            filename = re.sub('(MSIL1C|MSIL2A)', band_name, destination.name)
+            if total_sub == 0:  # fallback to default path handler, todo: review it as module path resolver
+                filename = path.stem
+                basedir = destination
 
-            target_file = destination.parent / f'{filename}.tif'
+            target_file = basedir / f'{filename}.tif'
 
             if band_name not in ('AOT', 'WVP'):
                 generate_cogs(file, target_file)

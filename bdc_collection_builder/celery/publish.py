@@ -330,6 +330,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
                 convex_hull = from_shape(convex_hull, srid=4326)
 
         if kwargs.get('publish_hdf'):
+            _rm_dir(destination)
+
             # Generate Quicklook and append asset
             assets['asset'] = Item.create_asset_definition(
                 href=_item_prefix(Path(file), prefix=Config.DATA_DIR, item_prefix=Config.ITEM_PREFIX),
@@ -518,7 +520,12 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
             blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
-            quicklook = Path(destination) / f'{scene_id}.png'
+            basedir = Path(destination)
+            if kwargs.get('publish_hdf'):
+                basedir = basedir.parent
+
+            quicklook = basedir / f'{scene_id}.png'
+            basedir.mkdir(exist_ok=True, parents=True)
 
             create_quick_look(str(quicklook), red_file, green_file, blue_file, no_data=nodata)
 

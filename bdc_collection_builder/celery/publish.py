@@ -457,11 +457,13 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             shutil.move(asset_file, str(asset_file_path))
 
             is_raster = asset_file_path.suffix.lower() in ('.tif',)
+            is_cog = False
 
             if is_raster:
                 compress_raster(str(asset_file_path), str(asset_file_path))
 
             if asset_file_path.suffix.lower() in ('.jp2',):
+                is_cog = True
 
                 asset_file_path_tif = destination.parent / f'{asset_file_path.stem}.tif'
 
@@ -475,7 +477,7 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             asset_definition_params = dict(
                 path=asset_file_path,
                 is_raster=is_raster,
-                cog=False,
+                cog=is_cog,
                 item_prefix=asset_item_prefix,
                 prefix=prefix
             )

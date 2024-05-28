@@ -202,7 +202,6 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
     """
     file_band_map = dict()
     assets = dict()
-    old_file_path = file
     asset_item_prefix = Config.ITEM_PREFIX
     prefix = Config.PUBLISH_DATA_DIR
     path_include_month = kwargs['activity'].get('path_include_month')
@@ -316,6 +315,9 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         files = dict()
 
         if item_result.files:
+            # Force cloud cover from data
+            cloud_cover = item_result.cloud_cover
+
             ref = list(item_result.files.values())[0]
             srid = get_epsg_srid(str(ref))
 

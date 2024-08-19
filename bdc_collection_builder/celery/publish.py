@@ -304,9 +304,9 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         destination.mkdir(parents=True, exist_ok=True)
 
         band_map = {
-            b.name: dict(nodata=float(b.nodata),
-                         min_value=float(b.min_value),
-                         max_value=float(b.max_value))
+            b.name: dict(nodata=float(b.nodata) if b.nodata is not None else None,
+                         min_value=float(b.min_value) if b.min_value is not None else None,
+                         max_value=float(b.max_value) if b.max_value is not None else None)
 
             for b in collection.bands
         }

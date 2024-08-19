@@ -1,6 +1,6 @@
 #
 # This file is part of Brazil Data Cube Collection Builder.
-# Copyright (C) 2022 INPE.
+# Copyright (C) 2024 INPE.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,8 +32,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # Build arguments
-ARG BDC_BUILDER_VERSION="1.0.0a3"
-ARG BDC_BUILDER_INSTALL_PATH="/opt/bdc-collection-builder/${BDC_BUILDER_VERSION}"
+ARG BDC_BUILDER_INSTALL_PATH="/opt/bdc-collection-builder"
 
 RUN apt-get update && \
     apt-get install --yes nano python3-pip git pkg-config cmake libtool autoconf && \

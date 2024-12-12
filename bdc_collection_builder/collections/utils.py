@@ -243,7 +243,9 @@ def raster_extent(file_path: str, epsg='EPSG:4326') -> shapely.geometry.Polygon:
     """
     with rasterio.open(str(file_path)) as data_set:
         _geom = shapely.geometry.mapping(shapely.geometry.box(*data_set.bounds))
-        return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
+        geom = shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom))
+
+        return geom
 
 
 def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:

@@ -330,6 +330,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
             if convex_hull.area > 0.0:
                 convex_hull = from_shape(convex_hull, srid=4326)
+            else:
+                convex_hull = geom
 
         if kwargs.get('publish_hdf'):
             _rm_dir(destination)

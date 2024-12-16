@@ -22,6 +22,7 @@ import logging
 import mimetypes
 import os
 import shutil
+from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
@@ -211,6 +212,9 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
     data_prefix = Config.PUBLISH_DATA_DIR
 
+    start_date = data.parser.sensing_date()
+    end_date = start_date
+
     # Special treatment for file partially processed
     if not os.path.exists(file):
         item: Optional[Item] = Item.query().filter(Item.name == scene_id, Item.collection_id == collection.id).first()
@@ -314,6 +318,17 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
         item_result = to_geotiff(file, temporary_dir.name, band_map=band_map)
         files = dict()
 
+        if collection.collection_type == "cube":
+            schema = collection.temporal_composition_schema
+            if schema is not None:
+                # TODO: Its working only delta time continuous
+                # The step -1 reprents that the delta time should consider the first day
+                step = schema["step"] - 1
+                unit = schema["unit"]
+                opts = {f"{unit}s": step}
+                delta = timedelta(**opts)
+                end_date = (start_date + delta).replace(hour=23, minute=59, second=59)
+
         if item_result.files:
             # Force cloud cover from data
             cloud_cover = item_result.cloud_cover
@@ -330,6 +345,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
             if convex_hull.area > 0.0:
                 convex_hull = from_shape(convex_hull, srid=4326)
+            else:
+                convex_hull = geom
 
         if kwargs.get('publish_hdf'):
             _rm_dir(destination)
@@ -557,8 +574,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
 
     with db.session.begin_nested():
         item_defaults = dict(
-            start_date=data.parser.sensing_date(),
-            end_date=data.parser.sensing_date()
+            start_date=start_date,
+            end_date=end_date
         )
 
         where = dict(name=scene_id, collection_id=collection.id)
@@ -568,6 +585,8 @@ def publish_collection_item(scene_id: str, data: BaseCollection, collection: Col
             item.updated = datetime.datetime.utcnow()
 
         item.assets = assets
+        item.start_date = start_date
+        item.end_date = end_date
         item.cloud_cover = cloud_cover
         item.bbox = geom
         item.srid = srid

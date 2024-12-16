@@ -80,7 +80,7 @@ install_requires = [
     'imageio==2.10.3',
     'MarkupSafe==2.0.1',
     'itsdangerous==2.0.1',
-    'Werkzeug==2.1.2',
+    'Werkzeug==3.0.6',
     'GeoAlchemy2==0.11.1'
 ]
 

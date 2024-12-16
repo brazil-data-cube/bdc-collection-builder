@@ -70,8 +70,10 @@ def to_geotiff(hdf_path: str, destination: str, band_map: Dict[str, dict]) -> It
     # Band iterator index to retrieve metadata value
     band_idx = 1
     for data_set_name, _ in data_set.GetSubDatasets():
-        formal_name = metadata[f'PARAMETERNAME.{band_idx}']
+        formal_name = data_set_name.split(":")[-1].replace('"', "")
         band_name = '_'.join(formal_name.split(' ')[3:])
+        if not band_name and base_name.startswith("MOD"):
+            band_name = formal_name
 
         data_set = gdal.Open(data_set_name)
         band = data_set.GetRasterBand(1)

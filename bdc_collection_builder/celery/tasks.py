@@ -26,19 +26,20 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from bdc_catalog.models import Collection, Item, Provider
+from bdc_catalog.models import Collection, Item, db
 from bdc_collectors.base import BaseCollection
-from bdc_collectors.exceptions import DataOfflineError
+from bdc_collectors.exceptions import DataOfflineError, DownloadError
 from celery import current_app, current_task
 from celery.backends.database import Task
+from sentinelsat.exceptions import InvalidChecksumError
 
 from ..collections.collect import get_provider_order
 from ..collections.models import RadcorActivity, RadcorActivityHistory
 from ..collections.processor import sen2cor
 from ..collections.utils import (get_or_create_model, get_provider,
-                                 is_valid_compressed_file, post_processing, safe_request, get_collector_ext)
+                                 is_valid_compressed_file, post_processing, safe_request)
 from ..config import Config
-from .publish import get_item_path, publish_collection
+from .publish import get_item_path, publish_collection_item
 
 
 def create_execution(activity):
@@ -75,6 +76,8 @@ def create_execution(activity):
         model = RadcorActivityHistory()
 
         task, _ = get_or_create_model(Task, defaults={}, task_id=current_task.request.id)
+        db.session.add(task)
+        logging.info(f"Task {task} - {task.task_id}")
 
         model.task = task
         model.activity = activity_model
@@ -103,26 +106,9 @@ def execution_from_collection(activity, collection_id=None, activity_type=None):
 
 def get_provider_collection(provider_name: str, dataset: str) -> BaseCollection:
     """Retrieve a data collector class instance from given bdc-collector provider."""
-    collector_extension = get_collector_ext()
+    provider_setting, collection = get_provider(provider_name)
 
-    provider_class = collector_extension.get_provider(provider_name)
-
-    instance = Provider.query().filter(Provider.name == provider_name).first()
-
-    if instance is None:
-        raise Exception(f'Provider {provider_name} not found.')
-
-    if isinstance(instance.credentials, dict):
-        options = dict(**instance.credentials)
-        options['lazy'] = True
-        options['progress'] = False
-        provider = provider_class(**options)
-    else:
-        provider = provider_class(*instance.credentials, lazy=True, progress=False)
-
-    collection = provider.get_collector(dataset)
-
-    return collection
+    return collection.get_collector(dataset)
 
 
 def get_provider_collection_from_activity(activity: dict) -> BaseCollection:
@@ -141,9 +127,9 @@ def refresh_execution_args(execution: RadcorActivityHistory, activity: dict, **k
 
 
 @current_app.task(
-    queue='download',
-    max_retries=72,
-    autoretry_for=(DataOfflineError,),
+    queue=os.getenv('QUEUE_DOWNLOAD', 'download'),
+    max_retries=int(os.getenv("TASK_RETRY_COUNT", "72")),
+    autoretry_for=(DataOfflineError, InvalidChecksumError,),
     default_retry_delay=Config.TASK_RETRY_DELAY
 )
 def download(activity: dict, **kwargs):
@@ -162,7 +148,7 @@ def download(activity: dict, **kwargs):
 
         provider, collector = get_provider(catalog=catalog_name, **catalog_args)
         setattr(collector, 'instance', provider)
-        setattr(collector, 'provider_name', f'{provider.name} (CUSTOM)')
+        setattr(collector, 'provider_name', f'{provider.driver_name} (CUSTOM)')
         download_order = [collector]
     else:
         # Use parallel flag for providers which has number maximum of connections per client (Sentinel-Hub only)
@@ -175,16 +161,14 @@ def download(activity: dict, **kwargs):
     data_collection = get_provider_collection_from_activity(activity)
 
     prefix = Config.DATA_DIR
-    if collection.collection_type == 'cube':
-        prefix = Config.CUBES_DATA_DIR
 
-    download_file = data_collection.compressed_file(collection, prefix=prefix)
+    download_file = data_collection.compressed_file(collection, prefix=prefix, path_include_month=activity['args']['path_include_month'])
 
     has_compressed_file = download_file is not None
 
     # For files that does not have compressed file (Single file/folder), use native path
     if download_file is None:
-        download_file = data_collection.path(collection)
+        download_file = data_collection.path(collection, path_include_month=activity['args']['path_include_month'])
 
     is_valid_file = False
 
@@ -227,13 +211,16 @@ def download(activity: dict, **kwargs):
                 try:
                     logging.info(f'Trying to download from {collector.provider_name}(id={collector.instance.id})')
 
+                    options = dict()
+                    options['glob_pattern'] = activity['args']['glob_pattern']
+
                     with safe_request():
-                        temp_file = Path(collector.download(scene_id, output=tmp, dataset=activity['args']['dataset']))
+                        temp_file = Path(collector.download(scene_id, output=tmp, kwargs=options))
 
                     activity['args']['provider_id'] = collector.instance.id
 
                     break
-                except DataOfflineError:
+                except (DownloadError, DataOfflineError, InvalidChecksumError):
                     should_retry = True
                 except Exception as e:
                     logging.error(f'Download error in provider {collector.provider_name} - {str(e)}')
@@ -253,7 +240,7 @@ def download(activity: dict, **kwargs):
     return activity
 
 
-@current_app.task(queue='correction')
+@current_app.task(queue=os.getenv('QUEUE_PROCESSOR', 'correction'))
 def correction(activity: dict, collection_id=None, **kwargs):
     """Celery task to deal with Surface Reflectance processors."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=correction.__name__)
@@ -267,10 +254,10 @@ def correction(activity: dict, collection_id=None, **kwargs):
     tmp = None
 
     try:
-        output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR)
+        output_path = data_collection.path(collection, prefix=Config.PUBLISH_DATA_DIR, path_include_month=activity['args']['path_include_month'])
 
-        if collection._metadata and collection._metadata.get('processors'):
-            processor_name = collection._metadata['processors'][0]['name']
+        if collection.metadata_ and collection.metadata_.get('processors'):
+            processor_name = collection.metadata_['processors'][0]['name']
 
             with TemporaryDirectory(prefix='correction_', suffix=f'_{scene_id}', dir=Config.WORKING_DIR) as tmp:
                 shutil.unpack_archive(activity['args']['compressed_file'], tmp)
@@ -303,7 +290,7 @@ def correction(activity: dict, collection_id=None, **kwargs):
 
                         is_sen2cor_file = output_path_entry.stem.startswith(f'{tile}_{sensing_date}')
 
-                        if (output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A'):
+                        if output_path_entry.name.startswith('S2') and sensor_product == 'MSIL2A':
                             logging.info(f'Found {str(output_path_entry)} generated before. Removing it.')
                             shutil.rmtree(output_path_entry, ignore_errors=True)
                         if is_sen2cor_file:
@@ -313,17 +300,16 @@ def correction(activity: dict, collection_id=None, **kwargs):
                     env['OUTDIR'] = str(Path(tmp) / 'output')
 
                     sen2cor(scene_id, input_dir=str(tmp), output_dir=env['OUTDIR'],
-                            docker_container_work_dir=container_workdir.split(' '), **env)
+                            docker_container_work_dir=container_workdir.split(' '),
+                            timeout=kwargs.get('timeout'), **env)
 
                     logging.info(f'Using {entry} of sceneid {scene_id}')
                 else:
                     lasrc_conf = Config.LASRC_CONFIG
 
                     cmd = f'''docker run --rm -i \
-                        -v $INDIR:/mnt/input-dir \
-                        -v $OUTDIR:/mnt/output-dir \
-                        --env INDIR=/mnt/input-dir \
-                        --env OUTDIR=/mnt/output-dir \
+                        -v $INDIR:{Config.LASRC_CONFIG["LASRC_CONTAINER_INPUT_DIR"]} \
+                        -v $OUTDIR:{Config.LASRC_CONFIG["LASRC_CONTAINER_OUTPUT_DIR"]} \
                         -v {lasrc_conf["LASRC_AUX_DIR"]}:/mnt/lasrc-aux:ro \
                         -v {lasrc_conf["LEDAPS_AUX_DIR"]}:/mnt/ledaps-aux:ro \
                         {container_workdir} {lasrc_conf["LASRC_DOCKER_IMAGE"]} {entry}'''
@@ -360,7 +346,11 @@ def correction(activity: dict, collection_id=None, **kwargs):
     return activity
 
 
-@current_app.task(queue='publish')
+@current_app.task(
+    queue=os.getenv('QUEUE_PUBLISH', 'publish'),
+    max_retries=int(os.getenv("TASK_RETRY_COUNT", "72")),
+    default_retry_delay=Config.TASK_RETRY_DELAY
+)
 def publish(activity: dict, collection_id=None, **kwargs):
     """Celery tasks to publish an item on database."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=publish.__name__)
@@ -383,9 +373,11 @@ def publish(activity: dict, collection_id=None, **kwargs):
 
         provider_id = activity['args'].get('provider_id')
 
-        publish_collection(scene_id, data_collection, collection, file,
-                           cloud_cover=activity['args'].get('cloud'),
-                           provider_id=provider_id, publish_hdf=options.get('publish_hdf'))
+        publish_collection_item(scene_id, data_collection, collection, file,
+                                cloud_cover=activity['args'].get('cloud'),
+                                scene_meta=activity['args'].get("scene_meta"),
+                                keep_source=activity['args'].get("keep_source", True),
+                                provider_id=provider_id, publish_hdf=options.get('publish_hdf'), activity=execution.activity.args)
 
         if file:
             refresh_execution_args(execution, activity, file=str(file))
@@ -396,7 +388,7 @@ def publish(activity: dict, collection_id=None, **kwargs):
     return activity
 
 
-@current_app.task(queue='post')
+@current_app.task(queue=os.getenv('QUEUE_POST_PROCESSING', 'post'))
 def post(activity: dict, collection_id=None, **kwargs):
     """Celery task to deal with data post processing."""
     execution = execution_from_collection(activity, collection_id=collection_id, activity_type=post.__name__)
@@ -437,65 +429,3 @@ def post(activity: dict, collection_id=None, **kwargs):
 
     return activity
 
-
-@current_app.task(queue='harmonization')
-def harmonization(activity: dict, collection_id=None, **kwargs):
-    """Harmonize Landsat and Sentinel-2 products."""
-    execution = execution_from_collection(activity, collection_id=collection_id, activity_type=harmonization.__name__)
-
-    collection = execution.activity.collection
-
-    from sensor_harm import landsat_harmonize, sentinel_harmonize
-
-    with TemporaryDirectory(prefix='harmonization', suffix=activity['sceneid']) as tmp:
-        data_collection = get_provider_collection_from_activity(activity)
-
-        data_collection.path(collection)
-
-        target_dir = str(data_collection.path(collection))
-
-        target_tmp_dir = Path(tmp) / 'target'
-
-        target_tmp_dir.mkdir(exist_ok=True, parents=True)
-
-        reflectance_dir = Path(activity['args']['file'])
-
-        glob = list(reflectance_dir.glob(f'**/{activity["sceneid"]}_Fmask4.tif'))
-
-        fmask = glob[0]
-
-        shutil.copy(str(fmask), target_tmp_dir)
-
-        if activity['sceneid'].startswith('S2'):
-            shutil.unpack_archive(activity['args']['compressed_file'], tmp)
-
-            entry = activity['sceneid']
-            entries = list(Path(tmp).glob('*.SAFE'))
-
-            if len(entries) == 1 and entries[0].suffix == '.SAFE':
-                entry = entries[0].name
-
-            l1 = Path(tmp) / entry
-
-            sentinel_harmonize(l1, activity['args']['file'], target_tmp_dir, apply_bandpass=True)
-        else:
-            product_version = int(data_collection.parser.satellite())
-            sat_sensor = '{}{}'.format(data_collection.parser.source()[:2], product_version)
-
-            landsat_harmonize(sat_sensor, activity["sceneid"], activity['args']['file'], str(target_tmp_dir))
-
-        Path(target_dir).mkdir(exist_ok=True, parents=True)
-
-        for entry in Path(target_tmp_dir).iterdir():
-            entry_name = entry.name
-
-            target_entry = Path(target_dir) / entry_name
-
-            if target_entry.exists():
-                os.remove(str(target_entry))
-
-            shutil.move(str(entry), target_dir)
-
-    activity['args']['file'] = target_dir
-
-    return activity

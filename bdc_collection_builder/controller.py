@@ -32,12 +32,14 @@ from sqlalchemy import Date, and_, func, or_
 from werkzeug.exceptions import BadRequest, abort
 
 # Builder
-from .celery.tasks import correction, download, harmonization, post, publish
+from .celery.tasks import correction, download, post, publish
 from .collections.collect import get_provider_order
 from .collections.models import (ActivitySRC, RadcorActivity,
                                  RadcorActivityHistory, db)
 from .collections.utils import get_or_create_model, get_provider, safe_request
 from .forms import CollectionForm, RadcorActivityForm, SimpleActivityForm
+
+from copy import deepcopy
 
 
 def _generate_periods(start_date: datetime, end_date: datetime, unit='m'):
@@ -197,16 +199,6 @@ class RadcorBusiness:
             _task = publish
         elif task_type == 'post':
             _task = post
-        elif task_type == 'harmonization':
-            try:
-                import sensor_harm
-            except ImportError:
-                raise RuntimeError(
-                    'The task harmonization is not installed.'
-                    'Please install with command "pip install -e .[harmonization]"'
-                )
-
-            _task = harmonization
         else:
             raise RuntimeError(f'Task {task_type} not supported.')
 
@@ -214,6 +206,11 @@ class RadcorBusiness:
 
     @classmethod
     def _activity_definition(cls, collection_id, activity_type, scene, **kwargs):
+        data = {}
+        include_meta = kwargs.get("include_meta", False)
+        if include_meta:
+            data["scene_meta"] = scene
+
         return dict(
             collection_id=collection_id,
             activity_type=activity_type,
@@ -222,6 +219,7 @@ class RadcorBusiness:
             scene_type='SCENE',
             args=dict(
                 cloud=scene.cloud_cover,
+                **data,
                 **kwargs
             )
         )
@@ -244,11 +242,15 @@ class RadcorBusiness:
         force = args.get('force', False)
         catalog_args = args.get('catalog_args', dict())
         options = dict()
+        options.update(args.get("catalog_search_args", {}))
 
         if 'platform' in args:
             options['platform'] = args['platform']
 
-        if 'scenes' not in args and 'tiles' not in args:
+        if args.get("geom"):
+            options["geom"] = args["geom"]
+        elif 'scenes' not in args and 'tiles' not in args:
+            # Deprecated
             w, e = float(args['w']), float(args['e'])
             s, n = float(args['s']), float(args['n'])
             bbox = [w, s, e, n]
@@ -292,6 +294,27 @@ class RadcorBusiness:
                         **options
                     )
 
+            tasks_collections = _get_tasks_collections(tasks)
+            where = [
+                Item.collection_id.in_([c.id for c in tasks_collections]),
+                Item.name.in_([scene.scene_id for scene in result]),
+            ]
+            if args.get("start"):
+                where.append(Item.start_date >= args['start'])
+            if args.get("end"):
+                where.append(Item.end_date <= args['end'])
+
+            # Preload items that have been published
+            items_cache = (
+                db.session.query(Item.name, Item.collection_id)
+                .filter(*where)
+                .all()
+            )
+            items_map = {}
+            for item in items_cache:
+                items_map.setdefault(item.name, [])
+                items_map[item.name].append(item.collection_id)
+
             def _recursive(scene, task, parent=None, parallel=True, pass_args=True):
                 """Create task dispatcher recursive."""
                 collection_id = collections_map[task['collection']]
@@ -303,9 +326,15 @@ class RadcorBusiness:
                 # Try to create activity in database and the parent if there is.
                 instance, created = cls.create_activity(activity, parent)
 
-                # When activity already exists and force is not set, skips to avoid collect multiple times
-                if not created and not force:
-                    return None
+                instance.args = deepcopy(activity['args'])
+                instance.save(commit=False)
+
+                if activity["sceneid"] in items_map:
+                    cached_collections = items_map[activity["sceneid"]]
+                    # TODO: Consider children collections
+                    # Skip all scenes that were already published
+                    if collection_id in cached_collections and not force:
+                        return None
 
                 dump = RadcorActivityForm().dump(instance)
                 dump['args'].update(activity['args'])
@@ -357,7 +386,9 @@ class RadcorBusiness:
             db.session.rollback()
             raise
 
-        return result
+        return [{"scene_id": scene.scene_id,
+                 "cloud_cover": scene.cloud_cover,
+                 "link": scene.link} for scene in result]
 
     @classmethod
     def validate_provider(cls, collection_id):
@@ -664,3 +695,28 @@ class RadcorBusiness:
         providers = Provider.query().order_by(Provider.id)
 
         return [dict(id=p.id, name=p.name) for p in providers]
+
+
+def _get_tasks_collections(tasks):
+    """Retrieve the collections associated in tasks for processing."""
+    out = []
+
+    def _get_task_collections(task):
+        collections = [task["collection"]]
+
+        for child in task.get("tasks", []):
+            cs = _get_task_collections(child)
+            if cs:
+                collections.extend(cs)
+
+        return collections
+
+    if len(tasks) == 0:
+        return out
+
+    for task in tasks:
+        collections_ = _get_task_collections(task)
+        out.extend(collections_)
+
+    rows = Collection.query().filter(Collection.identifier.in_(out)).all()
+    return rows

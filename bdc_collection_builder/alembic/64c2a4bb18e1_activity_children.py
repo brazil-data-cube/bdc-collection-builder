@@ -52,7 +52,7 @@ def upgrade():
     op.drop_constraint('activity_history_task_id_celery_taskmeta_fkey', 'activity_history', schema='collection_builder',
                        type_='foreignkey')
     op.create_foreign_key(op.f('activity_history_task_id_celery_taskmeta_fkey'), 'activity_history', 'celery_taskmeta',
-                          ['task_id'], ['id'], source_schema='collection_builder', onupdate='CASCADE', referent_schema='collection_builder',
+                          ['task_id'], ['id'], source_schema='collection_builder', onupdate='CASCADE',
                           ondelete='CASCADE')
     op.drop_constraint('activity_history_activity_id_activities_fkey', 'activity_history', schema='collection_builder',
                        type_='foreignkey')
@@ -79,7 +79,7 @@ def downgrade():
     op.drop_constraint(op.f('activity_history_activity_id_activities_fkey'), 'activity_history', schema='collection_builder', type_='foreignkey')
     op.create_foreign_key('activity_history_activity_id_activities_fkey', 'activity_history', 'activities', ['activity_id'], ['id'], source_schema='collection_builder', referent_schema='collection_builder')
     op.drop_constraint(op.f('activity_history_task_id_celery_taskmeta_fkey'), 'activity_history', schema='collection_builder', type_='foreignkey')
-    op.create_foreign_key('activity_history_task_id_celery_taskmeta_fkey', 'activity_history', 'collection_builder.celery_taskmeta', ['task_id'], ['id'], source_schema='collection_builder', referent_schema='collection_builder')
+    op.create_foreign_key('activity_history_task_id_celery_taskmeta_fkey', 'activity_history', 'celery_taskmeta', ['task_id'], ['id'], source_schema='collection_builder', referent_schema='collection_builder')
     op.drop_constraint(op.f('activities_collection_id_key'), 'activities', schema='collection_builder', type_='unique')
     op.drop_table('activity_src', schema='collection_builder')
     # ### end Alembic commands ###

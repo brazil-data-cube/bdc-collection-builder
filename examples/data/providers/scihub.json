@@ -1,0 +1,10 @@
+{
+    "name": "ESA",
+    "description": "",
+    "url": "https://earth.esa.int/web/guest/home",
+    "driver_name": "SciHub",
+    "credentials": {
+        "username": "user",
+        "password": "pass"
+    }
+}

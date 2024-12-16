@@ -25,52 +25,54 @@ Configuration
 Setting up the Credentials for EO Data Providers
 ------------------------------------------------
 
-The `Collection Builder` uses `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors.git>`_ to consume the remote data providers.
+The ``BDC Collection Builder`` uses `BDC-Collectors <https://github.com/brazil-data-cube/bdc-collectors.git>`_ to access and download
+data from remote providers.
 
-.. note::
-
-    Make sure you have initialized ``BDC-Collectors`` before.
-
-    Use ``SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@localhost/bdc bdc-db db load-scripts`` to
-    load the supported providers on Brazil Data Cube.
-
-    After the Provider configuration, remember to attach the collections to the respective data providers.
 
 Copernicus (Sentinel 2A and 2B)
 +++++++++++++++++++++++++++++++
 
+.. note::
+
+    This step is required if you would like to change credential for ``SciHub/ESA``.
+    The commands make changes in database. Make sure you have exported
+    ``SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host>/<dbname>`` with
+    proper values.
+
+
 In order to search and obtain images from Copernicus SciHub (e.g. Sentinel-2A and 2B images), users must have a registered account at: `<https://scihub.copernicus.eu/dhus/#/self-registration>`_ and confirm validation through email. This account may take a few days to be operational when using it in scripts.
 
-Ensure that provider `SciHub` exists.
+The ``BDC-Collection-Builder`` provide a command line :func:`bdc_collection_builder.cli.load_providers`.
+Edit the ``credentials`` key in the file ``examples/data/providers/scihub.json`` with username and password. After that, load or edit credentials with command::
 
-.. code-block:: sql
+    bdc-collection-builder load-providers --ifile examples/data/providers/scihub.json --update
 
-    SELECT * FROM bdc.providers WHERE name = 'SciHub'
 
-Update the field `credentials` for the provider `SciHub` with the following command:
+Once provider is ``created/updated``, you must attach it into collection as following::
 
-.. code-block:: sql
-
-    UPDATE bdc.providers
-       SET credentials = '{"username": "theuser", "password": "thepass", "api_url": "https://apihub.copernicus.eu/apihub/"}'
-     WHERE name = 'SciHub'
+    bdc-collection-builder set-provider --collection S2_L1C-1 --provider ESA
 
 
 .. note::
 
-    Remember that an SciHub account can download only 2 scenes in parallel.
-    You can also set multiple accounts in `credentials` to have more parallel download support.
-    Just make sure you have a ``Redis`` instance running.
+    You must have a collection ``S2_L1C-1``. Please, check the ``Prepare the Database System`` in install step.
+    The value ``ESA`` is the name of provider found in ``examples/data/providers/scihub.json``.
 
-    .. code-block:: sql
 
-        UPDATE bdc.providers
-           SET credentials = '[
-                   {"username": "theuser1", "password": "thepass1"},
-                   {"username": "theuser2", "password": "thepass2"},
-                   {"username": "theuser3", "password": "thepass3"},
-               ]'
-         WHERE name = 'SciHub'
+The collection ``S2_L1C-1`` will be marked as data origin from provider ``ESA``. You can check it with command::
+
+    bdc-collection-builder overview --collection S2_L1C-1
+
+
+The output::
+
+    -> title: Sentinel-2 - MSI - Level-1C
+    -> name: S2_L1C
+    -> version: 1
+    -> description: Level-1C product provides orthorectified Top-Of-Atmosphere (TOA) reflectance.
+    -> collection_type: collection
+    -> Providers:
+      - ESA, driver=SciHub, priority=1, active=True
 
 
 CREODIAS (Sentinel 2A and 2B)
@@ -86,19 +88,38 @@ to allow ``bdc-collection-builder`` download from `CREODIAS <https://creodias.eu
 
 In order to search and obtain images from SciHub mirror CREODIAS, users must have a registered account at: https://creodias.eu/ and confirm validation through email.
 
-Ensure that provider `CREODIAS` exists.
+Edit the ``credentials`` key in the file ``examples/data/providers/creodias.json`` with username and password. After that, load or edit credentials with command::
 
-.. code-block:: sql
+    bdc-collection-builder load-providers --ifile examples/data/providers/creodias.json --update
 
-    SELECT * FROM bdc.providers WHERE name = 'CREODIAS'
 
-Update the field `credentials` for the provider `CREODIAS` with the following command:
+Once provider is ``created/updated``, you must attach it into collection as following::
 
-.. code-block:: sql
+    bdc-collection-builder set-provider --collection S2_L1C-1 --provider CREODIAS --priority 2
 
-    UPDATE bdc.providers
-       SET credentials = '{"username": "theuser", "password": "thepass"}'
-     WHERE name = 'CREODIAS'
+
+.. note::
+
+    We are configuring ``CREODIAS`` with priority ``2``. In this case, it will be used as fallback if any error
+    occurs in ``ESA``. The lowest value is for priority.
+
+
+Now, if you show overview for collection ``S2_L1C-1``, the provider ``ESA`` and ``CREODIAS`` will be marked as data origin from provider::
+
+    bdc-collection-builder overview --collection S2_L1C-1
+
+
+The output::
+
+    -> title: Sentinel-2 - MSI - Level-1C
+    -> title: Sentinel-2 - MSI - Level-1C
+    -> name: S2_L1C
+    -> version: 1
+    -> description: Level-1C product provides orthorectified Top-Of-Atmosphere (TOA) reflectance.
+    -> collection_type: collection
+    -> Providers:
+      - ESA, driver=SciHub, priority=1, active=True
+      - CREODIAS, driver=CREODIAS, priority=2, active=True
 
 
 USGS (Landsat)
@@ -115,19 +136,14 @@ In order to search and obtain images from USGS Earth Explorer (e. g. Landsat-8 i
     ``Approved``.
 
 
-Ensure that provider `USGS` exists.
+Edit the ``credentials`` key in the file ``examples/data/providers/nasa-usgs.json`` with username and password. After that, load or edit credentials with command::
 
-.. code-block:: sql
+    bdc-collection-builder load-providers --ifile examples/data/providers/nasa-usgs.json --update
 
-    SELECT * FROM bdc.providers WHERE name = 'USGS'
 
-Update the field `credentials` for the provider `USGS` with the following command:
+Once provider is ``created/updated``, you must attach it into collection as following::
 
-.. code-block:: sql
-
-    UPDATE bdc.providers
-       SET credentials = '{"username": "theuser", "password": "thepass"}'
-     WHERE name = 'USGS'
+    bdc-collection-builder set-provider --collection LC8_DN-1 --provider USGS --priority 1
 
 
 Google Cloud Storage
@@ -150,18 +166,23 @@ After that, you must also register an service account key in `Create a Service A
 
 You must set the environment variable ``GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account_key.json`` in order to enable the Google Provider in ``Collection Builder`` application.
 
-If you prefer to set the `GOOGLE_APPLICATION_CREDENTIALS` in database instead export environment variable, use the following steps:
 
-Ensure that provider `Google` exists.
+Edit the ``GOOGLE_APPLICATION_CREDENTIALS`` key in the file ``examples/data/providers/google-datasets.json``. After that, load or edit it with command::
 
-.. code-block:: sql
+    bdc-collection-builder load-providers --ifile examples/data/providers/google-datasets.json --update
 
-    SELECT * FROM bdc.providers WHERE name = 'Google'
 
-Update the field `credentials` for the provider `Google` with the following command:
+Once provider is ``created/updated``, you must attach it into collection as following::
 
-.. code-block:: sql
+    bdc-collection-builder set-provider --collection LC8_DN-1 --provider Google --priority 2
 
-    UPDATE bdc.providers
-       SET credentials = '{"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service_account_key.json"}'
-     WHERE name = 'Google'
+
+
+Remove attached provider from collection
+----------------------------------------
+
+You may need to detach a provider from collection if you having errors in collector as following::
+
+    bdc-collection-builder set-provider --collection S2_L1C-1 --provider CREODIAS --remove
+
+

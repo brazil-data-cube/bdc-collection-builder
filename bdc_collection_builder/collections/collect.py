@@ -19,12 +19,13 @@
 """Module to deal with BDC-Collector integration."""
 
 import logging
-from typing import Any, List, Type
+from typing import Any, List, Type, Tuple
 
-from bdc_catalog.models import CollectionsProviders, Provider, db
+from bdc_catalog.models import Provider, db
 from bdc_collectors.base import BaseProvider
 
-from .utils import get_collector_ext
+from .models import CollectionProviderSetting, ProviderSetting
+from .utils import get_provider_type
 
 
 class DataCollector:
@@ -70,7 +71,7 @@ class DataCollector:
     @property
     def provider_name(self) -> str:
         """Retrieve the provider name."""
-        return self._db_provider.name
+        return self._db_provider.driver_name
 
     def download(self, *args, **kwargs):
         """Download data from remote provider."""
@@ -88,9 +89,9 @@ def get_provider_order(collection: Any, include_inactive=False, **kwargs) -> Lis
     Note:
         This method requires the initialization of extension `bdc_catalog.ext.BDCCatalog`.
 
-    With a given collection, it seeks in `bdc_catalog.models.Provider`
-    and `bdc_catalog.models.CollectionsProviders` association and then
-    look for provider supported in the entry point `bdc_collectors.providers`.
+    With a given collection, it seeks in `ProviderSetting`
+    and `CollectionsProvidersSetting` association and then look
+    for provider supported in the entry point `bdc_collectors.providers`.
 
     Args:
         collection - An instance of bdc_catalog.models.Collection
@@ -101,33 +102,68 @@ def get_provider_order(collection: Any, include_inactive=False, **kwargs) -> Lis
     """
     where = []
 
-    ext = get_collector_ext()
-
     if not include_inactive:
-        where.append(CollectionsProviders.active.is_(True))
+        where.append(CollectionProviderSetting.active.is_(True))
 
     collection_providers = (
-        db.session.query(Provider, CollectionsProviders)
+        db.session
+        .query(ProviderSetting,
+               CollectionProviderSetting.active,
+               CollectionProviderSetting.priority)
         .filter(
-            CollectionsProviders.collection_id == collection.id,
-            Provider.id == CollectionsProviders.provider_id,
+            CollectionProviderSetting.collection_id == collection.id,
+            ProviderSetting.id == CollectionProviderSetting.provider_id,
             *where
         )
-        .order_by(CollectionsProviders.priority.asc())
+        .order_by(CollectionProviderSetting.priority.asc())
         .all()
     )
 
     result = []
 
     for collection_provider in collection_providers:
-        provider_name = collection_provider.Provider.name
+        provider_name = collection_provider.ProviderSetting.driver_name
 
-        provider_class = ext.state.get_provider(provider_name)
+        provider_class = get_provider_type(provider_name)
 
         if provider_class is None:
             logging.warning(f'The collection requires the provider {provider_name} but it is not supported.')
             continue
 
-        result.append(DataCollector(collection_provider.Provider, provider_class, collection_provider.CollectionsProviders, **kwargs))
+        collector = DataCollector(collection_provider.ProviderSetting,
+                                  provider_class, collection_provider, **kwargs)
+        result.append(collector)
 
     return result
+
+
+def create_provider(name: str, driver_name: str,
+                    url: str = None, description: str = None,
+                    update: bool = False, **credentials) -> Tuple[ProviderSetting, bool]:
+    provider = Provider.query().filter(Provider.name == name).first()
+    if provider:
+        provider_setting: ProviderSetting = ProviderSetting.query().filter(ProviderSetting.provider_id == provider.id).first()
+        if provider_setting:
+            if update:
+                with db.session.begin_nested():
+                    provider_setting.driver_name = driver_name
+                    provider_setting.credentials = credentials
+                db.session.commit()
+
+            return provider_setting, False
+
+    with db.session.begin_nested():
+        provider = Provider()
+        provider.name = name
+        provider.description = description
+        provider.url = url
+        provider.save(commit=False)
+
+        provider_setting = ProviderSetting()
+        provider_setting.driver_name = driver_name
+        provider_setting.credentials = credentials
+        provider_setting.provider_id = provider.id
+        provider_setting.save(commit=False)
+
+    db.session.commit()
+    return provider_setting, True

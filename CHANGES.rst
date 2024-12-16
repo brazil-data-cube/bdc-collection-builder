@@ -20,6 +20,36 @@
 Changes
 =======
 
+
+Version 1.0.0 (2024-12-16)
+--------------------------
+
+- Add config for Sen2Cor support processor order
+- Fix package install related setuptools v67+
+- Upgrade bdc-catalog version to 1.0.1
+- Upgrade bdc-collectors to 1.0.0
+- Set right end_date considering composition date for data cubes (modis)
+- Improve exception handling for celery & enqueue processors
+- Add command line to load providers and set collection provider
+- Review Dockerfile signatures
+
+
+Version 1.0.0a2 (2023-01-30)
+----------------------------
+
+- Add config for Sen2Cor support processor order
+- Fix package install related setuptools v67+
+
+
+Version 1.0.0a1 (2023-01-26)
+----------------------------
+
+- Upgrade bdc-catalog version to 1.0.1
+- Improve exception handling for celery & enqueue processors
+- Add command line to load providers and set collection provider
+- Review Dockerfile signatures
+
+
 Version 0.8.4 (2022-09-21)
 --------------------------
 

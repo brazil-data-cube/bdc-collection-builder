@@ -21,8 +21,8 @@
 
 # Python Native
 import contextlib
-import datetime
 import logging
+import os
 import shutil
 import tarfile
 import warnings
@@ -31,7 +31,7 @@ from os import path as resource_path
 from os import remove as resource_remove
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, List, Tuple
+from typing import Tuple
 from urllib3.exceptions import InsecureRequestWarning
 from zipfile import BadZipfile, ZipFile
 from zlib import error as zlib_error
@@ -47,7 +47,6 @@ import requests
 import shapely
 import shapely.geometry
 from bdc_catalog.models import Band, Collection, GridRefSys, MimeType, Provider, ResolutionUnit, db
-from bdc_catalog.utils import multihash_checksum_sha256
 from bdc_collectors.base import BaseProvider
 from bdc_collectors.ext import CollectorExtension
 from botocore.exceptions import ClientError
@@ -59,6 +58,7 @@ from rio_cogeo.profiles import cog_profiles
 from werkzeug.exceptions import abort
 
 from ..config import CURRENT_DIR, Config
+from .models import ProviderSetting, CollectionProviderSetting
 
 
 def get_or_create_model(model_class, defaults=None, engine=None, **restrictions):
@@ -89,17 +89,6 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
     engine.session.add(instance)
 
     return instance, True
-
-
-def load_img(img_path):
-    """Load an image."""
-    try:
-        with rasterio.open(img_path) as dataset:
-            img = dataset.read(1).flatten()
-        return img
-    except:
-        logging.error('Cannot find {}'.format(img_path))
-        raise RuntimeError('Cannot find {}'.format(img_path))
 
 
 def extractall(file, destination=None):
@@ -149,7 +138,7 @@ def generate_cogs(input_data_set_path, file_path, profile='deflate', profile_opt
 
     # Dataset Open option (see gdalwarp `-oo` option)
     config = dict(
-        GDAL_NUM_THREADS="ALL_CPUS",
+        GDAL_NUM_THREADS=int(os.getenv("GDAL_NUM_THREADS", "2")),
         GDAL_TIFF_INTERNAL_MASK=True,
         GDAL_TIFF_OVR_BLOCKSIZE="128",
     )
@@ -231,55 +220,6 @@ def remove_file(file_path: str):
         resource_remove(file_path)
 
 
-def create_asset_definition(href: str, mime_type: str, role: List[str], absolute_path: str,
-                            created=None, is_raster=False):
-    """Create a valid asset definition for collections.
-
-    TODO: Generate the asset for `Item` field with all bands
-
-    Args:
-        href - Relative path to the asset
-        mime_type - Asset Mime type str
-        role - Asset role. Available values are: ['data'], ['thumbnail']
-        absolute_path - Absolute path to the asset. Required to generate check_sum
-        created - Date time str of asset. When not set, use current timestamp.
-        is_raster - Flag to identify raster. When set, `raster_size` and `chunk_size` will be set to the asset.
-    """
-    fmt = '%Y-%m-%dT%H:%M:%S'
-    _now_str = datetime.datetime.utcnow().strftime(fmt)
-
-    if created is None:
-        created = _now_str
-    elif isinstance(created, datetime.datetime):
-        created = created.strftime(fmt)
-
-    asset = {
-        'href': str(href),
-        'type': mime_type,
-        'bdc:size': Path(absolute_path).stat().st_size,
-        'checksum:multihash': multihash_checksum_sha256(str(absolute_path)),
-        'roles': role,
-        'created': created,
-        'updated': _now_str
-    }
-
-    if is_raster:
-        with rasterio.open(str(absolute_path)) as data_set:
-            asset['bdc:raster_size'] = dict(
-                x=data_set.shape[1],
-                y=data_set.shape[0],
-            )
-
-            chunk_x, chunk_y = data_set.profile.get('blockxsize'), data_set.profile.get('blockxsize')
-
-            if chunk_x is None or chunk_x is None:
-                return asset
-
-            asset['bdc:chunk_size'] = dict(x=chunk_x, y=chunk_y)
-
-    return asset
-
-
 def raster_extent(file_path: str, epsg='EPSG:4326') -> shapely.geometry.Polygon:
     """Get raster extent in arbitrary CRS.
 
@@ -292,7 +232,9 @@ def raster_extent(file_path: str, epsg='EPSG:4326') -> shapely.geometry.Polygon:
     """
     with rasterio.open(str(file_path)) as data_set:
         _geom = shapely.geometry.mapping(shapely.geometry.box(*data_set.bounds))
-        return shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom, precision=6))
+        geom = shapely.geometry.shape(rasterio.warp.transform_geom(data_set.crs, epsg, _geom))
+
+        return geom
 
 
 def raster_convexhull(file_path: str, epsg='EPSG:4326', no_data=None) -> dict:
@@ -494,18 +436,21 @@ def is_valid_tar_gz(file_path: str):
         return False
 
 
-def get_collector_ext() -> CollectorExtension:
-    """Retrieve the loaded collector extension (BDC-Collectors)."""
-    return current_app.extensions['bdc_collector']
+def get_provider(catalog, **kwargs) -> Tuple[ProviderSetting, BaseProvider]:
+    """Retrieve ProviderSetting related with bdc_catalog.models.Provider."""
+    provider = (
+        Provider.query()
+        .filter(Provider.name == catalog)
+        .first_or_404(f'Provider {catalog} not found')
+    )
 
+    provider_setting: ProviderSetting = (
+        ProviderSetting.query()
+        .filter(ProviderSetting.provider_id == provider.id)
+        .first_or_404(f'Provider "{catalog}" is not related with ProviderSetting.')
+    )
 
-def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
-    """Retrieve the bdc_catalog.models.Provider instance with the respective Data Provider."""
-    provider = Provider.query().filter(Provider.name == catalog).first_or_404(f'Provider "{catalog}" not found.')
-
-    ext = get_collector_ext()
-
-    provider_type = ext.get_provider(catalog)
+    provider_type = get_provider_type(provider_setting.driver_name)
 
     if provider_type is None:
         abort(400, f'Catalog {catalog} not supported.')
@@ -514,14 +459,28 @@ def get_provider(catalog, **kwargs) -> Tuple[Provider, BaseProvider]:
     options.setdefault('lazy', True)
     options.setdefault('progress', False)
 
-    if isinstance(provider.credentials, dict):
-        opts = dict(**provider.credentials)
+    if isinstance(provider_setting.credentials, dict):
+        opts = dict(**provider_setting.credentials)
         opts.update(options)
         provider_ext = provider_type(**opts)
     else:
-        provider_ext = provider_type(*provider.credentials, **options)
+        provider_ext = provider_type(*provider_setting.credentials, **options)
 
-    return provider, provider_ext
+    return provider_setting, provider_ext
+
+
+def get_provider_type(catalog: str):
+    """Retrieve the driver for Data Collector.
+
+    Seek in bdc-collectors app for the driver type for catalog representation.
+    """
+    ext = get_collector_ext()
+    return ext.get_provider(catalog)
+
+
+def get_collector_ext() -> CollectorExtension:
+    """Retrieve the loaded collector extension (BDC-Collectors)."""
+    return current_app.extensions['bdc_collector']
 
 
 def get_epsg_srid(file_path: str) -> int:
@@ -532,6 +491,9 @@ def get_epsg_srid(file_path: str) -> int:
 
     When no code found, returns None.
     """
+    from bdc_catalog.models import SpatialRefSys
+    from sqlalchemy import or_
+
     with rasterio.open(str(file_path)) as ds:
         crs = ds.crs
 
@@ -551,13 +513,19 @@ def get_epsg_srid(file_path: str) -> int:
     ref.ImportFromWkt(wkt)
 
     code = ref.GetAuthorityCode(None)
+    if not code:
+        model = SpatialRefSys.query.filter(
+            or_(SpatialRefSys.srtext == wkt, SpatialRefSys.proj4text == ref.ExportToProj4())
+        ).first()
+        code = model.srid if model is not None else None
+
     return int(code) if str(code).isnumeric() else None
 
 
 def is_sen2cor(collection: Collection) -> bool:
     """Check if the given collection is a Sen2cor product."""
-    if collection._metadata and collection._metadata.get('processors'):
-        processors = collection._metadata['processors']
+    if collection.metadata_ and collection.metadata_.get('processors'):
+        processors = collection.metadata_['processors']
 
         for processor in processors:
             if processor.get('name', '').lower() == 'sen2cor':
@@ -580,7 +548,7 @@ def safe_request():
     if not Config.DISABLE_SSL:
         yield
 
-    logging.info('Disabling SSL validation')
+    logging.debug('Disabling SSL validation')
 
     def _merge_environment_settings(self, url, proxies, stream, verify, cert):
         """Stack the opened contexts into heap and set all the active adapters with verify=False."""
@@ -607,7 +575,7 @@ def safe_request():
                 pass
 
 
-def create_collection(name: str, version: int, bands: list, **kwargs) -> Tuple[Collection, bool]:
+def create_collection(name: str, version: int, bands: list, category: str = 'eo', **kwargs) -> Tuple[Collection, bool]:
     collection = (
         Collection.query()
         .filter(Collection.name == name,
@@ -622,8 +590,9 @@ def create_collection(name: str, version: int, bands: list, **kwargs) -> Tuple[C
         collection.collection_type = kwargs.get('collection_type', 'collection')
         collection.grs = GridRefSys.query().filter(GridRefSys.name == kwargs.get('grid_ref_sys')).first()
         collection.description = kwargs.get('description')
-        collection.is_public = kwargs.get('is_public', False)
         collection.title = kwargs.get('title', collection.name)
+        collection.category = category
+        collection.is_available = kwargs.get('is_available', True)
 
         for band in bands:
             band_obj = Band(collection=collection, name=band['name'])
@@ -640,3 +609,14 @@ def create_collection(name: str, version: int, bands: list, **kwargs) -> Tuple[C
     db.session.commit()
 
     return collection, True
+
+
+def delete_collection_provider(collection_id, provider_id):
+    with db.session.begin_nested():
+        instance = CollectionProviderSetting.query().filter(
+            CollectionProviderSetting.collection_id == collection_id,
+            CollectionProviderSetting.provider_id == provider_id,
+        ).first()
+        if instance:
+            db.session.delete(instance)
+    db.session.commit()

@@ -25,7 +25,8 @@ from ..config import Config
 
 
 def sen2cor(scene_id: str, input_dir: str, output_dir: str,
-            docker_container_work_dir: list, version: Optional[str] = None, **env):
+            docker_container_work_dir: list, version: Optional[str] = None,
+            timeout=None, **env):
     """Execute Sen2Cor data processor using Docker images.
 
     Note:
@@ -44,6 +45,7 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         version (str): Sen2Cor version to execute.
             Remember that you must exist the version in docker registry. Defaults is ``None``, which
             automatically tries the versions '2.10.0', '2.8.0', '2.5.5', respectively.
+        timeout (int): Timeout for Sen2Cor exec. Defaults to ``SEN2COR_TIMEOUT``.
     Keyword Args:
         any: Custom Environment variables, use Python spread kwargs.
     """
@@ -52,9 +54,9 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         args = [
             'docker', 'run', '--rm', '-i',
             '--name', scene_id,
-            '-v', f'{input_dir}:/mnt/input-dir',
-            '-v', f'{output_dir}:/mnt/output-dir',
-            '-v', f'{Config.SEN2COR_CONFIG["SEN2COR_AUX_DIR"]}:/mnt/aux_data',
+            '-v', f'{input_dir}:{Config.SEN2COR_CONFIG["SEN2COR_CONTAINER_INPUT_DIR"]}',
+            '-v', f'{output_dir}:{Config.SEN2COR_CONFIG["SEN2COR_CONTAINER_OUTPUT_DIR"]}',
+            '-v', f'{Config.SEN2COR_CONFIG["SEN2COR_DIR"]}/CCI4SEN2COR:/mnt/aux_data',
             '-v', f'{Config.SEN2COR_CONFIG["SEN2COR_DIR"]}/{version_minor}/cfg/L2A_GIPP.xml:/opt/sen2cor/{version}/cfg/L2A_GIPP.xml',
             *docker_container_work_dir,
             f'{Config.SEN2COR_CONFIG["SEN2COR_DOCKER_IMAGE"]}:{version}',
@@ -62,18 +64,25 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         ]
 
         logging.info(f'Using Sen2Cor {version}')
+        timeout = timeout or Config.SEN2COR_CONFIG['SEN2COR_TIMEOUT']
 
-        process = subprocess.Popen(args, env=env, stdin=subprocess.PIPE)
-        process.wait()
+        try:
+            process = subprocess.Popen(args, env=env, stdin=subprocess.PIPE)
+            process.wait(timeout=timeout)
 
-        if process.returncode != 0:
-            raise RuntimeError(f'Could not execute Sen2Cor using {version}')
+            if process.returncode != 0:
+                raise RuntimeError(f'Could not execute Sen2Cor using {version}')
 
-        output_tmp = list(Path(output_dir).iterdir())[0]
+            output_tmp = list(Path(output_dir).iterdir())[0]
 
-        output_path = Path(output_dir) / output_tmp.name
+            output_path = Path(output_dir) / output_tmp.name
 
-        return output_path
+            return output_path
+        except subprocess.TimeoutExpired:
+            # Ensure Docker was stopped
+            proc = subprocess.Popen(['docker', 'stop', scene_id])
+            proc.wait(timeout=30)
+            raise RuntimeError(f'TimeoutExpired for Sen2Cor {version}')
 
     def _safe_execute(*args, **kwargs):
         try:
@@ -81,7 +90,7 @@ def sen2cor(scene_id: str, input_dir: str, output_dir: str,
         except RuntimeError as e:
             return None, e
 
-    versions_supported = ['2.10.0', '2.8.0', '2.5.5']
+    versions_supported = Config.SEN2COR_CONFIG['SEN2COR_VERSIONS_SUPPORTED'].split(';')
 
     err = None
     for version in versions_supported:

@@ -22,6 +22,7 @@ import logging
 import mimetypes
 import os
 import shutil
+from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
@@ -36,15 +37,13 @@ from flask import current_app
 from geoalchemy2.shape import from_shape
 from numpngw import write_png
 from PIL import Image
-from skimage import exposure
-from skimage.transform import resize
 
 from ..collections.index_generator import generate_band_indexes
-from ..collections.utils import (create_asset_definition, generate_cogs,
-                                 get_epsg_srid, get_or_create_model,
+from ..collections.utils import (generate_cogs, get_epsg_srid, get_or_create_model,
                                  is_sen2cor, raster_convexhull, raster_extent)
 from ..config import Config
 from ..constants import COG_MIME_TYPE, DEFAULT_SRID
+import re
 
 
 def guess_mime_type(extension: str, cog=False) -> Optional[str]:
@@ -80,16 +79,13 @@ def create_quick_look(file_output, red_file, green_file, blue_file, rows=768, co
     nb = 0
     for band in [red_file, green_file, blue_file]:
         with rasterio.open(band) as data_set:
-            raster = data_set.read(1)
+            raster = data_set.read(1, out_shape=(rows, cols))
 
-        raster = resize(raster, (rows, cols), order=1, preserve_range=True)
-        no_data_pos = raster == no_data
-        # Evaluate minimum and maximum values
-        a = numpy.array(raster.flatten())
-        p1, p99 = numpy.percentile(a[a > 0], (1, 99))
-        # Convert minimum and maximum values to 1,255 - 0 is nodata
-        raster = exposure.rescale_intensity(raster, in_range=(p1, p99), out_range=(1, 255)).astype(numpy.uint8)
-        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(no_data_pos)
+        nodata_values = raster == no_data
+        if raster.min() != 0 or raster.max() != 0:
+            raster = raster.astype(numpy.float32) / 10000. * 255.
+            raster[raster > 255] = 255
+        image[:, :, nb] = raster.astype(numpy.uint8) * numpy.invert(nodata_values)
         nb += 1
 
     write_png(str(file_output), image, transparent=(0, 0, 0))
@@ -115,7 +111,7 @@ def compress_raster(input_path: str, output_path: str, algorithm: str = 'deflate
         shutil.move(tmp_file, output_path)
 
 
-def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
+def _asset_definition(path, band=None, is_raster=False, cog=False, role=['data'], **options):
     href = _item_prefix(path, **options)
 
     if band and band.mime_type:
@@ -123,11 +119,11 @@ def _asset_definition(path, band=None, is_raster=False, cog=False, **options):
     else:
         mime_type = guess_mime_type(path.name, cog=cog)
 
-    return create_asset_definition(
+    return Item.create_asset_definition(
+        file=str(path),
         href=href,
         mime_type=mime_type,
-        role=['data'],
-        absolute_path=str(path),
+        role=role,
         is_raster=is_raster
     )
 
@@ -185,8 +181,8 @@ def generate_quicklook_pvi(safe_folder: Path, quicklook: Path):
     Image.open(str(pvi)).save(str(quicklook))
 
 
-def publish_collection(scene_id: str, data: BaseCollection, collection: Collection, file: str,
-                       cloud_cover=None, provider_id: Optional[int] = None, **kwargs) -> Item:
+def publish_collection_item(scene_id: str, data: BaseCollection, collection: Collection, file: str,
+                       cloud_cover=None, provider_id: Optional[int] = None, scene_meta=None, **kwargs) -> Item:
     """Generate the Cloud Optimized Files for Image Collection and publish meta information in database.
 
     Notes:
@@ -207,30 +203,39 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     """
     file_band_map = dict()
     assets = dict()
-    old_file_path = file
     asset_item_prefix = Config.ITEM_PREFIX
     prefix = Config.PUBLISH_DATA_DIR
+    path_include_month = kwargs['activity'].get('path_include_month')
 
     temporary_dir = TemporaryDirectory()
     srid = DEFAULT_SRID
 
     data_prefix = Config.PUBLISH_DATA_DIR
-    if collection.collection_type == 'cube':
-        data_prefix = Config.CUBES_DATA_DIR
-        if not data_prefix.endswith('/composed'):
-            data_prefix = os.path.join(data_prefix, 'composed')
+
+    start_date = data.parser.sensing_date()
+    end_date = start_date
+
+    # Special treatment for file partially processed
+    if not os.path.exists(file):
+        item: Optional[Item] = Item.query().filter(Item.name == scene_id, Item.collection_id == collection.id).first()
+        if item is None:
+            raise IOError(f"File {file} not found.")
+        # TODO: validate the assets paths
+        logging.info(f"Item {item.name} published")
+        return item
 
     # Get Destination Folder
-    destination = data.path(collection, prefix=data_prefix)
+    destination = data.path(collection, prefix=data_prefix, path_include_month=path_include_month)
 
     is_sen2cor_flag = is_sen2cor(collection)
 
     geom = convex_hull = None
 
     is_compressed = str(file).endswith('.zip') or str(file).endswith('.tar.gz')
+    quicklook = None
 
     if is_compressed:
-        destination = data.compressed_file(collection).parent
+        destination = data.compressed_file(collection, path_include_month=path_include_month).parent
 
         tmp = Path(temporary_dir.name)
 
@@ -247,33 +252,39 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
         quicklook = Path(destination) / f'{scene_id}.png'
 
-        assets['asset'] = create_asset_definition(
+        assets['asset'] = Item.create_asset_definition(
             href=_item_prefix(Path(file), item_prefix=asset_item_prefix),
             mime_type=guess_mime_type(file),
             role=['data'],
-            absolute_path=str(file)
+            file=str(file)
         )
 
         if scene_id.startswith('S2'):
             pvi = list(tmp.rglob('**/*PVI*.jp2'))[0]
             band2 = list(tmp.rglob('**/*B02.jp2'))[0]
             srid = get_epsg_srid(str(band2))
-            mtd = list(tmp.rglob('**/MTD_MSIL1C.xml'))[0]
+
+            mtd = '**/MTD_MSIL1C.xml'
+            if '_MSIL2A_' in scene_id:
+                mtd = '**/MTD_MSIL2A.xml'
+            mtd = list(tmp.rglob(mtd))[0]
 
             geom = from_shape(raster_extent(str(band2)), srid=4326)
             convex_hull = from_shape(get_footprint_sentinel(str(mtd)), srid=4326)
 
+            quicklook.parent.mkdir(exist_ok=True, parents=True)
             Image.open(str(pvi)).save(str(quicklook))
 
-            assets['thumbnail'] = create_asset_definition(
+            assets['thumbnail'] = Item.create_asset_definition(
                 href=_item_prefix(quicklook, item_prefix=asset_item_prefix),
                 mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
-                absolute_path=str(quicklook)
+                file=str(quicklook)
             )
-        elif data.parser.source() in ('LC08', 'LE07', 'LT05', 'LT04'):
+        elif data.parser.source() in ('LC09', 'LC08', 'LE07', 'LT05', 'LT04'):
             file_band_map = data.get_files(collection, path=tmp)
-            band2 = str(file_band_map['B2'])
+            band_ref = 'B2' if int(data.parser.level()) == 1 else 'SR_B2'
+            band2 = str(file_band_map[band_ref])
             srid = get_epsg_srid(str(band2))
             geom = from_shape(raster_extent(band2), srid=4326)
             convex_hull = from_shape(raster_convexhull(band2, no_data=0), srid=4326)
@@ -286,9 +297,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
     if str(file).endswith('.hdf'):
         from ..collections.hdf import to_geotiff
 
-        opts = dict(prefix=Config.CUBES_DATA_DIR)
+        opts = dict(prefix=Config.DATA_DIR, path_include_month=path_include_month)
 
-        asset_item_prefix = Config.CUBES_ITEM_PREFIX
+        asset_item_prefix = Config.ITEM_PREFIX
         prefix = data_prefix
         opts['prefix'] = prefix
 
@@ -297,9 +308,9 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         destination.mkdir(parents=True, exist_ok=True)
 
         band_map = {
-            b.name: dict(nodata=float(b.nodata),
-                         min_value=float(b.min_value),
-                         max_value=float(b.max_value))
+            b.name: dict(nodata=float(b.nodata) if b.nodata is not None else None,
+                         min_value=float(b.min_value) if b.min_value is not None else None,
+                         max_value=float(b.max_value) if b.max_value is not None else None)
 
             for b in collection.bands
         }
@@ -307,7 +318,21 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         item_result = to_geotiff(file, temporary_dir.name, band_map=band_map)
         files = dict()
 
+        if collection.collection_type == "cube":
+            schema = collection.temporal_composition_schema
+            if schema is not None:
+                # TODO: Its working only delta time continuous
+                # The step -1 reprents that the delta time should consider the first day
+                step = schema["step"] - 1
+                unit = schema["unit"]
+                opts = {f"{unit}s": step}
+                delta = timedelta(**opts)
+                end_date = (start_date + delta).replace(hour=23, minute=59, second=59)
+
         if item_result.files:
+            # Force cloud cover from data
+            cloud_cover = item_result.cloud_cover
+
             ref = list(item_result.files.values())[0]
             srid = get_epsg_srid(str(ref))
 
@@ -320,14 +345,18 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
             if convex_hull.area > 0.0:
                 convex_hull = from_shape(convex_hull, srid=4326)
+            else:
+                convex_hull = geom
 
         if kwargs.get('publish_hdf'):
+            _rm_dir(destination)
+
             # Generate Quicklook and append asset
-            assets['asset'] = create_asset_definition(
-                href=_item_prefix(Path(file), prefix=Config.CUBES_DATA_DIR, item_prefix=Config.CUBES_ITEM_PREFIX),
+            assets['asset'] = Item.create_asset_definition(
+                href=_item_prefix(Path(file), prefix=Config.DATA_DIR, item_prefix=Config.ITEM_PREFIX),
                 mime_type=guess_mime_type(file),
                 role=['data'],
-                absolute_path=str(file)
+                file=str(file)
             )
 
             file_band_map = item_result.files
@@ -340,9 +369,28 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         file = destination
         cloud_cover = item_result.cloud_cover
     else:
-        files = data.get_files(collection, path=file)
+        files = {}
+        if not is_compressed:
+            files = data.get_files(collection, path=file)
+
+    items_to_publish = kwargs['activity'].get('items_to_publish')
 
     extra_assets = data.get_assets(collection, path=file)
+
+    if items_to_publish:
+
+        if is_compressed:
+            extra_assets = data.get_assets(collection, path=temporary_dir.name)
+
+        assets.pop('asset')
+        assets.pop('thumbnail', None)
+
+        extra_assets['PVI'] = str(quicklook)
+
+        for item in items_to_publish:
+
+            files[item['name']] = list(tmp.rglob(item['pattern']))[0]
+
 
     tile = Tile.query().filter(
         Tile.name == tile_id,
@@ -359,7 +407,14 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         is_raster = path.suffix.lower() in ('.tif', '.jp2')
 
         if is_raster:
-            target_file = path.parent / f'{path.stem}.tif'
+            basedir = destination.parent
+            filename, total_sub = re.subn('(MSIL1C|MSIL2A)', band_name, destination.name)
+
+            if total_sub == 0:  # fallback to default path handler, todo: review it as module path resolver
+                filename = path.stem
+                basedir = destination
+
+            target_file = basedir / f'{filename}.tif'
 
             if band_name not in ('AOT', 'WVP'):
                 generate_cogs(file, target_file)
@@ -412,13 +467,24 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         for asset_name, asset_file in extra_assets.items():
             asset_file_path = Path(asset_file)
 
+            suffix = asset_file_path.suffix
+
+            filename = re.sub('(MSIL1C|MSIL2A)', asset_name, destination.name)
+
+            asset_file_path = destination.parent / Path(filename+suffix)
+
+            shutil.move(asset_file, str(asset_file_path))
+
             is_raster = asset_file_path.suffix.lower() in ('.tif',)
+            is_cog = False
 
             if is_raster:
                 compress_raster(str(asset_file_path), str(asset_file_path))
 
             if asset_file_path.suffix.lower() in ('.jp2',):
-                asset_file_path_tif = asset_file_path.parent / f'{asset_file_path.stem}.tif'
+                is_cog = True
+
+                asset_file_path_tif = destination.parent / f'{asset_file_path.stem}.tif'
 
                 generate_cogs(str(asset_file_path), str(asset_file_path_tif))
 
@@ -427,7 +493,19 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
                 asset_file_path = asset_file_path_tif
 
-            assets[asset_name] = _asset_definition(asset_file_path, is_raster=is_raster, cog=False, item_prefix=asset_item_prefix, prefix=prefix)
+            asset_definition_params = dict(
+                path=asset_file_path,
+                is_raster=is_raster,
+                cog=is_cog,
+                item_prefix=asset_item_prefix,
+                prefix=prefix
+            )
+
+            if asset_name == 'PVI':
+
+                asset_definition_params.update(dict(role=['thumbnail']))
+
+            assets[asset_name] = _asset_definition(**asset_definition_params)
 
     index_bands = generate_band_indexes(scene_id, collection, file_band_map)
 
@@ -441,11 +519,11 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
         quicklook = Path(destination) / f'{scene_id}.png'
         generate_quicklook_pvi(destination, quicklook)
         relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
-        assets['thumbnail'] = create_asset_definition(
+        assets['thumbnail'] = Item.create_asset_definition(
             href=relative_quicklook,
             mime_type=guess_mime_type(str(quicklook)),
             role=['thumbnail'],
-            absolute_path=str(quicklook)
+            file=str(quicklook)
         )
 
     if collection.quicklook and not is_sen2cor_flag:
@@ -463,29 +541,41 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             green_file = file_band_map[collection_bands[collection.quicklook[0].green]]
             blue_file = file_band_map[collection_bands[collection.quicklook[0].blue]]
 
-            quicklook = Path(destination) / f'{scene_id}.png'
+            basedir = Path(destination)
+            if kwargs.get('publish_hdf'):
+                basedir = basedir.parent
+
+            quicklook = basedir / f'{scene_id}.png'
+            basedir.mkdir(exist_ok=True, parents=True)
 
             create_quick_look(str(quicklook), red_file, green_file, blue_file, no_data=nodata)
 
             relative_quicklook = _item_prefix(quicklook, item_prefix=asset_item_prefix, prefix=prefix)
 
-            assets['thumbnail'] = create_asset_definition(
+            assets['thumbnail'] = Item.create_asset_definition(
                 href=relative_quicklook,
                 mime_type=guess_mime_type(str(quicklook)),
                 role=['thumbnail'],
-                absolute_path=str(quicklook)
+                file=str(quicklook)
             )
         except Exception as e:
             logging.warning(f'Could not generate quicklook for {scene_id} due {str(e)}')
 
     provider = Provider.query().filter(Provider.id == provider_id).first()
 
-    # TODO: Log files/bands which was not published.
+    if not geom and scene_meta:
+        geofootprint = scene_meta.get("GeoFootprint")
+        if geofootprint:
+            shapely_geom = shapely.geometry.shape(geofootprint)
+            convex_hull = from_shape(shapely_geom, srid=4326)
+            geom = from_shape(shapely_geom.envelope, srid=4326)
+
+            # TODO: Log files/bands which was not published.
 
     with db.session.begin_nested():
         item_defaults = dict(
-            start_date=data.parser.sensing_date(),
-            end_date=data.parser.sensing_date()
+            start_date=start_date,
+            end_date=end_date
         )
 
         where = dict(name=scene_id, collection_id=collection.id)
@@ -495,11 +585,17 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
             item.updated = datetime.datetime.utcnow()
 
         item.assets = assets
+        item.start_date = start_date
+        item.end_date = end_date
         item.cloud_cover = cloud_cover
-        item.geom = geom
+        item.bbox = geom
         item.srid = srid
-        item.convex_hull = convex_hull
+        item.footprint = convex_hull
         item.provider = provider
+        item.is_available = True
+        item.updated = datetime.datetime.utcnow()
+        if scene_meta:
+            item.metadata_ = scene_meta
 
         if tile is not None:
             item.tile_id = tile.id
@@ -508,11 +604,21 @@ def publish_collection(scene_id: str, data: BaseCollection, collection: Collecti
 
     db.session.commit()
 
-    if is_compressed and destination:
-        if not destination_file.exists():
-            shutil.move(str(old_file_path), str(destination))
-
-    logging.info(f'Cleaning up {temporary_dir.name}')
+    logging.info(f'Cleaning up temporary {temporary_dir.name}')
     shutil.rmtree(temporary_dir.name)
 
+    if quicklook:
+        _rm_dir(str(quicklook.parent))
+
+    if not kwargs.get("keep_source"):
+        logging.info(f"Removing source {str(destination)}")
+        shutil.rmtree(destination)
+
     return item
+
+
+def _rm_dir(directory):
+    try:
+        os.rmdir(directory)
+    except:
+        pass

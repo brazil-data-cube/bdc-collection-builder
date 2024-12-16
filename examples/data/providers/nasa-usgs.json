@@ -1,0 +1,10 @@
+{
+    "name": "USGS",
+    "description": "",
+    "url": "https://landsat.usgs.gov/",
+    "driver_name": "USGS",
+    "credentials": {
+        "username": "user",
+        "password": "pass"
+    }
+}

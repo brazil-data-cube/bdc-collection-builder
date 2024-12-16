@@ -19,6 +19,7 @@
 """Celery module used in Brazil Data Cube."""
 
 import logging
+import os
 
 import flask
 from bdc_catalog.models import db
@@ -43,7 +44,7 @@ def create_celery_app(flask_app: Flask):
         flask_app (flask.Flask): Flask app
 
     Returns:
-        Celery celery app
+        Celery app
     """
     celery = Celery(
         flask_app.import_name,
@@ -55,16 +56,19 @@ def create_celery_app(flask_app: Flask):
 
     # Set same config of Flask into Celery flask_app
     celery.conf.update(flask_app.config)
+    prefetch_multiplier = os.getenv("CELERYD_PREFETCH_MULTIPLIER", "2")
+    if not prefetch_multiplier or not prefetch_multiplier.isnumeric():
+        raise RuntimeError(f"Invalid value for CELERYD_PREFETCH_MULTIPLIER {prefetch_multiplier}. Use int values.")
 
     always_eager = flask_app.config.get('TESTING', False)
     celery.conf.update(dict(
-        CELERY_TASK_ALWAYS_EAGER=always_eager,
-        CELERYD_PREFETCH_MULTIPLIER=Config.CELERYD_PREFETCH_MULTIPLIER,
-        CELERY_RESULT_BACKEND='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
-        DATABASE_TABLE_SCHEMAS=dict(
-            task=Config.ACTIVITIES_SCHEMA,
-            group=Config.ACTIVITIES_SCHEMA
-        )
+        task_track_started=True,
+        task_always_eager=always_eager,
+        task_acks_late=True,  # Only remove from Broker when task has been executed.
+        result_backend='db+{}'.format(flask_app.config.get('SQLALCHEMY_DATABASE_URI')),
+        database_table_schemas={},
+        worker_prefetch_multiplier=int(prefetch_multiplier),
+        broker_connection_retry_on_startup=True
     ))
 
     TaskBase = celery.Task

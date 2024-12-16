@@ -16,8 +16,6 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 #
 
-version: '3.1'
-
 networks:
   bdc_net:
 
@@ -63,7 +61,7 @@ services:
       context: .
       dockerfile: ./docker/Dockerfile
     container_name: bdc-collection-builder-api
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    image: bdc/bdc-collection-builder:latest
     restart: "always"
     environment:
       - "REDIS_URL=redis://bdc-collection-builder-redis:6379"
@@ -86,7 +84,7 @@ services:
 #  Celery
   worker-download:
     container_name: bdc-collection-builder-worker-download
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder:latest
+    image: bdc/bdc-collection-builder:latest
     restart: "always"
     depends_on:
       - mq
@@ -108,7 +106,7 @@ services:
       context: .
       dockerfile: ./docker/Dockerfile.atm
     container_name: bdc-collection-builder-worker-atm-correction
-    image: registry.dpi.inpe.br/brazildatacube/bdc-collection-builder-atm:latest
+    image: bdc/bdc-collection-builder-atm:latest
     restart: "always"
     depends_on:
       - mq
@@ -132,7 +130,7 @@ services:
     volumes:
       - /data:/data
       - /mnt/auxiliaries:/mnt/auxiliaries
-    entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "atm-correction"]
+    entrypoint: ["celery", "worker", "-A", "bdc_collection_builder.celery.worker:celery", "-l", "INFO", "--concurrency", "2", "-Q", "correction"]
     networks:
       - bdc_net
 

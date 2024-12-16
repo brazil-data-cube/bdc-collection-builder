@@ -39,7 +39,7 @@ class Config:
     ACTIVITIES_SCHEMA = os.environ.get('ACTIVITIES_SCHEMA', 'collection_builder')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'SQLALCHEMY_DATABASE_URI',
-        'postgresql://postgres:postgres@localhost:5432/bdc_catalog?application_name=local-collection'
+        'postgresql://postgres:postgres@localhost:5432/bdc?application_name=local-collection'
     )
 
     # LaSRC/Fmask4 Processor
@@ -47,6 +47,8 @@ class Config:
         LASRC_DOCKER_IMAGE=os.getenv('LASRC_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/lasrc-ledaps-fmask:1.0.2'),
         LASRC_AUX_DIR=os.getenv('LASRC_AUX_DIR', '/data/auxiliaries/lasrc'),
         LEDAPS_AUX_DIR=os.getenv('LEDAPS_AUX_DIR', '/data/auxiliaries/ledaps'),
+        LASRC_CONTAINER_INPUT_DIR=os.getenv('LASRC_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
+        LASRC_CONTAINER_OUTPUT_DIR=os.getenv('LASRC_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
     )
     # Sen2Cor/Fmask Processor
     SEN2COR_CONFIG = dict(
@@ -54,6 +56,11 @@ class Config:
         SEN2COR_DOCKER_IMAGE=os.getenv('SEN2COR_DOCKER_IMAGE', 'registry.dpi.inpe.br/brazildatacube/sen2cor:2.8.0'),
         SEN2COR_AUX_DIR=os.getenv('SEN2COR_AUX_DIR', '/data/auxiliaries/sen2cor/CCI4SEN2COR'),
         SEN2COR_CONFIG_DIR=os.getenv('SEN2COR_CONFIG_DIR', '/data/auxiliaries/sen2cor/config/2.8'),
+        SEN2COR_CONTAINER_INPUT_DIR=os.getenv('SEN2COR_CONTAINER_INPUT_DIR', '/mnt/input-dir'),
+        SEN2COR_CONTAINER_OUTPUT_DIR=os.getenv('SEN2COR_CONTAINER_OUTPUT_DIR', '/mnt/output-dir'),
+        SEN2COR_VERSIONS_SUPPORTED=os.getenv('SEN2COR_VERSIONS_SUPPORTED',
+                                             '2.11.0;2.10.0;2.8.0;2.5.5'),
+        SEN2COR_TIMEOUT=int(os.getenv('SEN2COR_TIMEOUT', '5400'))  # Timeout execution for any instance of Sen2Cor.
     )
     # The working directory for ATM Correction. Default is None.
     CONTAINER_WORKDIR = os.getenv('CONTAINER_WORKDIR', None)
@@ -92,9 +99,7 @@ class Config:
     # Disable any entry related requests and SSL validation.
     DISABLE_SSL = strtobool(os.getenv('DISABLE_SSL', 'YES'))
 
-    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 60))  # a hour
-
-    CELERYD_PREFETCH_MULTIPLIER = int(os.environ.get('CELERYD_PREFETCH_MULTIPLIER', 4))  # disable
+    TASK_RETRY_DELAY = int(os.environ.get('TASK_RETRY_DELAY', 60 * 15))  # a hour
 
 
 class ProductionConfig(Config):

@@ -91,17 +91,6 @@ def get_or_create_model(model_class, defaults=None, engine=None, **restrictions)
     return instance, True
 
 
-def load_img(img_path):
-    """Load an image."""
-    try:
-        with rasterio.open(img_path) as dataset:
-            img = dataset.read(1).flatten()
-        return img
-    except:
-        logging.error('Cannot find {}'.format(img_path))
-        raise RuntimeError('Cannot find {}'.format(img_path))
-
-
 def extractall(file, destination=None):
     """Extract zipfile."""
     archive = ZipFile(file, 'r')

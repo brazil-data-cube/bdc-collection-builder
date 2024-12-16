@@ -71,9 +71,9 @@ exclude_patterns = [
 html_theme = 'sphinx_rtd_theme'
 
 html_theme_options = {
-    'analytics_id': 'XXXXXXXXXX',
+    # 'analytics_id': 'XXXXXXXXXX',
     'logo_only': False,
-    'display_version': True,
+    # 'display_version': True,
     'prev_next_buttons_location': 'both',
     'style_external_links': True,
     # 'vcs_pageview_mode': 'edit',

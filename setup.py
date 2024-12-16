@@ -76,7 +76,6 @@ install_requires = [
     'shapely>=1.7,<2',
     # Build Error Fix
     "pydantic<2",
-    'docutils>=0.10,<0.15',
     'tifffile==2021.11.2',
     'imageio==2.10.3',
     'MarkupSafe==2.0.1',
@@ -137,4 +136,3 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
 )
-

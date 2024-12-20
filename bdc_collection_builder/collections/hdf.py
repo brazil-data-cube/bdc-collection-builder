@@ -72,7 +72,7 @@ def to_geotiff(hdf_path: str, destination: str, band_map: Dict[str, dict]) -> It
     for data_set_name, _ in data_set.GetSubDatasets():
         formal_name = data_set_name.split(":")[-1].replace('"', "")
         band_name = '_'.join(formal_name.split(' ')[3:])
-        if not band_name and base_name.startswith("MOD"):
+        if not band_name and (base_name.startswith("MOD") or base_name.startswith("MYD")):
             band_name = formal_name
 
         data_set = gdal.Open(data_set_name)

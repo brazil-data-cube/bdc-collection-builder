@@ -21,6 +21,12 @@ Changes
 =======
 
 
+Version 1.0.1 (2024-12-20)
+--------------------------
+
+- Fix HDF extract for MYD datasets (`300 <https://github.com/brazil-data-cube/bdc-collection-builder/issues/300>`_.)
+
+
 Version 1.0.0 (2024-12-16)
 --------------------------
 

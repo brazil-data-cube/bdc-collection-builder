@@ -20,6 +20,11 @@
 Changes
 =======
 
+Version 1.0.2 (2024-12-30)
+--------------------------
+
+- Upgrade bdc-collectors to 1.0.2 in order to fix bug related sentinel-2c scene parsing.
+
 
 Version 1.0.1 (2024-12-20)
 --------------------------

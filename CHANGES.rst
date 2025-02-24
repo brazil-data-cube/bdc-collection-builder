@@ -20,10 +20,10 @@
 Changes
 =======
 
-Version 1.0.2 (2024-12-30)
+Version 1.0.2 (2025-02-24)
 --------------------------
 
-- Upgrade bdc-collectors to 1.0.2 in order to fix bug related sentinel-2c scene parsing.
+- Upgrade bdc-collectors to 1.0.3 in order to fix bug related sentinel-2c scene parsing and Landsat API login-token (#303)
 
 
 Version 1.0.1 (2024-12-20)
